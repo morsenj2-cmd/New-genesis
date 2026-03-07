@@ -136,7 +136,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       layout = applyLayoutConstraints(layout, resolvedPageType);
       layout = simplifyIfNeeded(layout, resolvedPageType);
 
-      const layoutSigComponents = buildLayoutSigComponents(layout, genome);
+      const layoutSigComponents = buildLayoutSigComponents(seed, layout, genome, resolvedPageType);
       const layoutHash = computeLayoutHash(layoutSigComponents, seed);
       const previousGenomes: string[] = [];
       if (isLayoutTooSimilar(layoutHash, previousGenomes)) {
