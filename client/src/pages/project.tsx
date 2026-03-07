@@ -996,13 +996,28 @@ export default function ProjectPage() {
     if (project?.settingsJson) {
       try {
         const s = JSON.parse(project.settingsJson);
-        const patch: Record<string, string> = {};
+        const pc = s.promptContent;
+        const patch: Record<string, unknown> = {};
         if (s.brandName) patch.brandName = s.brandName;
-        if (s.promptContent?.headline) patch.headline = s.promptContent.headline;
-        if (s.promptContent?.subheadline) patch.subheadline = s.promptContent.subheadline;
-        if (s.promptContent?.ctaLabel) patch.ctaLabel = s.promptContent.ctaLabel;
+        if (pc) {
+          if (pc.headline)           patch.headline           = pc.headline;
+          if (pc.subheadline)        patch.subheadline        = pc.subheadline;
+          if (pc.ctaLabel)           patch.ctaLabel           = pc.ctaLabel;
+          if (pc.secondaryCtaLabel)  patch.secondaryCtaLabel  = pc.secondaryCtaLabel;
+          if (pc.ctaHeadline)        patch.ctaHeadline        = pc.ctaHeadline;
+          if (pc.ctaBody)            patch.ctaBody            = pc.ctaBody;
+          if (pc.ctaButtonLabel)     patch.ctaButtonLabel     = pc.ctaButtonLabel;
+          if (pc.featureGridTitle)   patch.featureGridTitle   = pc.featureGridTitle;
+          if (pc.cardListTitle)      patch.cardListTitle      = pc.cardListTitle;
+          if (pc.footerTagline)      patch.footerTagline      = pc.footerTagline;
+          if (pc.aboutMission)       patch.aboutMission       = pc.aboutMission;
+          if (Array.isArray(pc.features) && pc.features.length > 0)           patch.features      = pc.features;
+          if (Array.isArray(pc.stats) && pc.stats.length > 0)                 patch.stats         = pc.stats;
+          if (Array.isArray(pc.testimonials) && pc.testimonials.length > 0)   patch.testimonials  = pc.testimonials;
+          if (Array.isArray(pc.navLinks) && pc.navLinks.length > 0)           patch.navLinks      = pc.navLinks;
+        }
         if (Object.keys(patch).length > 0) {
-          setContentOverrides(prev => ({ ...prev, ...patch }));
+          setContentOverrides(prev => ({ ...prev, ...patch } as typeof prev));
         }
       } catch {}
     }

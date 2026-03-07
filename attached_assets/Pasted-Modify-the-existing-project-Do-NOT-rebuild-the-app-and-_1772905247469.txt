@@ -1,0 +1,148 @@
+Modify the existing project. Do NOT rebuild the app and do NOT modify Clerk authentication or the Neon database configuration.
+
+Goal
+Ensure all hero content and CTAs are generated strictly from the user's prompt context. 
+Remove generic SaaS template text and prevent automatic insertion of the brand name into the hero headline.
+
+------------------------------------------------
+1. REMOVE GENERIC TEMPLATE COPY
+------------------------------------------------
+
+The system currently injects default marketing text such as:
+
+"Start building today"
+"Build something incredible"
+"Built for teams that move fast"
+
+These must never appear unless the prompt explicitly implies SaaS tooling.
+
+Locate in:
+
+/lib/contentGenerator.ts
+/lib/siteGenerator.ts
+/lib/layoutEngine.ts
+
+Remove any default fallback hero copy.
+
+Replace with context-based generation only.
+
+------------------------------------------------
+2. CONTEXT-DRIVEN HERO GENERATION
+------------------------------------------------
+
+Rewrite hero generation logic.
+
+File
+
+/lib/contentGenerator.ts
+
+Hero content must be derived from:
+
+project.context.industry
+project.context.productType
+project.context.audience
+project.context.valueProposition
+
+Example
+
+Prompt:
+"Landing page for a multinational energy company"
+
+Generated hero:
+
+Headline
+"Powering the future of global energy"
+
+Subheadline
+"Reliable, sustainable solutions for industries and communities worldwide."
+
+CTA
+"Explore our solutions"
+
+------------------------------------------------
+3. REMOVE BRAND NAME FROM HERO HEADLINE
+------------------------------------------------
+
+Currently the system prepends the brand name:
+
+"Ngaer — build something incredible..."
+
+This must not happen automatically.
+
+Brand names should appear only in:
+
+Navbar
+Footer
+Meta tags
+
+Update hero renderer:
+
+/components/ui/Hero.tsx
+
+Ensure headline is generated from product messaging only.
+
+Do NOT concatenate:
+
+brand.name + headline
+
+------------------------------------------------
+4. CTA GENERATION FROM CONTEXT
+------------------------------------------------
+
+CTA text must reflect the industry.
+
+Example mapping:
+
+Energy company
+→ "Explore our solutions"
+
+Fintech
+→ "Start managing your finances"
+
+Cloud storage
+→ "Store your files securely"
+
+Remove generic CTAs like:
+
+"Start building"
+"Get started free"
+
+------------------------------------------------
+5. HERO VALIDATION RULE
+------------------------------------------------
+
+Add validation step before rendering.
+
+File
+
+/lib/designValidator.ts
+
+Rules
+
+Hero headline must reference product category or industry.
+
+Example
+
+If industry == energy
+
+headline must reference:
+
+energy
+power
+infrastructure
+sustainability
+grid
+renewables
+
+If not, regenerate hero text.
+
+------------------------------------------------
+6. RESULT
+------------------------------------------------
+
+After this update:
+
+• hero text reflects the user's prompt
+• generic SaaS copy disappears
+• brand name is not forced into the hero headline
+• CTA text matches the industry context

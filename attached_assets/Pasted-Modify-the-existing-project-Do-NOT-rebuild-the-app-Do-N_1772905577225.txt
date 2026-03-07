@@ -1,0 +1,206 @@
+Modify the existing project. Do NOT rebuild the app. Do NOT modify Clerk authentication or the Neon database configuration.
+
+Goal
+Enforce STRICT context-driven content generation so that every single word rendered in the generated website comes from the interpreted prompt context.
+
+No generic SaaS marketing phrases, template text, or brand name injection should appear unless explicitly derived from the prompt context.
+
+------------------------------------------------
+1. CONTEXT-FIRST GENERATION ARCHITECTURE
+------------------------------------------------
+
+Rewrite the generation pipeline so every piece of text must originate from the interpreted prompt context.
+
+New pipeline
+
+1 interpret prompt
+2 build context graph
+3 generate section structure
+4 generate content tokens
+5 assemble UI
+
+Files
+
+/lib/semanticInterpreter.ts
+/lib/siteGenerator.ts
+/lib/contentGenerator.ts
+
+------------------------------------------------
+2. CONTEXT GRAPH
+------------------------------------------------
+
+Create a structured context model.
+
+Example
+
+project.context = {
+industry
+companyType
+productType
+audience
+valueProposition
+services
+tone
+keywords
+}
+
+Example prompt
+
+"Landing page for a multinational energy company"
+
+Context graph
+
+industry: energy
+companyType: multinational energy company
+audience: enterprise clients, governments
+services:
+- power infrastructure
+- renewable energy
+- grid technology
+
+------------------------------------------------
+3. WORD-LEVEL CONTEXT GENERATION
+------------------------------------------------
+
+Content generation must be token-based instead of template-based.
+
+Each word must come from the context graph or derived semantic relations.
+
+Example
+
+Industry: energy
+
+Allowed vocabulary groups
+
+energy
+power
+grid
+infrastructure
+renewable
+sustainable
+global
+industrial
+utility
+engineering
+
+Words unrelated to the industry must not appear.
+
+------------------------------------------------
+4. REMOVE GENERIC MARKETING TEXT
+------------------------------------------------
+
+Delete any fallback copy such as
+
+Start building today
+Build something incredible
+Built for teams that move fast
+The platform your team has been waiting for
+
+Search and remove from
+
+/lib/contentGenerator.ts
+/lib/siteGenerator.ts
+/components/ui/Hero.tsx
+
+These must never be used as defaults.
+
+------------------------------------------------
+5. HERO TEXT RULES
+------------------------------------------------
+
+Hero headline must be generated strictly from context graph.
+
+Example
+
+Context: multinational energy company
+
+Headline examples
+
+"Powering global energy infrastructure"
+"Engineering the future of sustainable power"
+"Energy solutions for a connected world"
+
+------------------------------------------------
+6. BRAND NAME USAGE RULE
+------------------------------------------------
+
+The brand name must never be automatically inserted into the hero headline.
+
+Example forbidden pattern
+
+BrandName — headline text
+
+Hero headline must focus on product message only.
+
+Brand name may appear only in
+
+Navbar
+Footer
+Meta tags
+OpenGraph tags
+
+------------------------------------------------
+7. CTA GENERATION RULE
+------------------------------------------------
+
+CTAs must also be context-based.
+
+Energy company examples
+
+Explore our solutions
+View our projects
+Learn about our infrastructure
+
+Generic SaaS CTAs such as
+
+Get started free
+Start building today
+
+must never appear unless the context indicates SaaS software.
+
+------------------------------------------------
+8. CONTEXT VALIDATION
+------------------------------------------------
+
+Before rendering the page validate every content block.
+
+Validation rule
+
+Each word must match at least one of
+
+context keywords
+industry vocabulary
+semantic relations to the industry
+
+If not → regenerate the content block.
+
+File
+
+/lib/designValidator.ts
+
+------------------------------------------------
+9. SECTION CONTENT RULE
+------------------------------------------------
+
+Each section must reference the context.
+
+Example
+
+Feature grid for energy company
+
+Renewable energy systems
+Grid infrastructure
+Industrial power solutions
+Energy analytics
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After this update
+
+• every word on the generated website comes from the prompt context
+• generic SaaS marketing phrases disappear
+• hero headlines match the industry
+• brand names are not forced into taglines
+• CTAs are context-specific

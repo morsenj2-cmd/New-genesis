@@ -13,7 +13,7 @@ import { parseNLCommand, applyPatchesToGenome } from "@shared/nlParser";
 import { parseSettings, maybeApplyIndustryConstraints, detectIndustryFromText } from "@shared/saasConstraints";
 import { interpretIntent } from "@shared/intentInterpreter";
 import { getProductContext, generateContextualLayout, detectProductTypeFromText } from "@shared/productContextEngine";
-import { generatePromptContent } from "@shared/promptContent";
+import { generateContextContent } from "@shared/contextGraph";
 import { mergeDesignSources } from "@shared/designMerger";
 import { interpretSemantic } from "@shared/semanticInterpreter";
 import { generatePatches } from "@shared/patchGenerator";
@@ -91,8 +91,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const extractedProductName = intent.productName;
       const resolvedBrandName = explicitBrandName?.trim() || extractedProductName || null;
 
-      // Generate prompt-derived content (headline, subheadline, CTA)
-      const promptContent = generatePromptContent(prompt, intent.productType, resolvedBrandName);
+      // Generate full context-driven content from the prompt
+      const promptContent = generateContextContent(prompt, intent.productType, resolvedBrandName);
 
       const initialSettings = {
         uniqueIcons: detectedIndustry !== "saas",

@@ -3,6 +3,7 @@ import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { renderProductSection } from "./ProductComponents";
 import { getProductContent } from "@shared/contentGenerator";
+import type { FeatureItem, StatItem, TestimonialItem } from "@shared/contentGenerator";
 import {
   renderIconSvgContent,
   GROUP_ICONS,
@@ -14,9 +15,19 @@ export interface ContentOverrides {
   headline?: string;
   subheadline?: string;
   ctaLabel?: string;
+  secondaryCtaLabel?: string;
+  ctaHeadline?: string;
+  ctaBody?: string;
+  ctaButtonLabel?: string;
   brandName?: string;
   featureGridTitle?: string;
   cardListTitle?: string;
+  footerTagline?: string;
+  features?: FeatureItem[];
+  stats?: StatItem[];
+  testimonials?: TestimonialItem[];
+  navLinks?: string[];
+  aboutMission?: string;
 }
 
 export type PreviewPage = "home" | "features" | "pricing" | "about" | "blog" | "contact";
@@ -163,7 +174,7 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.lg }}>
-        {PAGE_NAV_LINKS.map(({ label, page }) => (
+        {PAGE_NAV_LINKS.map(({ label, page }, i) => (
           <span
             key={page}
             onClick={() => onNavigate?.(page)}
@@ -179,7 +190,7 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
               transition: "color 0.15s",
             }}
           >
-            {label}
+            {contentOverrides?.navLinks?.[i] ?? label}
           </span>
         ))}
         <GenomeButton genome={genome} variant="primary">Get Started</GenomeButton>
@@ -203,6 +214,7 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
   const effectiveHeadline = contentOverrides?.headline || content.headline;
   const effectiveSubheadline = contentOverrides?.subheadline || content.subheadline;
   const effectiveCtaLabel = contentOverrides?.ctaLabel || content.ctaLabel;
+  const effectiveSecondaryCtaLabel = contentOverrides?.secondaryCtaLabel || content.secondaryCtaLabel;
   const headlineWords = effectiveHeadline.split(" ");
   const midpoint = Math.ceil(headlineWords.length / 2);
 
@@ -252,7 +264,7 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
         </p>
         <div style={{ display: "flex", gap: genome.spacing.sm, flexWrap: "wrap", justifyContent: align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start" }}>
           <GenomeButton genome={genome} variant="primary">{effectiveCtaLabel}</GenomeButton>
-          <GenomeButton genome={genome} variant="outline">{content.secondaryCtaLabel}</GenomeButton>
+          <GenomeButton genome={genome} variant="outline">{effectiveSecondaryCtaLabel}</GenomeButton>
         </div>
       </div>
       {hasImage && (
@@ -277,10 +289,11 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
 }
 
 export function GenomeFeatureGrid({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, productType } = tokens;
+  const { genome, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
-  const cols = Math.min(section.columns ?? 3, content.features.length);
-  const features = content.features.slice(0, Math.max(cols, 3));
+  const effectiveFeatures = contentOverrides?.features ?? content.features;
+  const cols = Math.min(section.columns ?? 3, effectiveFeatures.length);
+  const features = effectiveFeatures.slice(0, Math.max(cols, 3));
   const textAlign = section.alignment === "center" ? "center" : section.alignment === "right" ? "right" : "left";
 
   return (
@@ -303,7 +316,7 @@ export function GenomeFeatureGrid({ tokens, section }: { tokens: GenomeTokens; s
             letterSpacing: "-0.02em",
           }}
         >
-          {content.featureGridTitle}
+          {contentOverrides?.featureGridTitle ?? content.featureGridTitle}
         </h2>
         <div
           style={{
@@ -366,9 +379,10 @@ export function GenomeFeatureGrid({ tokens, section }: { tokens: GenomeTokens; s
 }
 
 export function GenomeCardList({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, productType } = tokens;
+  const { genome, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
-  const count = Math.min(section.cardCount ?? 3, content.features.length);
+  const effectiveFeatures = contentOverrides?.features ?? content.features;
+  const count = Math.min(section.cardCount ?? 3, effectiveFeatures.length);
   const textAlign = section.alignment === "center" ? "center" : section.alignment === "right" ? "right" : "left";
 
   return (
@@ -391,7 +405,7 @@ export function GenomeCardList({ tokens, section }: { tokens: GenomeTokens; sect
             letterSpacing: "-0.02em",
           }}
         >
-          {content.cardListTitle}
+          {contentOverrides?.cardListTitle ?? content.cardListTitle}
         </h2>
         <div
           style={{
@@ -400,7 +414,7 @@ export function GenomeCardList({ tokens, section }: { tokens: GenomeTokens; sect
             gap: "16px",
           }}
         >
-          {content.features.slice(0, count).map((f, i) => (
+          {effectiveFeatures.slice(0, count).map((f, i) => (
             <div
               key={i}
               data-testid={`genome-card-${i}`}
@@ -447,9 +461,10 @@ export function GenomeCardList({ tokens, section }: { tokens: GenomeTokens; sect
 }
 
 export function GenomeStats({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, productType } = tokens;
+  const { genome, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
-  const cols = Math.min(section.columns ?? 4, content.stats.length);
+  const effectiveStats = contentOverrides?.stats ?? content.stats;
+  const cols = Math.min(section.columns ?? 4, effectiveStats.length);
 
   return (
     <section
@@ -471,7 +486,7 @@ export function GenomeStats({ tokens, section }: { tokens: GenomeTokens; section
           textAlign: "center",
         }}
       >
-        {content.stats.slice(0, cols).map((stat) => (
+        {effectiveStats.slice(0, cols).map((stat) => (
           <div
             key={stat.label}
             style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
@@ -507,9 +522,10 @@ export function GenomeStats({ tokens, section }: { tokens: GenomeTokens; section
 }
 
 export function GenomeTestimonial({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, productType } = tokens;
+  const { genome, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
-  const count = Math.min(section.cardCount ?? 2, content.testimonials.length);
+  const effectiveTestimonials = contentOverrides?.testimonials ?? content.testimonials;
+  const count = Math.min(section.cardCount ?? 2, effectiveTestimonials.length);
 
   return (
     <section
@@ -540,7 +556,7 @@ export function GenomeTestimonial({ tokens, section }: { tokens: GenomeTokens; s
             gap: "24px",
           }}
         >
-          {content.testimonials.slice(0, count).map((q, i) => (
+          {effectiveTestimonials.slice(0, count).map((q, i) => (
             <div
               key={i}
               style={{
@@ -601,7 +617,7 @@ export function GenomeTestimonial({ tokens, section }: { tokens: GenomeTokens; s
 }
 
 export function GenomeCTA({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, productType } = tokens;
+  const { genome, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
   const align = section.alignment;
   const textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
@@ -636,7 +652,7 @@ export function GenomeCTA({ tokens, section }: { tokens: GenomeTokens; section: 
             margin: 0,
           }}
         >
-          {content.ctaHeadline}
+          {contentOverrides?.ctaHeadline ?? content.ctaHeadline}
         </h2>
         <p
           style={{
@@ -648,7 +664,7 @@ export function GenomeCTA({ tokens, section }: { tokens: GenomeTokens; section: 
             lineHeight: 1.6,
           }}
         >
-          {content.ctaBody}
+          {contentOverrides?.ctaBody ?? content.ctaBody}
         </p>
         <span
           style={{
@@ -663,7 +679,7 @@ export function GenomeCTA({ tokens, section }: { tokens: GenomeTokens; section: 
             cursor: "pointer",
           }}
         >
-          {content.ctaButtonLabel} →
+          {contentOverrides?.ctaButtonLabel ?? content.ctaButtonLabel} →
         </span>
       </div>
     </section>
@@ -726,7 +742,7 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
               margin: 0,
             }}
           >
-            {content.footerTagline}
+            {contentOverrides?.footerTagline ?? content.footerTagline}
           </p>
         </div>
         {footerLinks.map((col) => (
