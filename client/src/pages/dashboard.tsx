@@ -77,7 +77,7 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
-function GuestHero({ onCreateClick }: { onCreateClick: () => void }) {
+function GuestHero() {
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
       <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-8">
@@ -88,29 +88,20 @@ function GuestHero({ onCreateClick }: { onCreateClick: () => void }) {
         style={{ fontFamily: "'Arimo', sans-serif" }}
         data-testid="text-hero-tagline"
       >
-        Build unique website designs in minutes
+        Make your vibecoded website unique in minutes
       </h2>
       <p
-        className="text-lg text-muted-foreground mb-10"
+        className="text-lg text-muted-foreground"
         style={{ fontFamily: "'Arimo', sans-serif" }}
         data-testid="text-hero-sub"
       >
         No code needed!
       </p>
-      <Button
-        onClick={onCreateClick}
-        size="lg"
-        className="gap-2 px-8"
-        data-testid="button-guest-create"
-      >
-        <Plus className="h-5 w-5" />
-        Create a project
-      </Button>
     </div>
   );
 }
 
-function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
+function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
       <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
@@ -121,7 +112,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
         style={{ fontFamily: "'Arimo', sans-serif" }}
         data-testid="text-hero-tagline-auth"
       >
-        Build unique website designs in minutes
+        Make your vibecoded website unique in minutes
       </h2>
       <p
         className="text-lg text-muted-foreground mb-8"
@@ -129,13 +120,9 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
       >
         No code needed!
       </p>
-      <p className="text-muted-foreground text-sm max-w-sm mb-8 leading-relaxed">
+      <p className="text-muted-foreground text-sm max-w-sm leading-relaxed">
         Create your first project to get started. Set up your brand and describe what you want to build.
       </p>
-      <Button onClick={onCreateClick} data-testid="button-new-project-empty" className="gap-2">
-        <Plus className="h-4 w-4" />
-        Start a project
-      </Button>
     </div>
   );
 }
@@ -230,11 +217,11 @@ export default function DashboardPage() {
 
           <main className="flex-1 overflow-y-auto p-6">
             {!isSignedIn && isLoaded ? (
-              <GuestHero onCreateClick={handleCreateClick} />
+              <GuestHero />
             ) : isLoading ? (
               <ProjectGridSkeleton />
             ) : !projects || projects.length === 0 ? (
-              <EmptyState onCreateClick={handleCreateClick} />
+              <EmptyState />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projects.map((project) => (
