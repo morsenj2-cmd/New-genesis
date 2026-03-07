@@ -163,6 +163,16 @@ const FEATURE_KEYWORDS: Record<string, string> = {
   "workflow":             "workflow",
 };
 
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(t => t.length > 0);
+}
+
 function detectFontHint(text: string): string | null {
   for (const [keyword, fontName] of Object.entries(FONT_NAME_MAP)) {
     if (text.includes(keyword)) {
@@ -174,9 +184,11 @@ function detectFontHint(text: string): string | null {
 
 function detectLogoColor(text: string): string | null {
   const logoPatterns = [
-    /logo\s+(?:color\s+)?(?:to\s+|is\s+)?(\w+)/,
-    /(?:make|set|change)\s+(?:the\s+)?(?:\w+\s+)?logo\s+(?:color\s+)?(?:to\s+)?(\w+)/,
+    /logo\s+(?:color\s+)?(?:to\s+|is\s+|be\s+)?(\w+)/,
+    /(?:make|set|change|turn)\s+(?:the\s+)?(?:\w+\s+)*logo\s+(?:color\s+)?(?:to\s+)?(\w+)/,
+    /logo\s+should\s+(?:be\s+)?(\w+)/,
     /logo\s+(?:color\s+)?=\s*(\w+)/,
+    /(\w+)\s+(?:colored?\s+)?logo/,
   ];
   for (const pattern of logoPatterns) {
     const match = text.match(pattern);
@@ -184,47 +196,115 @@ function detectLogoColor(text: string): string | null {
       return COLOR_KEYWORDS[match[1]];
     }
   }
+
+  const tokens = tokenize(text);
+  const logoIdx = tokens.indexOf("logo");
+  if (logoIdx !== -1) {
+    for (let offset = -3; offset <= 3; offset++) {
+      if (offset === 0) continue;
+      const candidate = tokens[logoIdx + offset];
+      if (candidate && COLOR_KEYWORDS[candidate]) {
+        return COLOR_KEYWORDS[candidate];
+      }
+    }
+  }
   return null;
 }
 
 function detectSpacingHint(text: string): "increase" | "decrease" | null {
-  const decrease = ["reduce spacing", "less spacing", "tight spacing", "compact", "reduce padding",
-    "less padding", "smaller spacing", "decrease spacing", "narrow spacing"];
-  const increase = ["increase spacing", "more spacing", "spacious", "airy", "more padding",
-    "larger spacing", "bigger spacing", "open layout", "more whitespace", "more white space"];
+  const tokens = tokenize(text);
+  const decrease = [
+    "reduce spacing", "less spacing", "tight spacing", "compact", "reduce padding",
+    "less padding", "smaller spacing", "decrease spacing", "narrow spacing",
+    "tighter spacing", "condense", "condensed",
+  ];
+  const increase = [
+    "increase spacing", "more spacing", "spacious", "airy", "more padding",
+    "larger spacing", "bigger spacing", "open layout", "more whitespace", "more white space",
+    "expand spacing", "wider spacing", "breathe",
+  ];
   if (decrease.some(p => text.includes(p))) return "decrease";
   if (increase.some(p => text.includes(p))) return "increase";
+
+  const spacingIdx = tokens.findIndex(t => ["spacing", "space", "padding", "gaps", "gap"].includes(t));
+  if (spacingIdx !== -1) {
+    const nearby = tokens.slice(Math.max(0, spacingIdx - 3), spacingIdx + 3);
+    if (nearby.some(t => ["increase", "more", "add", "bigger", "larger", "wider"].includes(t))) return "increase";
+    if (nearby.some(t => ["decrease", "reduce", "less", "smaller", "tighter", "narrow"].includes(t))) return "decrease";
+  }
   return null;
 }
 
 function detectRadiusHint(text: string): "increase" | "decrease" | null {
-  const increase = ["rounded", "round corners", "soft corners", "pill", "pill buttons",
-    "more rounded", "circular", "more round"];
-  const decrease = ["sharp corners", "square corners", "no rounded", "no round", "sharp buttons",
-    "angular", "straight corners", "less rounded", "flat corners"];
+  const tokens = tokenize(text);
+  const increase = [
+    "rounded", "round corners", "soft corners", "pill", "pill buttons",
+    "more rounded", "circular", "more round", "make corners round",
+    "make rounded", "rounder", "smooth corners", "curved",
+  ];
+  const decrease = [
+    "sharp corners", "square corners", "no rounded", "no round", "sharp buttons",
+    "angular", "straight corners", "less rounded", "flat corners",
+    "make corners sharp", "sharp edges", "boxy", "no radius",
+  ];
   if (decrease.some(p => text.includes(p))) return "decrease";
   if (increase.some(p => text.includes(p))) return "increase";
+
+  const cornerIdx = tokens.findIndex(t => ["corners", "corner", "radius", "buttons"].includes(t));
+  if (cornerIdx !== -1) {
+    const nearby = tokens.slice(Math.max(0, cornerIdx - 3), cornerIdx + 3);
+    if (nearby.some(t => ["round", "rounded", "smooth", "soft", "curved"].includes(t))) return "increase";
+    if (nearby.some(t => ["sharp", "square", "flat", "angular", "straight"].includes(t))) return "decrease";
+  }
+
+  if (tokens.includes("rounded") && !tokens.includes("less") && !tokens.includes("remove")) return "increase";
+  if (tokens.includes("sharp") && tokens.some(t => ["make", "be", "use"].includes(t))) return "decrease";
+
   return null;
 }
 
 function detectBackgroundHint(text: string): "light" | "dark" | null {
-  const light = ["light background", "white background", "light mode", "bright background",
-    "light theme", "make it light", "light color scheme"];
-  const dark = ["dark background", "black background", "dark mode", "dark theme",
-    "make it dark", "dark color scheme"];
+  const light = [
+    "light background", "white background", "light mode", "bright background",
+    "light theme", "make it light", "light color scheme", "bright mode",
+  ];
+  const dark = [
+    "dark background", "black background", "dark mode", "dark theme",
+    "make it dark", "dark color scheme",
+  ];
   if (light.some(p => text.includes(p))) return "light";
   if (dark.some(p => text.includes(p))) return "dark";
+
+  const tokens = tokenize(text);
+  const bgIdx = tokens.findIndex(t => ["background", "bg", "theme", "mode"].includes(t));
+  if (bgIdx !== -1) {
+    const nearby = tokens.slice(Math.max(0, bgIdx - 3), bgIdx + 3);
+    if (nearby.some(t => ["light", "white", "bright", "pale"].includes(t))) return "light";
+    if (nearby.some(t => ["dark", "black", "night", "dim"].includes(t))) return "dark";
+  }
   return null;
 }
 
 function detectTextSizeHint(text: string): "increase" | "decrease" | null {
-  const increase = ["larger text", "bigger text", "increase font size", "larger font",
+  const increase = [
+    "larger text", "bigger text", "increase font size", "larger font",
     "bigger font", "make text larger", "make text bigger", "increase text size",
-    "more readable", "increase typography"];
-  const decrease = ["smaller text", "smaller font", "reduce font size", "decrease font size",
-    "make text smaller", "reduce text size", "decrease typography"];
+    "more readable", "increase typography", "larger type",
+  ];
+  const decrease = [
+    "smaller text", "smaller font", "reduce font size", "decrease font size",
+    "make text smaller", "reduce text size", "decrease typography", "compact text",
+  ];
   if (increase.some(p => text.includes(p))) return "increase";
   if (decrease.some(p => text.includes(p))) return "decrease";
+
+  const tokens = tokenize(text);
+  const textIdx = tokens.findIndex(t => ["text", "font", "type", "typography", "size"].includes(t));
+  if (textIdx !== -1) {
+    const nearby = tokens.slice(Math.max(0, textIdx - 3), textIdx + 3);
+    if (nearby.some(t => ["larger", "bigger", "increase", "large", "more"].includes(t))) return "increase";
+    if (nearby.some(t => ["smaller", "smaller", "decrease", "small", "less"].includes(t))) return "decrease";
+  }
   return null;
 }
 
@@ -294,9 +374,9 @@ export function interpretIntent(input: string): InterpretedIntent {
     }
   }
 
-  let colorHint: string | null = null;
   const logoColorHint = detectLogoColor(text);
 
+  let colorHint: string | null = null;
   if (!logoColorHint) {
     for (const [word, color] of Object.entries(COLOR_KEYWORDS)) {
       if (new RegExp(`\\b${word}\\b`).test(text)) {

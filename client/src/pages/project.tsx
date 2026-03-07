@@ -44,6 +44,7 @@ import {
   Unlock,
   LayoutTemplate as LayoutIcon,
   Wand2,
+  PenLine,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -76,6 +77,7 @@ import {
 } from "@shared/iconGenerator";
 import { GenomePreview } from "@/components/genome-ui";
 import { NLDesigner } from "@/components/NLDesigner";
+import { CanvasEditor, type ContentOverrides } from "@/components/CanvasEditor";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -976,6 +978,8 @@ export default function ProjectPage() {
   const [iteration, setIteration] = useState(0);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isRegeneratingLayout, setIsRegeneratingLayout] = useState(false);
+  const [canvasMode, setCanvasMode] = useState(false);
+  const [contentOverrides, setContentOverrides] = useState<ContentOverrides>({});
 
   useEffect(() => {
     if (project?.seed && baseGenome && baseLayout) {
@@ -1172,6 +1176,16 @@ export default function ProjectPage() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Button
+                    variant={canvasMode ? "default" : "outline"}
+                    size="sm"
+                    className="gap-1.5 text-xs h-8"
+                    onClick={() => setCanvasMode(!canvasMode)}
+                    data-testid="button-canvas-mode"
+                  >
+                    <PenLine className="h-3.5 w-3.5" />
+                    {canvasMode ? "Exit Canvas" : "Canvas"}
+                  </Button>
+                  <Button
                     variant="outline"
                     size="sm"
                     className="gap-1.5 text-xs h-8"
@@ -1252,18 +1266,33 @@ export default function ProjectPage() {
                 onNLApplied={handleNLApplied}
               />
 
-              <main className="flex-1 overflow-y-auto bg-muted/10" data-testid="section-website-preview">
+              <main className="flex-1 overflow-hidden bg-muted/10 flex flex-col" data-testid="section-website-preview">
                 {displayGenome && activeLayout ? (
-                  <div className="min-h-full">
-                    <GenomePreview
+                  canvasMode ? (
+                    <CanvasEditor
                       genome={displayGenome}
                       layout={activeLayout}
                       projectName={project.name}
                       projectPrompt={project.prompt}
                       projectLogoUrl={project.logoUrl}
                       productType={effectiveProductType}
+                      contentOverrides={contentOverrides}
+                      onContentChange={setContentOverrides}
+                      onLayoutChange={(newLayout) => setActiveLayout(newLayout)}
                     />
-                  </div>
+                  ) : (
+                    <div className="flex-1 overflow-y-auto">
+                      <GenomePreview
+                        genome={displayGenome}
+                        layout={activeLayout}
+                        projectName={project.name}
+                        projectPrompt={project.prompt}
+                        projectLogoUrl={project.logoUrl}
+                        productType={effectiveProductType}
+                        contentOverrides={contentOverrides}
+                      />
+                    </div>
+                  )
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full min-h-64 p-8 text-center">
                     <Dna className="h-10 w-10 text-muted-foreground mb-3" />

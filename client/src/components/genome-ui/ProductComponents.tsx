@@ -1,10 +1,12 @@
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutSection } from "@shared/layoutEngine";
+import { getProductContent } from "@shared/contentGenerator";
 
 export interface GenomeTokens {
   genome: DesignGenome;
   projectName: string;
   projectPrompt: string;
+  productType?: string | null;
 }
 
 interface R { tokens: GenomeTokens; section: LayoutSection }
@@ -92,12 +94,13 @@ function IconBox({ children, size = 32, tokens }: { children: React.ReactNode; s
 }
 
 export function FileUploaderSection({ tokens }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
   return (
     <SectionWrap tokens={tokens}>
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         <h2 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["2xl"], fontWeight: 700, color: TEXT_COLOR, marginBottom: genome.spacing.sm }}>
-          {projectName}
+          {brandName}
         </h2>
         <p style={{ color: TEXT_MUTED, marginBottom: genome.spacing.xl, fontSize: genome.typography.sizes.sm }}>
           Secure cloud storage for your files, documents, and media.
@@ -348,7 +351,7 @@ export function ChatListSection({ tokens }: R) {
 }
 
 export function MessageBubblesSection({ tokens }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
   const messages = [
     { text: "Hey, have you reviewed the new dashboard designs?", own: false, time: "10:12 AM" },
     { text: "Just finished going through them! Really clean layout.", own: true, time: "10:14 AM" },
@@ -359,7 +362,7 @@ export function MessageBubblesSection({ tokens }: R) {
   return (
     <SectionWrap tokens={tokens}>
       <h3 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, color: TEXT_COLOR, fontSize: genome.typography.sizes.lg, fontWeight: 700, marginBottom: genome.spacing.lg, textAlign: "center" }}>
-        {projectName}
+        Team Conversations
       </h3>
       <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: genome.spacing.md }}>
         {messages.map((m, i) => (
@@ -648,7 +651,8 @@ export function MetricCardsSection({ tokens }: R) {
 }
 
 export function ProductGridSection({ tokens, section }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
   const products = [
     { name: "Pro Wireless Headphones", price: "$149.99", rating: 4.8, reviews: 2341, badge: "Best Seller", icon: "🎧" },
     { name: "Mechanical Keyboard", price: "$89.00", rating: 4.6, reviews: 1205, badge: "New", icon: "⌨️" },
@@ -662,7 +666,7 @@ export function ProductGridSection({ tokens, section }: R) {
   return (
     <SectionWrap tokens={tokens}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: genome.spacing.lg }}>
-        <h3 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, color: TEXT_COLOR, fontSize: genome.typography.sizes.lg, fontWeight: 700 }}>{projectName}</h3>
+        <h3 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, color: TEXT_COLOR, fontSize: genome.typography.sizes.lg, fontWeight: 700 }}>{brandName} Store</h3>
         <Badge bg={hex(genome.colors.primary, 0.15)} color={genome.colors.primary}>View All →</Badge>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: genome.spacing.lg }}>
@@ -971,11 +975,12 @@ export function BillingPlanSection({ tokens }: R) {
 }
 
 export function CodeEditorSection({ tokens, section }: R) {
-  const { genome, projectName } = tokens;
-  const code = `import { ${projectName.split(" ")[0]}Client } from '@morse/sdk';
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
+  const code = `import { ${brandName.split(" ")[0]}Client } from '@morse/sdk';
 
 // Initialize the client
-const client = new ${projectName.split(" ")[0]}Client({
+const client = new ${brandName.split(" ")[0]}Client({
   apiKey: process.env.API_KEY,
   region: 'us-east-1',
 });
@@ -1009,7 +1014,7 @@ async function uploadFile(file: File) {
             Powerful API, Simple Integration
           </h2>
           <p style={{ color: TEXT_MUTED, fontSize: 13, lineHeight: 1.6, marginBottom: genome.spacing.lg }}>
-            Integrate {projectName} into your app in minutes. Our SDK supports TypeScript, Python, Go, and more.
+            Integrate {brandName} into your app in minutes. Our SDK supports TypeScript, Python, Go, and more.
           </p>
           {["TypeScript SDK", "REST API", "Webhooks", "CLI Tools"].map(f => (
             <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: genome.spacing.sm }}>
@@ -1040,11 +1045,12 @@ async function uploadFile(file: File) {
 }
 
 export function VideoPlayerSection({ tokens }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
   return (
     <SectionWrap tokens={tokens}>
       <div style={{ maxWidth: 680, margin: "0 auto" }}>
-        <h3 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, color: TEXT_COLOR, fontSize: genome.typography.sizes.xl, fontWeight: 700, marginBottom: genome.spacing.sm }}>{projectName}</h3>
+        <h3 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, color: TEXT_COLOR, fontSize: genome.typography.sizes.xl, fontWeight: 700, marginBottom: genome.spacing.sm }}>{brandName}</h3>
         <Card tokens={tokens} style={{ padding: 0, overflow: "hidden", marginBottom: genome.spacing.lg }}>
           <div style={{ height: 300, background: `linear-gradient(135deg, ${hex(genome.colors.primary, 0.15)}, ${hex(genome.colors.secondary, 0.15)})`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
             <button style={{ width: 64, height: 64, borderRadius: "50%", background: genome.colors.primary, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>▶</button>
@@ -1153,7 +1159,8 @@ export function CalendarViewSection({ tokens }: R) {
 }
 
 export function ProfileHeroSection({ tokens }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
   const stats = [
     { label: "Followers", value: "12.4K" },
     { label: "Following", value: "891" },
@@ -1167,14 +1174,14 @@ export function ProfileHeroSection({ tokens }: R) {
         <Card tokens={tokens} style={{ borderTop: "none", borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: genome.spacing.md }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", background: genome.colors.primary, border: `4px solid ${genome.colors.surface}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 28, fontWeight: 700, marginTop: -50 }}>
-              {projectName[0]}
+              {brandName[0]}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button style={{ padding: "6px 16px", borderRadius: genome.radius.md, background: hex(genome.colors.primary, 0.1), border: "none", color: genome.colors.primary, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Message</button>
               <button style={{ padding: "6px 16px", borderRadius: genome.radius.md, background: genome.colors.primary, border: "none", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Follow</button>
             </div>
           </div>
-          <h2 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, color: TEXT_COLOR, fontWeight: 700, fontSize: genome.typography.sizes.lg }}>{projectName}</h2>
+          <h2 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, color: TEXT_COLOR, fontWeight: 700, fontSize: genome.typography.sizes.lg }}>{brandName}</h2>
           <p style={{ color: TEXT_MUTED, fontSize: 13, marginTop: 4, marginBottom: genome.spacing.md }}>Building better experiences. Creator, designer, thinker.</p>
           <div style={{ display: "flex", gap: genome.spacing.xl }}>
             {stats.map(s => (
@@ -1233,14 +1240,15 @@ export function FeedPostsSection({ tokens, section }: R) {
 }
 
 export function SaasHeroSection({ tokens }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
   return (
     <SectionWrap tokens={tokens}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: genome.spacing["2xl"], alignItems: "center" }}>
         <div>
           <Badge bg={hex(genome.colors.primary, 0.1)} color={genome.colors.primary} >New: AI-powered insights →</Badge>
           <h1 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["3xl"], fontWeight: 800, color: TEXT_COLOR, lineHeight: 1.15, marginTop: genome.spacing.md, marginBottom: genome.spacing.md }}>
-            {projectName}<br />
+            {brandName}<br />
             <span style={{ color: genome.colors.primary }}>Supercharged</span>
           </h1>
           <p style={{ color: TEXT_MUTED, fontSize: genome.typography.sizes.base, lineHeight: 1.7, marginBottom: genome.spacing.xl }}>
@@ -1288,7 +1296,8 @@ export function SaasHeroSection({ tokens }: R) {
 }
 
 export function ChatHeroSection({ tokens }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
   return (
     <SectionWrap tokens={tokens}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: genome.spacing["2xl"], alignItems: "center" }}>
@@ -1297,7 +1306,7 @@ export function ChatHeroSection({ tokens }: R) {
             Where teams<br /><span style={{ color: genome.colors.primary }}>communicate</span>
           </h1>
           <p style={{ color: TEXT_MUTED, fontSize: genome.typography.sizes.base, lineHeight: 1.7, marginBottom: genome.spacing.xl }}>
-            {projectName} brings all your team conversations, files, and tools together in one powerful platform.
+            {brandName} brings all your team conversations, files, and tools together in one powerful platform.
           </p>
           <div style={{ display: "flex", gap: genome.spacing.md }}>
             <button style={{ padding: "12px 24px", borderRadius: genome.radius.md, background: genome.colors.primary, border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Launch App</button>
@@ -1342,7 +1351,8 @@ export function ChatHeroSection({ tokens }: R) {
 }
 
 export function ProductHeroSection({ tokens }: R) {
-  const { genome, projectName } = tokens;
+  const { genome } = tokens;
+  const brandName = getProductContent(tokens.productType).brandName;
   return (
     <SectionWrap tokens={tokens}>
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: genome.spacing["2xl"], alignItems: "center" }}>
@@ -1352,7 +1362,7 @@ export function ProductHeroSection({ tokens }: R) {
         <div>
           <Badge bg={hex(genome.colors.accent, 0.15)} color={genome.colors.accent}>New Arrival</Badge>
           <h1 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["2xl"], fontWeight: 800, color: TEXT_COLOR, lineHeight: 1.2, marginTop: genome.spacing.sm, marginBottom: genome.spacing.sm }}>
-            {projectName}
+            {brandName}
           </h1>
           <div style={{ display: "flex", gap: 4, marginBottom: genome.spacing.sm }}>
             {"★★★★★".split("").map((s, i) => <span key={i} style={{ color: "#f59e0b", fontSize: 16 }}>{s}</span>)}

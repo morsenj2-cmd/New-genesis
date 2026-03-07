@@ -10,12 +10,22 @@ import {
   type IconName,
 } from "@shared/iconGenerator";
 
+export interface ContentOverrides {
+  headline?: string;
+  subheadline?: string;
+  ctaLabel?: string;
+  brandName?: string;
+  featureGridTitle?: string;
+  cardListTitle?: string;
+}
+
 export interface GenomeTokens {
   genome: DesignGenome;
   projectName: string;
   projectPrompt: string;
   projectLogoUrl?: string | null;
   productType?: string | null;
+  contentOverrides?: ContentOverrides;
 }
 
 function toIconStyle(genome: DesignGenome): GenomeIconStyle {
@@ -93,11 +103,13 @@ function GenomeButton({
 }
 
 export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
-  const { genome, projectName, projectLogoUrl, productType } = tokens;
+  const { genome, projectName, projectLogoUrl, productType, contentOverrides } = tokens;
+  const content = getProductContent(productType);
   const navLinks = getNavLinks(productType);
   const logoColor = (genome as any).branding?.logoColor ?? genome.colors.primary;
   const logoFont = (genome as any).branding?.logoFont ?? genome.typography.heading;
   const logoWeight = (genome as any).branding?.logoWeight ?? 700;
+  const displayBrandName = contentOverrides?.brandName || content.brandName;
   return (
     <nav
       data-testid="genome-navbar"
@@ -131,7 +143,7 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
             letterSpacing: "-0.02em",
           }}
         >
-          {projectName}
+          {displayBrandName}
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.lg }}>
@@ -156,7 +168,7 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
 }
 
 export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, projectName, productType } = tokens;
+  const { genome, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
   const align = section.alignment;
   const hasImage = section.imagePlacement !== "none";
@@ -167,7 +179,10 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
     hasImage && section.imagePlacement === "right" ? "row-reverse" :
     "column";
 
-  const headlineWords = content.headline.split(" ");
+  const effectiveHeadline = contentOverrides?.headline || content.headline;
+  const effectiveSubheadline = contentOverrides?.subheadline || content.subheadline;
+  const effectiveCtaLabel = contentOverrides?.ctaLabel || content.ctaLabel;
+  const headlineWords = effectiveHeadline.split(" ");
   const midpoint = Math.ceil(headlineWords.length / 2);
 
   return (
@@ -199,7 +214,7 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
         >
           <GIcon name="broadcast" genome={genome} size={13} color={genome.colors.accent} />
           <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.accent, fontWeight: 600 }}>
-            {projectName}
+            {content.brandName}
           </span>
         </div>
         <h1
@@ -228,10 +243,10 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
             margin: 0,
           }}
         >
-          {content.subheadline}
+          {effectiveSubheadline}
         </p>
         <div style={{ display: "flex", gap: genome.spacing.sm, flexWrap: "wrap", justifyContent: align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start" }}>
-          <GenomeButton genome={genome} variant="primary">{content.ctaLabel}</GenomeButton>
+          <GenomeButton genome={genome} variant="primary">{effectiveCtaLabel}</GenomeButton>
           <GenomeButton genome={genome} variant="outline">{content.secondaryCtaLabel}</GenomeButton>
         </div>
       </div>
@@ -651,8 +666,9 @@ export function GenomeCTA({ tokens, section }: { tokens: GenomeTokens; section: 
 }
 
 export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
-  const { genome, projectName, productType } = tokens;
+  const { genome, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
+  const displayBrandName = contentOverrides?.brandName || content.brandName;
   const footerLinks = [
     { group: "Product", links: ["Features", "Pricing", "Changelog"] },
     { group: "Resources", links: ["Docs", "API", "Guides"] },
@@ -687,7 +703,7 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
                 color: genome.colors.primary,
               }}
             >
-              {projectName}
+              {displayBrandName}
             </span>
           </div>
           <p
@@ -753,7 +769,7 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
             opacity: 0.6,
           }}
         >
-          © {new Date().getFullYear()} {projectName}. All rights reserved.
+          © {new Date().getFullYear()} {displayBrandName}. All rights reserved.
         </span>
         <div style={{ display: "flex", gap: genome.spacing.md }}>
           {(["chat", "broadcast", "mail"] as IconName[]).map((icon) => (
@@ -812,6 +828,7 @@ export function GenomePreview({
   projectPrompt,
   projectLogoUrl,
   productType,
+  contentOverrides,
 }: {
   genome: DesignGenome;
   layout: LayoutGraph;
@@ -819,8 +836,9 @@ export function GenomePreview({
   projectPrompt: string;
   projectLogoUrl?: string | null;
   productType?: string | null;
+  contentOverrides?: ContentOverrides;
 }) {
-  const tokens: GenomeTokens = { genome, projectName, projectPrompt, projectLogoUrl, productType };
+  const tokens: GenomeTokens = { genome, projectName, projectPrompt, projectLogoUrl, productType, contentOverrides };
   useGenomeFonts(genome);
 
   return (

@@ -28,7 +28,9 @@ Key features:
   - Gradients: "remove gradients", "no gradients"
 - Branding tokens: `genome.branding.logoColor/logoFont/logoWeight` — GenomeNavbar applies these to logo text and icon color
 - Design Source Priority: user's uploaded logo, selected font, selected primary color always override generator output via `mergeDesignSources()` in `shared/designMerger.ts`
-- Content Generator: category-specific headlines, subheadlines, CTA labels, features, stats, testimonials, CTA copy, and footer taglines from `shared/contentGenerator.ts` — 14 product types each with realistic copy
+- Content Generator: category-specific headlines, subheadlines, CTA labels, features, stats, testimonials, CTA copy, and footer taglines from `shared/contentGenerator.ts` — 14 product types each with realistic copy, each with a distinct `brandName` (Vault, Relay, Lens, Shopbase, Sprint, Pipeline, Pulse, Flowbase, Devkit, Streamly, Clair, Medi, Coursify, Tempo)
+- Brand names shown in preview instead of project names: Navbar, hero badge, footer — all use `content.brandName` from `getProductContent()`; overridable via `contentOverrides.brandName`
+- Canvas Editor: new sidebar panel accessible via "Canvas" button in project header; shows section list with move up/down controls; when hero section selected, shows inline editing fields for headline, subheadline, CTA label, and brand name; content changes persist in `contentOverrides` state and reflect live in the preview
 - No "AI-Generated Design" labels — preview looks like a real product website
 - Product Context Engine: 14 product types (cloud_storage, chat_app, analytics_dashboard, ecommerce, project_management, crm, social_media, saas_generic, developer_tool, video_platform, fintech, healthcare, education, calendar_scheduling) each with specific UI components
 - Context Library: `shared/contextLibrary.json` defines product types, keywords, and component sets — easily extensible

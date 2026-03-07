@@ -500,6 +500,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
 };
 
 const DEFAULT_CONTENT: ProductContent = {
+  brandName: "Workbase",
   headline: "Built for scale. Designed for teams.",
   subheadline: "The modern platform for every workflow. Fast, reliable, and beautifully designed for the teams that build great things.",
   ctaLabel: "Get Started",

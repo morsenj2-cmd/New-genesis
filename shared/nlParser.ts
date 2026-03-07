@@ -134,14 +134,75 @@ function resolveLogoColor(colorKey: string): string {
   return LOGO_COLOR_MAP[colorKey] ?? "#ffffff";
 }
 
+function tokenizeInput(input: string): string[] {
+  return input
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(t => t.length > 0);
+}
+
+const FILLER_WORDS = new Set([
+  "the", "a", "an", "to", "make", "set", "use", "change", "my", "our",
+  "is", "be", "should", "turn", "switch", "let", "please", "just",
+  "for", "of", "in", "on", "at", "by", "with", "and", "or", "i", "want",
+  "would", "like", "need", "could", "can", "please", "now", "it",
+]);
+
+const OBJECT_KEYWORDS: Record<string, string[]> = {
+  logo:       ["logo", "brand", "icon", "mark", "wordmark"],
+  button:     ["button", "buttons", "btn", "cta", "call-to-action"],
+  background: ["background", "bg", "backdrop"],
+  font:       ["font", "typeface", "type", "typography", "text"],
+  heading:    ["heading", "headings", "headline", "title", "h1"],
+  spacing:    ["spacing", "space", "gap", "padding", "margin", "gaps"],
+  radius:     ["radius", "corners", "corner", "rounding"],
+  navbar:     ["navbar", "nav", "navigation", "header"],
+  card:       ["card", "cards", "panel"],
+};
+
+const VALUE_KEYWORDS: Record<string, string> = {
+  white:   "white",
+  black:   "black",
+  rounded: "rounded",
+  round:   "rounded",
+  sharp:   "sharp",
+  square:  "square",
+  large:   "large",
+  bigger:  "large",
+  smaller: "small",
+  small:   "small",
+  light:   "light",
+  dark:    "dark",
+};
+
+function findObjectInTokens(tokens: string[]): string | null {
+  for (const [obj, keywords] of Object.entries(OBJECT_KEYWORDS)) {
+    if (keywords.some(k => tokens.includes(k))) return obj;
+  }
+  return null;
+}
+
+function findColorValueInTokens(tokens: string[]): string | null {
+  return tokens.find(t => COLOR_KEYWORDS[t]) ?? null;
+}
+
 export function parseNLCommand(input: string): ParseResult {
   const text = input.toLowerCase().trim();
+  const tokens = tokenizeInput(input);
+  const contentTokens = tokens.filter(t => !FILLER_WORDS.has(t));
   const patches: NLPatch[] = [];
   const description: string[] = [];
 
   const intent = interpretIntent(input);
 
   const has = (...terms: string[]) => terms.some(t => text.includes(t));
+  const hasToken = (...words: string[]) => words.some(w => tokens.includes(w));
+
+  const detectedObject = findObjectInTokens(contentTokens);
+  const detectedColorValue = findColorValueInTokens(contentTokens);
 
   if (intent.productType) {
     const entry = contextLibrary[intent.productType as keyof typeof contextLibrary] as { label: string } | undefined;
@@ -154,10 +215,15 @@ export function parseNLCommand(input: string): ParseResult {
   }
 
   // ── LOGO COLOR ──────────────────────────────────────────────────
-  if (intent.logoColorHint) {
-    const logoColor = resolveLogoColor(intent.logoColorHint);
+  // Primary: intent-based detection (regex patterns)
+  // Fallback: token-based detection — logo word + color word anywhere in tokens
+  const logoColorSource = intent.logoColorHint ?? (
+    detectedObject === "logo" && detectedColorValue ? detectedColorValue : null
+  );
+  if (logoColorSource) {
+    const logoColor = resolveLogoColor(logoColorSource);
     patches.push({ op: "set", path: "branding.logoColor", value: logoColor });
-    description.push(`Set logo color to ${intent.logoColorHint}`);
+    description.push(`Set logo color to ${logoColorSource}`);
   }
 
   // ── FONT CONTROL ────────────────────────────────────────────────
@@ -353,10 +419,67 @@ export function parseNLCommand(input: string): ParseResult {
     description.push("Applied SaaS constraints");
   }
 
+  // ── TOKEN-BASED FALLBACKS ──────────────────────────────────────
+  // Handle cases not caught by phrase/regex matching above
+
+  // button + color → set button color via primary
+  if (detectedObject === "button" && detectedColorValue && !logoColorSource && !intent.colorHint) {
+    if (COLOR_MAP[detectedColorValue]) {
+      patches.push(...derivePalette(COLOR_MAP[detectedColorValue]));
+      description.push(`Set button color to ${detectedColorValue}`);
+    }
+  }
+
+  // background/bg + light/dark
+  if (!intent.backgroundHint && detectedObject === "background") {
+    if (hasToken("light", "white", "bright")) {
+      patches.push(
+        { op: "set", path: "colors.background", value: "hsl(0, 0%, 98%)" },
+        { op: "set", path: "colors.surface",    value: "hsl(0, 0%, 93%)" },
+      );
+      description.push("Set light background");
+    } else if (hasToken("dark", "black", "night")) {
+      patches.push(
+        { op: "set", path: "colors.background", value: "hsl(222, 15%, 5%)" },
+        { op: "set", path: "colors.surface",    value: "hsl(222, 12%, 9%)" },
+      );
+      description.push("Set dark background");
+    }
+  }
+
+  // radius / corners + round or sharp (token-based)
+  if (!intent.radiusHint && detectedObject === "radius") {
+    if (hasToken("round", "rounded", "smooth", "soft", "curved")) {
+      patches.push(
+        { op: "set", path: "radius.sm", value: "8px" },
+        { op: "set", path: "radius.md", value: "16px" },
+        { op: "set", path: "radius.lg", value: "24px" },
+        { op: "set", path: "radius.xl", value: "32px" },
+      );
+      description.push("Made corners rounded");
+    } else if (hasToken("sharp", "square", "flat", "angular")) {
+      patches.push(
+        { op: "set", path: "radius.sm", value: "1px" },
+        { op: "set", path: "radius.md", value: "2px" },
+        { op: "set", path: "radius.lg", value: "4px" },
+        { op: "set", path: "radius.xl", value: "6px" },
+      );
+      description.push("Made corners sharp");
+    }
+  }
+
+  // font/text + color → primary color if no other color patches
+  if (detectedObject === "font" && detectedColorValue && !logoColorSource && !intent.colorHint
+      && COLOR_MAP[detectedColorValue]) {
+    patches.push(...derivePalette(COLOR_MAP[detectedColorValue]));
+    description.push(`Set primary color to ${detectedColorValue}`);
+  }
+
   if (patches.length === 0 && !intent.productType) {
     description.push(
       "No recognized changes found. Try: 'use blue', 'make it minimal', 'use Inter font', " +
-      "'make the logo white', 'round the corners', 'increase spacing', 'larger text'."
+      "'make the logo white', 'round the corners', 'increase spacing', 'larger text', " +
+      "'change logo color to teal', 'logo should be black'."
     );
   }
 
