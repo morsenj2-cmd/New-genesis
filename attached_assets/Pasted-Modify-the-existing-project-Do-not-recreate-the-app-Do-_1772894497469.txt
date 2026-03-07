@@ -1,0 +1,316 @@
+Modify the existing project. Do not recreate the app. Do not touch Clerk authentication or the Neon database connection. Update only the generation and rendering layers.
+
+Goal
+
+1. Website content must be derived from the user's prompt and project category.
+2. Remove internal product language like “Design Genome”, “Instant Preview”, “AI-Powered”.
+3. Fix layout so sections never overlap.
+4. Introduce structured content generation based on industry.
+
+------------------------------------------------
+1. REMOVE INTERNAL PRODUCT CONTENT
+------------------------------------------------
+
+The generator currently inserts content describing the design engine itself.
+
+Delete all generator-internal marketing language.
+
+Remove any content blocks containing phrases such as:
+
+Design Genome
+Instant Preview
+Deterministic Seeds
+AI-Powered
+Genome Synthesis
+
+Files likely involved:
+
+/lib/contentGenerator.ts
+/components/ui/FeatureGrid.tsx
+/components/ui/Hero.tsx
+/lib/layoutEngine.ts
+
+The generator must NEVER describe the design system.
+
+The generator must only produce content describing the user’s website or product.
+
+------------------------------------------------
+2. CONTEXT-AWARE CONTENT GENERATOR
+------------------------------------------------
+
+Rewrite the content generation logic.
+
+Create structured industry-aware content templates.
+
+File:
+
+/lib/contentGenerator.ts
+
+Input
+
+prompt
+designContext.industry
+
+Output
+
+{
+heroHeadline
+heroSubheadline
+features[]
+cta
+sectionTitles[]
+}
+
+------------------------------------------------
+
+Example: CLOUD STORAGE / SAAS
+
+Hero headline
+
+Secure cloud storage built for modern teams
+
+Subheadline
+
+Store, sync, and collaborate on files anywhere with enterprise-grade security.
+
+Features
+
+Secure file storage
+Real-time collaboration
+Version history
+End-to-end encryption
+
+CTA
+
+Start storing files today
+
+------------------------------------------------
+
+Example: FINTECH
+
+Hero headline
+
+Your money. Smarter.
+
+Subheadline
+
+Manage, grow, and protect your finances with intelligent tools.
+
+Features
+
+Smart budgeting
+Investment insights
+Fraud protection
+Real-time analytics
+
+------------------------------------------------
+
+Example: ECOMMERCE
+
+Hero headline
+
+Everything your store needs to grow
+
+Subheadline
+
+Launch, manage, and scale your online business from one powerful platform.
+
+Features
+
+Product management
+Payments
+Shipping automation
+Customer insights
+
+------------------------------------------------
+
+The prompt should influence tone and wording.
+
+Example
+
+Prompt:
+“cloud storage platform for teams”
+
+Should generate:
+
+Hero:
+Secure cloud storage for modern teams
+
+Subheadline:
+Store, share, and collaborate on files from anywhere.
+
+------------------------------------------------
+3. LAYOUT GRID SYSTEM (FIX OVERLAPPING)
+------------------------------------------------
+
+Replace current free-position layout with a strict layout grid.
+
+File:
+
+/lib/layoutEngine.ts
+
+Use section stacking instead of absolute positioning.
+
+Page layout structure:
+
+Page
+ ├ Navbar
+ ├ Hero
+ ├ Section
+ ├ Section
+ ├ Section
+ ├ CTA
+ └ Footer
+
+Each section must follow spacing tokens.
+
+CSS rules
+
+section {
+max-width: 1200px;
+margin: 0 auto;
+padding: 80px 24px;
+}
+
+Use flex or grid inside sections only.
+
+Never use absolute positioning for layout.
+
+------------------------------------------------
+4. FIX HERO IMAGE / MEDIA BLOCK
+------------------------------------------------
+
+The hero currently displays a placeholder image box.
+
+Replace with conditional rendering.
+
+Hero structure
+
+Left column:
+headline
+subheadline
+cta
+
+Right column:
+product preview OR illustration
+
+If no media exists:
+
+render a generated UI preview component.
+
+------------------------------------------------
+5. FEATURE GRID FIX
+------------------------------------------------
+
+Feature cards currently appear cramped.
+
+Use responsive grid.
+
+grid-template-columns:
+
+desktop: repeat(4,1fr)
+tablet: repeat(2,1fr)
+mobile: 1fr
+
+Card structure
+
+icon
+title
+description
+
+------------------------------------------------
+6. REMOVE RANDOM TEXT
+------------------------------------------------
+
+The system must not generate unrelated taglines.
+
+All text must come from contentGenerator.
+
+Update components:
+
+Hero
+FeatureGrid
+CTA
+Testimonials
+
+to consume structured content.
+
+------------------------------------------------
+7. PROMPT CONTEXT INFERENCE
+------------------------------------------------
+
+Update promptParser.
+
+Example prompt
+
+“cloud storage for developers”
+
+Must infer
+
+industry: saas
+product: cloud storage
+audience: developers
+
+Pass these values to contentGenerator.
+
+------------------------------------------------
+8. SECTION ORDERING
+------------------------------------------------
+
+Use industry-specific layouts.
+
+SAAS
+
+Navbar
+Hero
+Product demo
+Features
+Security
+Pricing
+Testimonials
+CTA
+Footer
+
+FINTECH
+
+Navbar
+Hero
+Features
+Analytics
+Security
+Testimonials
+CTA
+Footer
+
+ECOMMERCE
+
+Navbar
+Hero
+Products
+Categories
+Testimonials
+CTA
+Footer
+
+------------------------------------------------
+9. LAYOUT STABILITY
+------------------------------------------------
+
+Prevent layout mutation unless user clicks:
+
+“Regenerate Layout”.
+
+Style changes should not modify layout.
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After these changes:
+
+• Content describes the user’s product
+• No references to the design engine
+• Layout sections are stable
+• Sections never overlap
+• Content adapts to prompt context
+• Feature sections reflect the product type

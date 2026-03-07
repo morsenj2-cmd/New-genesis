@@ -253,78 +253,72 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
   );
 }
 
-const FEATURE_DATA = [
-  { icon: "settings" as IconName, title: "Deterministic Seeds", text: "Every project gets a unique SHA-256 seed that drives all design decisions." },
-  { icon: "grid" as IconName, title: "Design Genome", text: "Colors, typography, spacing, and motion generated in harmony." },
-  { icon: "play" as IconName, title: "Instant Preview", text: "See your brand system come to life the moment a project is created." },
-  { icon: "broadcast" as IconName, title: "AI-Powered", text: "Genome synthesis uses your project context to produce relevant aesthetics." },
-];
-
 export function GenomeFeatureGrid({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome } = tokens;
-  const cols = section.columns ?? 3;
-  const features = FEATURE_DATA.slice(0, Math.max(cols, 3));
+  const { genome, productType } = tokens;
+  const content = getProductContent(productType);
+  const cols = Math.min(section.columns ?? 3, content.features.length);
+  const features = content.features.slice(0, Math.max(cols, 3));
+  const textAlign = section.alignment === "center" ? "center" : section.alignment === "right" ? "right" : "left";
 
   return (
     <section
       data-testid="genome-feature-grid"
       style={{
         backgroundColor: genome.colors.background,
-        padding: `${genome.spacing["2xl"]} ${genome.spacing.xl}`,
+        padding: "80px 24px",
       }}
     >
-      <h2
-        style={{
-          fontFamily: `'${genome.typography.heading}', sans-serif`,
-          fontSize: genome.typography.sizes["2xl"],
-          fontWeight: 700,
-          color: "#fff",
-          textAlign: section.alignment === "center" ? "center" : section.alignment === "right" ? "right" : "left",
-          marginBottom: genome.spacing.xl,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        Built different
-      </h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${Math.min(cols, features.length)}, 1fr)`,
-          gap: genome.spacing.lg,
-        }}
-      >
-        {features.map((f) => (
-          <div
-            key={f.title}
-            style={{
-              backgroundColor: genome.colors.surface,
-              borderRadius: genome.radius.lg,
-              border: `1px solid ${genome.colors.primary}20`,
-              padding: genome.spacing.lg,
-              display: "flex",
-              flexDirection: section.orientation === "horizontal" ? "row" : "column",
-              gap: genome.spacing.md,
-              alignItems: section.orientation === "horizontal" ? "flex-start" : "flex-start",
-            }}
-          >
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <h2
+          style={{
+            fontFamily: `'${genome.typography.heading}', sans-serif`,
+            fontSize: genome.typography.sizes["2xl"],
+            fontWeight: 700,
+            color: "#fff",
+            textAlign,
+            marginBottom: "48px",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {content.featureGridTitle}
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(auto-fit, minmax(260px, 1fr))`,
+            gap: "24px",
+          }}
+        >
+          {features.map((f) => (
             <div
+              key={f.title}
               style={{
-                backgroundColor: `${genome.colors.primary}20`,
-                borderRadius: genome.radius.md,
-                padding: genome.spacing.sm,
-                flexShrink: 0,
+                backgroundColor: genome.colors.surface,
+                borderRadius: genome.radius.lg,
+                border: `1px solid ${genome.colors.primary}20`,
+                padding: "24px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
               }}
             >
-              <GIcon name={f.icon} genome={genome} size={18} color={genome.colors.primary} />
-            </div>
-            <div>
+              <div
+                style={{
+                  backgroundColor: `${genome.colors.primary}20`,
+                  borderRadius: genome.radius.md,
+                  padding: "10px",
+                  width: "fit-content",
+                }}
+              >
+                <GIcon name={f.icon as IconName} genome={genome} size={18} color={genome.colors.primary} />
+              </div>
               <h3
                 style={{
                   fontFamily: `'${genome.typography.heading}', sans-serif`,
                   fontSize: genome.typography.sizes.base,
                   fontWeight: 600,
                   color: "#fff",
-                  marginBottom: genome.spacing.xs,
+                  margin: 0,
                 }}
               >
                 {f.title}
@@ -334,119 +328,105 @@ export function GenomeFeatureGrid({ tokens, section }: { tokens: GenomeTokens; s
                   fontFamily: `'${genome.typography.body}', sans-serif`,
                   fontSize: genome.typography.sizes.sm,
                   color: genome.colors.secondary,
-                  lineHeight: 1.55,
+                  lineHeight: 1.6,
                   margin: 0,
                 }}
               >
-                {f.text}
+                {f.description}
               </p>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-const CARD_ICONS: IconName[] = ["chat", "mail", "search", "filter", "tag", "play"];
-const CARD_TITLES = ["Design Tokens", "Genome Export", "Smart Search", "Advanced Filters", "Custom Tags", "Live Preview"];
-const CARD_TEXTS = [
-  "All colors, spacing, and radius values available as exportable tokens.",
-  "Export your full design genome as JSON, CSS variables, or Figma tokens.",
-  "Full-text search across all your projects and design systems.",
-  "Filter by font family, color hue, spacing scale, and more.",
-  "Tag projects with custom labels for better organization.",
-  "See a live rendered preview of your genome before committing.",
-];
-
 export function GenomeCardList({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome } = tokens;
-  const count = Math.min(section.cardCount ?? 3, 6);
-  const cols = section.columns ?? Math.min(count, 3);
+  const { genome, productType } = tokens;
+  const content = getProductContent(productType);
+  const count = Math.min(section.cardCount ?? 3, content.features.length);
+  const textAlign = section.alignment === "center" ? "center" : section.alignment === "right" ? "right" : "left";
 
   return (
     <section
       data-testid="genome-card-list"
       style={{
         backgroundColor: genome.colors.surface,
-        padding: `${genome.spacing["2xl"]} ${genome.spacing.xl}`,
+        padding: "80px 24px",
       }}
     >
-      <h2
-        style={{
-          fontFamily: `'${genome.typography.heading}', sans-serif`,
-          fontSize: genome.typography.sizes["2xl"],
-          fontWeight: 700,
-          color: "#fff",
-          textAlign: section.alignment === "center" ? "center" : section.alignment === "right" ? "right" : "left",
-          marginBottom: genome.spacing.xl,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        Everything you need
-      </h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gap: genome.spacing.md,
-        }}
-      >
-        {Array.from({ length: count }, (_, i) => (
-          <div
-            key={i}
-            data-testid={`genome-card-${i}`}
-            style={{
-              backgroundColor: genome.colors.background,
-              borderRadius: genome.radius.lg,
-              border: `1px solid ${genome.colors.primary}18`,
-              padding: genome.spacing.lg,
-              display: "flex",
-              flexDirection: "column",
-              gap: genome.spacing.sm,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.sm }}>
-              <GIcon name={CARD_ICONS[i % CARD_ICONS.length]} genome={genome} size={16} color={genome.colors.accent} />
-              <span
-                style={{
-                  fontFamily: `'${genome.typography.heading}', sans-serif`,
-                  fontSize: genome.typography.sizes.sm,
-                  fontWeight: 600,
-                  color: "#fff",
-                }}
-              >
-                {CARD_TITLES[i % CARD_TITLES.length]}
-              </span>
-            </div>
-            <p
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <h2
+          style={{
+            fontFamily: `'${genome.typography.heading}', sans-serif`,
+            fontSize: genome.typography.sizes["2xl"],
+            fontWeight: 700,
+            color: "#fff",
+            textAlign,
+            marginBottom: "48px",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {content.cardListTitle}
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(auto-fit, minmax(220px, 1fr))`,
+            gap: "16px",
+          }}
+        >
+          {content.features.slice(0, count).map((f, i) => (
+            <div
+              key={i}
+              data-testid={`genome-card-${i}`}
               style={{
-                fontFamily: `'${genome.typography.body}', sans-serif`,
-                fontSize: genome.typography.sizes.xs,
-                color: genome.colors.secondary,
-                lineHeight: 1.5,
-                margin: 0,
+                backgroundColor: genome.colors.background,
+                borderRadius: genome.radius.lg,
+                border: `1px solid ${genome.colors.primary}18`,
+                padding: "20px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
               }}
             >
-              {CARD_TEXTS[i % CARD_TEXTS.length]}
-            </p>
-          </div>
-        ))}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <GIcon name={f.icon as IconName} genome={genome} size={16} color={genome.colors.accent} />
+                <span
+                  style={{
+                    fontFamily: `'${genome.typography.heading}', sans-serif`,
+                    fontSize: genome.typography.sizes.sm,
+                    fontWeight: 600,
+                    color: "#fff",
+                  }}
+                >
+                  {f.title}
+                </span>
+              </div>
+              <p
+                style={{
+                  fontFamily: `'${genome.typography.body}', sans-serif`,
+                  fontSize: genome.typography.sizes.xs,
+                  color: genome.colors.secondary,
+                  lineHeight: 1.6,
+                  margin: 0,
+                }}
+              >
+                {f.description}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-const STAT_DATA = [
-  { icon: "grid" as IconName, value: "25+", label: "Icon families" },
-  { icon: "settings" as IconName, value: "∞", label: "Unique genomes" },
-  { icon: "broadcast" as IconName, value: "6", label: "Genome tokens" },
-  { icon: "play" as IconName, value: "100%", label: "Deterministic" },
-];
-
 export function GenomeStats({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome } = tokens;
-  const cols = section.columns ?? 4;
+  const { genome, productType } = tokens;
+  const content = getProductContent(productType);
+  const cols = Math.min(section.columns ?? 4, content.stats.length);
 
   return (
     <section
@@ -455,23 +435,25 @@ export function GenomeStats({ tokens, section }: { tokens: GenomeTokens; section
         backgroundColor: genome.colors.background,
         borderTop: `1px solid ${genome.colors.primary}20`,
         borderBottom: `1px solid ${genome.colors.primary}20`,
-        padding: `${genome.spacing["2xl"]} ${genome.spacing.xl}`,
+        padding: "64px 24px",
       }}
     >
       <div
         style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
           display: "grid",
-          gridTemplateColumns: `repeat(${Math.min(cols, STAT_DATA.length)}, 1fr)`,
-          gap: genome.spacing.lg,
+          gridTemplateColumns: `repeat(auto-fit, minmax(160px, 1fr))`,
+          gap: "32px",
           textAlign: "center",
         }}
       >
-        {STAT_DATA.slice(0, cols).map((stat) => (
+        {content.stats.slice(0, cols).map((stat) => (
           <div
             key={stat.label}
-            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: genome.spacing.xs }}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}
           >
-            <GIcon name={stat.icon} genome={genome} size={20} color={genome.colors.primary} />
+            <GIcon name={stat.icon as IconName} genome={genome} size={20} color={genome.colors.primary} />
             <span
               style={{
                 fontFamily: `'${genome.typography.heading}', sans-serif`,
@@ -502,146 +484,175 @@ export function GenomeStats({ tokens, section }: { tokens: GenomeTokens; section
 }
 
 export function GenomeTestimonial({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome } = tokens;
-  const count = Math.min(section.cardCount ?? 2, 3);
-  const quotes = [
-    { text: "The genome system generated a color palette that perfectly matched our brand intuition.", author: "Alex R.", role: "Design Lead" },
-    { text: "I've never seen typography pairing done this intelligently from a single seed value.", author: "Sam K.", role: "Frontend Dev" },
-    { text: "Every project feels distinct yet consistent. The spacing tokens alone saved us hours.", author: "Jordan M.", role: "Product Designer" },
-  ];
+  const { genome, productType } = tokens;
+  const content = getProductContent(productType);
+  const count = Math.min(section.cardCount ?? 2, content.testimonials.length);
 
   return (
     <section
       data-testid="genome-testimonial"
       style={{
         backgroundColor: genome.colors.surface,
-        padding: `${genome.spacing["2xl"]} ${genome.spacing.xl}`,
+        padding: "80px 24px",
       }}
     >
-      <h2
-        style={{
-          fontFamily: `'${genome.typography.heading}', sans-serif`,
-          fontSize: genome.typography.sizes["2xl"],
-          fontWeight: 700,
-          color: "#fff",
-          textAlign: "center",
-          marginBottom: genome.spacing.xl,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        What teams say
-      </h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${count}, 1fr)`,
-          gap: genome.spacing.lg,
-        }}
-      >
-        {quotes.slice(0, count).map((q, i) => (
-          <div
-            key={i}
-            style={{
-              backgroundColor: genome.colors.background,
-              borderRadius: genome.radius.lg,
-              border: `1px solid ${genome.colors.primary}20`,
-              padding: genome.spacing.lg,
-            }}
-          >
-            <GIcon name="chat" genome={genome} size={18} color={genome.colors.accent} />
-            <p
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <h2
+          style={{
+            fontFamily: `'${genome.typography.heading}', sans-serif`,
+            fontSize: genome.typography.sizes["2xl"],
+            fontWeight: 700,
+            color: "#fff",
+            textAlign: "center",
+            marginBottom: "48px",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          What our customers say
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))`,
+            gap: "24px",
+          }}
+        >
+          {content.testimonials.slice(0, count).map((q, i) => (
+            <div
+              key={i}
               style={{
-                fontFamily: `'${genome.typography.body}', sans-serif`,
-                fontSize: genome.typography.sizes.sm,
-                color: genome.colors.secondary,
-                lineHeight: 1.6,
-                margin: `${genome.spacing.sm} 0`,
-                fontStyle: "italic",
+                backgroundColor: genome.colors.background,
+                borderRadius: genome.radius.lg,
+                border: `1px solid ${genome.colors.primary}20`,
+                padding: "24px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
               }}
             >
-              &ldquo;{q.text}&rdquo;
-            </p>
-            <div>
-              <span style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes.sm, fontWeight: 600, color: "#fff" }}>
-                {q.author}
-              </span>
-              <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.primary, marginLeft: "8px" }}>
-                {q.role}
-              </span>
+              <GIcon name="chat" genome={genome} size={18} color={genome.colors.accent} />
+              <p
+                style={{
+                  fontFamily: `'${genome.typography.body}', sans-serif`,
+                  fontSize: genome.typography.sizes.sm,
+                  color: genome.colors.secondary,
+                  lineHeight: 1.65,
+                  margin: 0,
+                  fontStyle: "italic",
+                  flex: 1,
+                }}
+              >
+                &ldquo;{q.text}&rdquo;
+              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    backgroundColor: `${genome.colors.primary}30`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: "12px", fontWeight: 700, color: genome.colors.primary }}>
+                    {q.author.charAt(0)}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ display: "block", fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes.sm, fontWeight: 600, color: "#fff" }}>
+                    {q.author}
+                  </span>
+                  <span style={{ display: "block", fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.primary }}>
+                    {q.role}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
 export function GenomeCTA({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, projectName } = tokens;
+  const { genome, productType } = tokens;
+  const content = getProductContent(productType);
   const align = section.alignment;
   const textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
+  const alignItems = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
 
   return (
     <section
       data-testid="genome-cta"
       style={{
         background: `linear-gradient(135deg, ${genome.colors.primary} 0%, ${genome.colors.accent} 100%)`,
-        padding: `${genome.spacing["2xl"]} ${genome.spacing.xl}`,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start",
-        textAlign,
-        gap: genome.spacing.md,
+        padding: "80px 24px",
       }}
     >
-      <h2
+      <div
         style={{
-          fontFamily: `'${genome.typography.heading}', sans-serif`,
-          fontSize: genome.typography.sizes["2xl"],
-          fontWeight: 800,
-          color: "#fff",
-          letterSpacing: "-0.02em",
-          margin: 0,
+          maxWidth: "800px",
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems,
+          textAlign,
+          gap: "20px",
         }}
       >
-        Ready to build {projectName}?
-      </h2>
-      <p
-        style={{
-          fontFamily: `'${genome.typography.body}', sans-serif`,
-          fontSize: genome.typography.sizes.base,
-          color: "rgba(255,255,255,0.8)",
-          margin: 0,
-          maxWidth: "440px",
-        }}
-      >
-        Your unique design genome is waiting. Start a new project and get a complete design system in seconds.
-      </p>
-      <span
-        style={{
-          display: "inline-block",
-          backgroundColor: "#fff",
-          color: genome.colors.primary,
-          borderRadius: genome.radius.md,
-          padding: `${genome.spacing.sm} ${genome.spacing.lg}`,
-          fontFamily: `'${genome.typography.heading}', sans-serif`,
-          fontSize: genome.typography.sizes.base,
-          fontWeight: 700,
-          cursor: "pointer",
-          marginTop: genome.spacing.xs,
-        }}
-      >
-        Create your genome →
-      </span>
+        <h2
+          style={{
+            fontFamily: `'${genome.typography.heading}', sans-serif`,
+            fontSize: genome.typography.sizes["2xl"],
+            fontWeight: 800,
+            color: "#fff",
+            letterSpacing: "-0.02em",
+            margin: 0,
+          }}
+        >
+          {content.ctaHeadline}
+        </h2>
+        <p
+          style={{
+            fontFamily: `'${genome.typography.body}', sans-serif`,
+            fontSize: genome.typography.sizes.base,
+            color: "rgba(255,255,255,0.85)",
+            margin: 0,
+            maxWidth: "480px",
+            lineHeight: 1.6,
+          }}
+        >
+          {content.ctaBody}
+        </p>
+        <span
+          style={{
+            display: "inline-block",
+            backgroundColor: "#fff",
+            color: genome.colors.primary,
+            borderRadius: genome.radius.md,
+            padding: "12px 28px",
+            fontFamily: `'${genome.typography.heading}', sans-serif`,
+            fontSize: genome.typography.sizes.base,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {content.ctaButtonLabel} →
+        </span>
+      </div>
     </section>
   );
 }
 
 export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
-  const { genome, projectName } = tokens;
+  const { genome, projectName, productType } = tokens;
+  const content = getProductContent(productType);
   const footerLinks = [
     { group: "Product", links: ["Features", "Pricing", "Changelog"] },
-    { group: "Docs", links: ["API", "Tokens", "Guides"] },
+    { group: "Resources", links: ["Docs", "API", "Guides"] },
     { group: "Company", links: ["About", "Blog", "Contact"] },
   ];
 
@@ -686,7 +697,7 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
               margin: 0,
             }}
           >
-            Deterministic design genome synthesis for generative AI projects.
+            {content.footerTagline}
           </p>
         </div>
         {footerLinks.map((col) => (
