@@ -70,6 +70,7 @@ import {
   type IconGroup,
 } from "@shared/iconGenerator";
 import { GenomePreview } from "@/components/genome-ui";
+import { NLDesigner } from "@/components/NLDesigner";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -687,6 +688,7 @@ function LeftPanel({
   isRegenerating,
   fontFamily,
   onRegenerate,
+  onNLApplied,
 }: {
   project: Project;
   activeGenome: DesignGenome | null;
@@ -696,6 +698,7 @@ function LeftPanel({
   isRegenerating: boolean;
   fontFamily: string | undefined;
   onRegenerate: () => void;
+  onNLApplied: (genome: DesignGenome, layout: LayoutGraph) => void;
 }) {
   const [showTokens, setShowTokens] = useState(false);
 
@@ -722,6 +725,8 @@ function LeftPanel({
             </Badge>
           </div>
         )}
+        <Separator />
+        <NLDesigner projectId={project.id} onApplied={onNLApplied} />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -969,6 +974,13 @@ export default function ProjectPage() {
     setIsRegenerating(false);
   }, [project?.seed, iteration]);
 
+  const handleNLApplied = useCallback((genome: DesignGenome, layout: LayoutGraph) => {
+    setActiveGenome(genome);
+    setActiveLayout(layout);
+    setIteration(0);
+    if (project?.seed) setActiveSeed(project.seed);
+  }, [project?.seed]);
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const token = await getToken();
@@ -1138,6 +1150,7 @@ export default function ProjectPage() {
                 isRegenerating={isRegenerating}
                 fontFamily={fontFamily}
                 onRegenerate={handleRegenerate}
+                onNLApplied={handleNLApplied}
               />
 
               <main className="flex-1 overflow-y-auto bg-muted/10" data-testid="section-website-preview">

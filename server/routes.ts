@@ -9,6 +9,8 @@ import { generateGenome } from "@shared/genomeGenerator";
 import { generateLayout } from "@shared/layoutEngine";
 import { uploadBase64Image, uploadBase64Font } from "./cloudinary";
 import { generateExportFiles, safeName } from "./exportGenerator";
+import { parseNLCommand, applyPatchesToGenome } from "@shared/nlParser";
+import { parseSettings, maybeApplyIndustryConstraints, detectIndustryFromText } from "@shared/saasConstraints";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -74,11 +76,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      const genome = generateGenome(seed, { name, prompt, font, themeColor });
+      const detectedIndustry = detectIndustryFromText(`${name} ${prompt}`);
+      const initialSettings = {
+        uniqueIcons: detectedIndustry !== "saas",
+        forceStandardGenome: detectedIndustry === "saas",
+        industry: detectedIndustry,
+        tone: "creative" as const,
+      };
+
+      let genome = generateGenome(seed, { name, prompt, font, themeColor });
+      genome = maybeApplyIndustryConstraints(genome, initialSettings);
       const genomeJson = JSON.stringify(genome);
 
       const layout = generateLayout(seed, { name, prompt, font, themeColor });
       const layoutJson = JSON.stringify(layout);
+      const settingsJson = JSON.stringify(initialSettings);
 
       const project = await storage.createProject({
         userId: userId!,
@@ -91,6 +103,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         logoUrl,
         genomeJson,
         layoutJson,
+        settingsJson,
       });
       res.status(201).json(project);
     } catch (err) {
@@ -120,6 +133,55 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error fetching project:", err);
       res.status(500).json({ message: "Failed to fetch project" });
+    }
+  });
+
+  app.post("/api/project/:id/apply-nl", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const { commands } = req.body;
+      if (!commands || typeof commands !== "string") {
+        return res.status(400).json({ message: "commands string is required" });
+      }
+
+      const { patches, description } = parseNLCommand(commands);
+
+      let currentGenome = project.genomeJson ? JSON.parse(project.genomeJson) : generateGenome(project.seed);
+      let currentSettings = parseSettings(project.settingsJson);
+
+      const settingsPatches = patches.filter(p => p.path.startsWith("settings."));
+      const genomePatches = patches.filter(p => !p.path.startsWith("settings."));
+
+      for (const patch of settingsPatches) {
+        const key = patch.path.replace("settings.", "");
+        (currentSettings as any)[key] = patch.value;
+      }
+
+      if (genomePatches.length > 0) {
+        currentGenome = applyPatchesToGenome(currentGenome, genomePatches);
+      }
+
+      currentGenome = maybeApplyIndustryConstraints(currentGenome, currentSettings);
+
+      let currentLayout = project.layoutJson ? JSON.parse(project.layoutJson) : generateLayout(project.seed);
+      if (currentSettings.forceStandardGenome || currentSettings.industry === "saas") {
+        currentLayout = generateLayout(project.seed, {});
+      }
+
+      const updated = await storage.updateProject(project.id, userId!, {
+        genomeJson: JSON.stringify(currentGenome),
+        layoutJson: JSON.stringify(currentLayout),
+        settingsJson: JSON.stringify(currentSettings),
+      });
+
+      res.json({ project: updated, description, patchCount: patches.length });
+    } catch (err) {
+      console.error("Error applying NL command:", err);
+      res.status(500).json({ message: "Failed to apply command" });
     }
   });
 

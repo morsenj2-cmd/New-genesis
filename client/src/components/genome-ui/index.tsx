@@ -140,11 +140,29 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
   );
 }
 
+const HERO_TAGLINES = [
+  "Built for scale. Designed for teams.",
+  "The modern platform for every workflow.",
+  "Fast, reliable, and beautifully designed.",
+  "Everything your team needs, in one place.",
+  "Built with precision. Delivered with care.",
+  "Simple to start. Powerful at scale.",
+  "The future of work, available today.",
+  "Engineered for performance. Crafted for people.",
+];
+
+function safeHeroTagline(projectName: string): string {
+  let hash = 0;
+  for (let i = 0; i < projectName.length; i++) {
+    hash = (hash * 31 + projectName.charCodeAt(i)) >>> 0;
+  }
+  return HERO_TAGLINES[hash % HERO_TAGLINES.length];
+}
+
 export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, projectName, projectPrompt } = tokens;
+  const { genome, projectName } = tokens;
   const align = section.alignment;
   const hasImage = section.imagePlacement !== "none";
-  const imgRight = section.imagePlacement === "right" || section.imagePlacement === "bottom";
 
   const textAlign = align === "center" ? "center" : align === "right" ? "right" : "left";
   const flexDir: "row" | "row-reverse" | "column" =
@@ -153,7 +171,7 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
     "column";
 
   const headlineWords = projectName.split(" ");
-  const subtext = projectPrompt.length > 140 ? projectPrompt.slice(0, 140) + "…" : projectPrompt;
+  const subtext = safeHeroTagline(projectName);
 
   return (
     <section

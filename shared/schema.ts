@@ -21,6 +21,7 @@ export const projects = pgTable("projects", {
   logoUrl: text("logo_url"),
   genomeJson: text("genome_json"),
   layoutJson: text("layout_json"),
+  settingsJson: text("settings_json"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -101,10 +101,15 @@ function hsl(h: number, s: number, l: number): string {
   return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
 }
 
+export interface GenomeGenerationOptions {
+  forceStandard?: boolean;
+  [key: string]: unknown;
+}
+
 export function generateGenome(
   seed: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _designContext?: Record<string, unknown>
+  _designContext?: Record<string, unknown>,
+  options?: GenomeGenerationOptions,
 ): DesignGenome {
   if (!seed || seed.length < 32) {
     throw new Error("Seed must be at least 32 hex characters");

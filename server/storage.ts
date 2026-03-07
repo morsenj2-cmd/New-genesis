@@ -18,7 +18,13 @@ export interface IStorage {
     logoUrl?: string;
     genomeJson?: string;
     layoutJson?: string;
+    settingsJson?: string;
   }): Promise<Project>;
+  updateProject(id: string, userId: string, data: {
+    genomeJson?: string;
+    layoutJson?: string;
+    settingsJson?: string;
+  }): Promise<Project | undefined>;
   deleteProject(id: string, userId: string): Promise<void>;
 }
 
@@ -57,9 +63,23 @@ export class DatabaseStorage implements IStorage {
     logoUrl?: string;
     genomeJson?: string;
     layoutJson?: string;
+    settingsJson?: string;
   }): Promise<Project> {
     const [project] = await db.insert(projects).values(data).returning();
     return project;
+  }
+
+  async updateProject(
+    id: string,
+    userId: string,
+    data: { genomeJson?: string; layoutJson?: string; settingsJson?: string },
+  ): Promise<Project | undefined> {
+    const [updated] = await db
+      .update(projects)
+      .set(data)
+      .where(and(eq(projects.id, id), eq(projects.userId, userId)))
+      .returning();
+    return updated;
   }
 
   async deleteProject(id: string, userId: string): Promise<void> {

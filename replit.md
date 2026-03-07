@@ -12,9 +12,11 @@ Key features:
 - Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
 - Dashboard for listing user projects (public, tagline shown for guests)
 - Project editor: two-panel layout with live GenomePreview + Regenerate Design (derives new seed client-side via SHA-256)
+- NL Design Editor: natural language command input in the left panel; parses commands into genome patches, applies SaaS constraints, saves updated genome/layout to DB, and updates the live preview
 - Export project as a downloadable zip — complete Vite + React project with genome baked in, runs with `npm install && npm run dev`
 - Delete project with confirmation dialog
 - Dark theme (pure black background)
+- Hero section shows generated taglines (not raw prompt text)
 
 ## User Preferences
 
@@ -65,7 +67,7 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 | Table | Key columns |
 |---|---|
 | `users` | `id` (Clerk user ID, PK), `email`, `created_at` |
-| `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `created_at` |
+| `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `settings_json`, `created_at` |
 
 - `seed`: SHA-256 hash generated server-side
 - `logo_url`: Cloudinary HTTPS URL (uploaded from base64; resized to 256×256 server-side)
@@ -78,7 +80,7 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 
 **Components** (all take `tokens: GenomeTokens` = `{ genome, projectName, projectPrompt }` + `section: LayoutSection`):
 - `GenomeNavbar` — brand logo (compass icon), nav links, CTA button styled with genome colors/fonts/radius
-- `GenomeHero` — headline split at midpoint with primary color accent, subtitle from project prompt, image placeholder when `section.imagePlacement !== "none"`, alignment from section data
+- `GenomeHero` — headline split at midpoint with primary color accent, subtitle from deterministic tagline (not raw prompt), image placeholder when `section.imagePlacement !== "none"`, alignment from section data
 - `GenomeFeatureGrid` — feature cards in `section.columns` columns, icon per feature, horizontal/vertical orientation from section
 - `GenomeCardList` — `section.cardCount` cards in `section.columns` grid, each with icon + title + description
 - `GenomeStats` — `section.columns` stat blocks with large genome-primary-colored numbers
@@ -126,6 +128,9 @@ Logos and custom fonts are uploaded to Cloudinary on project creation. The serve
 | `client/src/pages/sign-in.tsx` | Sign-in page |
 | `client/src/pages/sign-up.tsx` | Sign-up page |
 | `client/src/components/app-sidebar.tsx` | Morse-branded sidebar |
+| `client/src/components/NLDesigner.tsx` | NL design editor component (textarea + apply-nl API call) |
+| `shared/nlParser.ts` | Keyword→genome patch parser + `applyPatchesToGenome` |
+| `shared/saasConstraints.ts` | SaaS constraints, industry detection, settings parsing |
 | `client/index.html` | Arimo font, dark theme overrides, Google Fonts |
 
 ### Implementation Notes
