@@ -78,6 +78,7 @@ import {
 import { GenomePreview } from "@/components/genome-ui";
 import { NLDesigner } from "@/components/NLDesigner";
 import { CanvasEditor, type ContentOverrides } from "@/components/CanvasEditor";
+import type { NLContentPatch } from "@/components/NLDesigner";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -711,7 +712,7 @@ function LeftPanel({
   onRegenerateStyle: () => void;
   onRegenerateLayout: () => void;
   onToggleLayoutLock: () => void;
-  onNLApplied: (genome: DesignGenome, layout: LayoutGraph) => void;
+  onNLApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: Record<string, string>) => void;
 }) {
   const [showTokens, setShowTokens] = useState(false);
   const isLocked = !!project.layoutLocked;
@@ -990,6 +991,17 @@ export default function ProjectPage() {
     }
   }, [project?.seed, baseGenome, baseLayout]);
 
+  useEffect(() => {
+    if (project?.settingsJson) {
+      try {
+        const s = JSON.parse(project.settingsJson);
+        if (s.brandName) {
+          setContentOverrides(prev => ({ ...prev, brandName: s.brandName }));
+        }
+      } catch {}
+    }
+  }, [project?.settingsJson]);
+
   const effectiveProductType = useMemo<string | null>(() => {
     if (!project) return null;
     if (project.productType) return project.productType;
@@ -1074,11 +1086,14 @@ export default function ProjectPage() {
     },
   });
 
-  const handleNLApplied = useCallback((genome: DesignGenome, layout: LayoutGraph) => {
+  const handleNLApplied = useCallback((genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch | Record<string, string>) => {
     setActiveGenome(genome);
     setActiveLayout(layout);
     setIteration(0);
     if (project?.seed) setActiveSeed(project.seed);
+    if (contentPatch && Object.keys(contentPatch).length > 0) {
+      setContentOverrides(prev => ({ ...prev, ...contentPatch }));
+    }
   }, [project?.seed]);
 
   const deleteMutation = useMutation({

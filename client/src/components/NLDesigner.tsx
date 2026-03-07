@@ -8,9 +8,16 @@ import { Wand2, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph } from "@shared/layoutEngine";
 
+export interface NLContentPatch {
+  brandName?: string;
+  headline?: string;
+  subheadline?: string;
+  ctaLabel?: string;
+}
+
 interface NLDesignerProps {
   projectId: string;
-  onApplied: (genome: DesignGenome, layout: LayoutGraph) => void;
+  onApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch) => void;
 }
 
 const EXAMPLE_COMMANDS = [
@@ -64,7 +71,8 @@ export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
       if (data.project?.genomeJson && data.project?.layoutJson) {
         const newGenome: DesignGenome = JSON.parse(data.project.genomeJson);
         const newLayout: LayoutGraph = JSON.parse(data.project.layoutJson);
-        onApplied(newGenome, newLayout);
+        const contentPatch: NLContentPatch = data.contentPatch ?? {};
+        onApplied(newGenome, newLayout, contentPatch);
       }
       setCommand("");
     } catch (err) {

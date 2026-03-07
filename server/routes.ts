@@ -14,6 +14,8 @@ import { parseSettings, maybeApplyIndustryConstraints, detectIndustryFromText } 
 import { interpretIntent } from "@shared/intentInterpreter";
 import { getProductContext, generateContextualLayout, detectProductTypeFromText } from "@shared/productContextEngine";
 import { mergeDesignSources } from "@shared/designMerger";
+import { interpretSemantic } from "@shared/semanticInterpreter";
+import { generatePatches } from "@shared/patchGenerator";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -160,41 +162,83 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "commands string is required" });
       }
 
-      const { patches, description, productType, intent } = parseNLCommand(commands);
-
       let currentGenome = project.genomeJson ? JSON.parse(project.genomeJson) : generateGenome(project.seed);
       let currentSettings = parseSettings(project.settingsJson);
-
-      const settingsPatches = patches.filter(p => p.path.startsWith("settings."));
-      const genomePatches = patches.filter(p => !p.path.startsWith("settings."));
-
-      for (const patch of settingsPatches) {
-        const key = patch.path.replace("settings.", "");
-        (currentSettings as any)[key] = patch.value;
-      }
-
-      if (genomePatches.length > 0) {
-        currentGenome = applyPatchesToGenome(currentGenome, genomePatches);
-      }
-
-      currentGenome = maybeApplyIndustryConstraints(currentGenome, currentSettings);
-
       let currentLayout = project.layoutJson ? JSON.parse(project.layoutJson) : generateLayout(project.seed);
       let newProductType: string | undefined = project.productType ?? undefined;
+      const allDescriptions: string[] = [];
+      let contentPatch: Record<string, string> = {};
 
-      if (!project.layoutLocked) {
-        if (productType) {
+      // ── 1. Semantic interpreter pass ─────────────────────────────────────
+      const semanticIntent = interpretSemantic(commands);
+      if (semanticIntent.intent !== "noop" && semanticIntent.confidence >= 0.6) {
+        const patchSet = generatePatches(semanticIntent);
+
+        // Apply genome patches
+        if (patchSet.genomePatch.length > 0) {
+          currentGenome = applyPatchesToGenome(currentGenome, patchSet.genomePatch);
+        }
+
+        // Apply settings patches (brandName, productType etc.)
+        for (const [key, value] of Object.entries(patchSet.settingsPatch)) {
+          (currentSettings as any)[key] = value;
+          if (key === "productType" && typeof value === "string") {
+            newProductType = value;
+          }
+        }
+
+        // Collect content patches (brandName, headline, subheadline, ctaLabel)
+        contentPatch = { ...patchSet.contentPatch };
+
+        if (patchSet.description) allDescriptions.push(patchSet.description);
+
+        // Product type → regenerate layout
+        if (semanticIntent.target === "product.type" && semanticIntent.value && !project.layoutLocked) {
+          const intentForLayout = interpretIntent(commands);
+          const productContext = getProductContext(intentForLayout);
+          if (productContext) {
+            currentLayout = generateContextualLayout(project.seed, productContext);
+            allDescriptions.push(`Layout switched to ${productContext.label}`);
+          }
+        }
+      }
+
+      // ── 2. Legacy NL parser pass (style, font, color, radius, spacing etc.) ─
+      // Only skip if semantic handler fully handled it with high confidence and
+      // the intent is purely brand/name/content — otherwise run legacy too.
+      const skipLegacy = semanticIntent.intent === "change_name" && semanticIntent.confidence >= 0.9;
+      if (!skipLegacy) {
+        const { patches, description, productType, intent } = parseNLCommand(commands);
+
+        const settingsPatches = patches.filter(p => p.path.startsWith("settings."));
+        const genomePatches = patches.filter(p => !p.path.startsWith("settings."));
+
+        for (const patch of settingsPatches) {
+          const key = patch.path.replace("settings.", "");
+          (currentSettings as any)[key] = patch.value;
+        }
+
+        if (genomePatches.length > 0) {
+          currentGenome = applyPatchesToGenome(currentGenome, genomePatches);
+        }
+
+        // Merge non-empty descriptions
+        for (const d of description) {
+          if (d && !allDescriptions.includes(d)) allDescriptions.push(d);
+        }
+
+        if (!project.layoutLocked && productType && semanticIntent.intent !== "set_product_type") {
           const productContext = getProductContext(intent);
           if (productContext) {
             currentLayout = generateContextualLayout(project.seed, productContext);
             (currentSettings as any).productType = productType;
             newProductType = productType;
-            description.push(`Layout switched to ${productContext.label}`);
+            allDescriptions.push(`Layout switched to ${productContext.label}`);
           }
-        } else if (currentSettings.forceStandardGenome || currentSettings.industry === "saas") {
-          currentLayout = generateLayout(project.seed, {});
         }
       }
+
+      currentGenome = maybeApplyIndustryConstraints(currentGenome, currentSettings);
 
       currentGenome = mergeDesignSources(currentGenome, {
         selectedFont: project.font,
@@ -210,7 +254,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: newProductType,
       });
 
-      res.json({ project: updated, description, patchCount: patches.length });
+      res.json({
+        project: updated,
+        description: allDescriptions,
+        patchCount: (semanticIntent.intent !== "noop" ? 1 : 0),
+        semanticIntent,
+        contentPatch,
+      });
     } catch (err) {
       console.error("Error applying NL command:", err);
       res.status(500).json({ message: "Failed to apply command" });

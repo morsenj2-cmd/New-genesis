@@ -1,0 +1,285 @@
+Modify the existing project. Do not rebuild the application and do not change Clerk authentication or the Neon database configuration.
+
+Goal
+
+Replace the current keyword-based prompt and NL editing system with a semantic prompt interpreter that behaves like an LLM understanding user intent.
+
+The system must:
+
+• understand varied prompts
+• understand editing instructions
+• infer context
+• modify the design state reliably
+
+------------------------------------------------
+1. UNIFIED PROMPT INTERPRETER
+------------------------------------------------
+
+Create a new module
+
+/lib/semanticInterpreter.ts
+
+Purpose
+
+Convert natural language into structured intent.
+
+Input
+
+string prompt
+
+Output
+
+{
+intent
+target
+property
+value
+confidence
+}
+
+Example
+
+Prompt
+
+"change the name from flowbase to morse"
+
+Output
+
+{
+intent: "modify",
+target: "brand.name",
+value: "Morse"
+}
+
+Example
+
+Prompt
+
+"use a blue color scheme"
+
+Output
+
+{
+intent: "modify",
+target: "theme.primaryColor",
+value: "blue"
+}
+
+Example
+
+Prompt
+
+"make this a cloud storage platform"
+
+Output
+
+{
+intent: "set_product_type",
+value: "cloud_storage"
+}
+
+------------------------------------------------
+2. SEMANTIC TOKEN LIBRARY
+------------------------------------------------
+
+Create a large interpretation dictionary.
+
+File
+
+/lib/semanticDictionary.ts
+
+Categories
+
+brand
+logo
+text
+headline
+navbar
+buttons
+sections
+layout
+colors
+typography
+spacing
+animations
+
+Synonym examples
+
+logo
+
+logo
+brand
+brand name
+site name
+
+color
+
+color
+theme
+palette
+primary color
+
+text
+
+text
+copy
+headline
+title
+
+------------------------------------------------
+3. FUZZY MATCHING
+------------------------------------------------
+
+Replace strict matching with fuzzy similarity.
+
+Use
+
+string similarity scoring
+
+Example
+
+flowbase → brand.name  
+site name → brand.name  
+website title → brand.name
+
+The interpreter must resolve the closest semantic match.
+
+------------------------------------------------
+4. PROMPT UNDERSTANDING DURING PROJECT CREATION
+------------------------------------------------
+
+Update promptParser.
+
+Instead of keyword matching, call semanticInterpreter.
+
+Example prompt
+
+"build a SaaS platform for cloud file storage for teams"
+
+Interpreter should infer
+
+industry: saas  
+product: cloud_storage  
+audience: teams
+
+------------------------------------------------
+5. NATURAL LANGUAGE EDITING PIPELINE
+------------------------------------------------
+
+Update NL editor pipeline.
+
+Flow
+
+User command  
+↓
+semanticInterpreter  
+↓
+intent object  
+↓
+patch generator  
+↓
+update design state  
+↓
+refresh preview
+
+File
+
+/api/project/[id]/apply-nl
+
+------------------------------------------------
+6. BRAND NAME EDITING
+------------------------------------------------
+
+Fix the issue where changing Flowbase to Morse fails.
+
+Add brand model
+
+project.brand = {
+name
+logo
+logoColor
+logoFont
+}
+
+Navbar and Hero must render
+
+brand.name
+
+When interpreter detects
+
+target: brand.name
+
+update project.brand.name.
+
+------------------------------------------------
+7. PATCH GENERATION SYSTEM
+------------------------------------------------
+
+Create module
+
+/lib/patchGenerator.ts
+
+Convert intent objects into design patches.
+
+Example
+
+intent
+
+{
+intent:"modify",
+target:"brand.name",
+value:"Morse"
+}
+
+Patch
+
+{
+path:"project.brand.name",
+value:"Morse"
+}
+
+------------------------------------------------
+8. CONTEXT MEMORY
+------------------------------------------------
+
+Store interpreted context.
+
+project.context = {
+industry
+product
+audience
+tone
+features
+}
+
+This context drives:
+
+contentGenerator
+layoutEngine
+styleGenerator
+
+------------------------------------------------
+9. DESIGN GENERATION CONTEXT
+------------------------------------------------
+
+Generation pipeline must now follow
+
+1 interpret prompt
+2 extract context
+3 generate content
+4 generate layout
+5 generate style tokens
+
+This ensures designs match prompt meaning.
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After this update the system must
+
+understand prompts in flexible natural language  
+interpret editing commands reliably  
+allow brand name changes like "flowbase to morse"  
+infer product type and industry automatically  
+generate designs aligned with the prompt meaning
