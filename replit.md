@@ -7,7 +7,7 @@ Morse is a web application for creating and managing generative AI projects with
 Key features:
 - User authentication via Clerk (dashboard public, only project creation gated)
 - Project creation with name + prompt inputs
-- Brand setup: logo upload, font selection (preset or custom upload), theme color (custom picker + presets)
+- Brand setup: logo upload (stored on Cloudinary), font selection (preset or custom upload stored on Cloudinary), theme color (custom picker + presets)
 - Deterministic seed generation (SHA-256 hash) per project
 - Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
 - Dashboard for listing user projects (public, tagline shown for guests)
@@ -66,9 +66,19 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 | `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `created_at` |
 
 - `seed`: SHA-256 hash generated server-side
-- `logo_url`: base64 data URL (resized to 256px max)
-- `font_url`: base64 data URL of uploaded custom font file (.ttf/.otf/.woff/.woff2)
+- `logo_url`: Cloudinary HTTPS URL (uploaded from base64; resized to 256×256 server-side)
+- `font_url`: Cloudinary HTTPS URL of uploaded custom font file (.ttf/.otf/.woff/.woff2)
 - `font`: font name (preset name or custom font filename without extension)
+
+### Cloudinary Integration
+
+Logos and custom fonts are uploaded to Cloudinary on project creation. The server receives base64 data URLs from the client, uploads them to Cloudinary, and stores the resulting HTTPS URL in the database.
+
+- `server/cloudinary.ts` — Cloudinary v2 SDK, `uploadBase64Image`, `uploadBase64Font`, `deleteFile`
+- Logos: stored at `morse/logos/{userId}/logo_{seedPrefix}` as images (auto-resized to 256×256)
+- Fonts: stored at `morse/fonts/{userId}/font_{seedPrefix}` as raw files
+- Required env vars: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+- Body size limit on Express is 10mb to accommodate base64 upload payloads
 
 ### Important Files
 

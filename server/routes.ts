@@ -5,11 +5,16 @@ import { createHash } from "crypto";
 import { storage } from "./storage";
 import { createProjectSchema } from "@shared/schema";
 import { generateGenome } from "@shared/genomeGenerator";
+import { uploadBase64Image, uploadBase64Font } from "./cloudinary";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
   next();
+}
+
+function isBase64DataUrl(str: string): boolean {
+  return typeof str === "string" && str.startsWith("data:");
 }
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
@@ -39,10 +44,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
       }
-      const { name, prompt, font, fontUrl, themeColor, logoUrl } = parsed.data;
+
+      let { name, prompt, font, fontUrl, themeColor, logoUrl } = parsed.data;
+
       const timestamp = Date.now().toString();
       const tempId = `${userId}-${timestamp}`;
       const seed = createHash("sha256").update(`${userId}${tempId}${timestamp}`).digest("hex");
+
+      // Upload logo to Cloudinary if it's a base64 data URL
+      if (logoUrl && isBase64DataUrl(logoUrl)) {
+        try {
+          logoUrl = await uploadBase64Image(logoUrl, `logos/${userId}`, `logo_${seed.slice(0, 12)}`);
+        } catch (err) {
+          console.error("Logo upload failed:", err);
+          return res.status(500).json({ message: "Failed to upload logo" });
+        }
+      }
+
+      // Upload font to Cloudinary if it's a base64 data URL
+      if (fontUrl && isBase64DataUrl(fontUrl)) {
+        try {
+          fontUrl = await uploadBase64Font(fontUrl, `fonts/${userId}`, `font_${seed.slice(0, 12)}`);
+        } catch (err) {
+          console.error("Font upload failed:", err);
+          return res.status(500).json({ message: "Failed to upload font" });
+        }
+      }
 
       const genome = generateGenome(seed, { name, prompt, font, themeColor });
       const genomeJson = JSON.stringify(genome);
