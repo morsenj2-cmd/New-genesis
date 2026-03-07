@@ -22,7 +22,7 @@ import { buildGenomeSig, serializeGenomeSig, isGenomeTooSimilar, hasSufficientMu
 import { createContextLock, extractContextLock, applyContextLock, enforceContextLock, filterLockedFields } from "@shared/contextLock";
 import { extractUniversalContext } from "@shared/universalContext";
 import { isCorrectionPrompt, applyContextCorrection } from "@shared/contextOverride";
-import { computeLayoutHash, isLayoutTooSimilar, buildLayoutSigComponents } from "@shared/layoutSignature";
+import { isLayoutTooSimilar, buildLayoutSigComponents } from "@shared/layoutSignature";
 import { needsMutation, mutateLayout } from "@shared/layoutMutation";
 import { validateContent, needsRegeneration } from "@shared/contextValidator";
 
@@ -137,9 +137,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       layout = simplifyIfNeeded(layout, resolvedPageType);
 
       const layoutSigComponents = buildLayoutSigComponents(seed, layout, genome, resolvedPageType);
-      const layoutHash = computeLayoutHash(layoutSigComponents, seed);
       const previousGenomes: string[] = [];
-      if (isLayoutTooSimilar(layoutHash, previousGenomes)) {
+      if (isLayoutTooSimilar(layoutSigComponents, previousGenomes)) {
         if (needsMutation(layoutSigComponents, [])) {
           layout = mutateLayout(layout, seed + "-mutation");
           layout = applyLayoutConstraints(layout, resolvedPageType);
