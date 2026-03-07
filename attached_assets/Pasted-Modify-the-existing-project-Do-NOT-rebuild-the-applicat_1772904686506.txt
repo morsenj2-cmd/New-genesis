@@ -1,0 +1,137 @@
+Modify the existing project. Do NOT rebuild the application. Do NOT modify Clerk authentication or the Neon database configuration.
+
+Goal
+Remove the automatically inserted brand badge (example: the green "ngaer" with icon above the hero text) from generated pages.
+
+The system should NOT render the project name or brand icon as a floating badge in the hero section.
+
+Brand names should only appear where explicitly intended (navbar logo or footer), not automatically injected into content.
+
+------------------------------------------------
+1. REMOVE BRAND BADGE FROM HERO
+------------------------------------------------
+
+Locate the component rendering the badge above the hero headline.
+
+Likely locations:
+
+/components/ui/Hero.tsx
+/components/ui/HeroHeader.tsx
+/components/ui/SectionHero.tsx
+
+Find code similar to:
+
+<span class="badge">{project.brand.name}</span>
+
+or
+
+<div class="brand-chip">
+  <Icon />
+  {project.brand.name}
+</div>
+
+Delete this element completely.
+
+The hero should render only:
+
+headline
+subheadline
+CTA buttons
+media/illustration
+
+------------------------------------------------
+2. STOP AUTO-INJECTING BRAND BADGES
+------------------------------------------------
+
+The generator is inserting a brand chip element automatically.
+
+Locate where hero elements are assembled.
+
+Files to check:
+
+/lib/layoutEngine.ts
+/lib/componentFactory.ts
+/lib/siteGenerator.ts
+
+Remove any logic that automatically inserts:
+
+brand_badge
+brand_chip
+brand_label
+
+Hero content should only be:
+
+headline
+subheadline
+buttons
+media
+
+------------------------------------------------
+3. ADD SAFE RENDER RULE
+------------------------------------------------
+
+Update hero renderer to ignore brand chips.
+
+File
+
+/components/ui/Hero.tsx
+
+Add rule:
+
+if element.type == "brand_badge"
+skip rendering
+
+------------------------------------------------
+4. KEEP BRAND NAME ONLY IN NAVBAR
+------------------------------------------------
+
+Ensure brand name appears only in:
+
+Navbar logo
+Footer
+
+Check files:
+
+/components/ui/Navbar.tsx
+/components/ui/Footer.tsx
+
+Navbar example:
+
+if(project.brand.logo_url){
+render logo image
+}else{
+render brand.name
+}
+
+------------------------------------------------
+5. REMOVE BRAND CHIP FROM CONTENT GENERATOR
+------------------------------------------------
+
+Update
+
+/lib/contentGenerator.ts
+
+Remove generation of elements like:
+
+brand_badge
+brand_chip
+brand_intro
+
+Generated content should only include:
+
+headline
+subheadline
+feature titles
+paragraphs
+cta labels
+
+------------------------------------------------
+6. RESULT
+------------------------------------------------
+
+After this update:
+
+• the green "ngaer" badge disappears
+• brand name no longer appears above the hero
+• hero only shows product messaging
+• brand identity appears only in the navbar and footer

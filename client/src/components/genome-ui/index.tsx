@@ -200,7 +200,6 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
     hasImage && section.imagePlacement === "right" ? "row-reverse" :
     "column";
 
-  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
   const effectiveHeadline = contentOverrides?.headline || content.headline;
   const effectiveSubheadline = contentOverrides?.subheadline || content.subheadline;
   const effectiveCtaLabel = contentOverrides?.ctaLabel || content.ctaLabel;
@@ -223,22 +222,6 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
       }}
     >
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: genome.spacing.md, alignItems: align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start" }}>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: genome.spacing.xs,
-            backgroundColor: `${genome.colors.accent}22`,
-            border: `1px solid ${genome.colors.accent}44`,
-            borderRadius: genome.radius.full,
-            padding: `${genome.spacing.xs} ${genome.spacing.sm}`,
-          }}
-        >
-          <GIcon name="broadcast" genome={genome} size={13} color={genome.colors.accent} />
-          <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.accent, fontWeight: 600 }}>
-            {displayBrandName}
-          </span>
-        </div>
         <h1
           style={{
             fontFamily: `'${genome.typography.heading}', sans-serif`,

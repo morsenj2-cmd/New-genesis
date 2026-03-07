@@ -998,9 +998,9 @@ export default function ProjectPage() {
         const s = JSON.parse(project.settingsJson);
         const patch: Record<string, string> = {};
         if (s.brandName) patch.brandName = s.brandName;
-        if (s.promptContent?.headline) patch.heroHeadline = s.promptContent.headline;
-        if (s.promptContent?.subheadline) patch.heroSubheadline = s.promptContent.subheadline;
-        if (s.promptContent?.ctaLabel) patch.heroCta = s.promptContent.ctaLabel;
+        if (s.promptContent?.headline) patch.headline = s.promptContent.headline;
+        if (s.promptContent?.subheadline) patch.subheadline = s.promptContent.subheadline;
+        if (s.promptContent?.ctaLabel) patch.ctaLabel = s.promptContent.ctaLabel;
         if (Object.keys(patch).length > 0) {
           setContentOverrides(prev => ({ ...prev, ...patch }));
         }

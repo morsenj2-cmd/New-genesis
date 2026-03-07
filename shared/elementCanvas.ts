@@ -81,8 +81,7 @@ export function decomposeHero(alignment = "center", content?: ElementContent): S
     sectionType: "hero",
     height: 500,
     elements: [
-      { id: u("hero-badge"), type: "badge", x: isCenter ? cx - 80 : contentX, y: 56, width: 160, height: 30, content: content?.brandName ? `${content.brandName} — Now available` : "Now available", zIndex: 1 },
-      { id: u("hero-headline"), type: "headline", x: contentX, y: 108, width: contentW, height: 100, content: content?.headline ?? "Build something incredible today", zIndex: 1 },
+      { id: u("hero-headline"), type: "headline", x: contentX, y: 56, width: contentW, height: 100, content: content?.headline ?? "Build something incredible today", zIndex: 1 },
       { id: u("hero-subheadline"), type: "subheadline", x: isCenter ? contentX + 80 : contentX, y: 228, width: isCenter ? contentW - 160 : contentW, height: 60, content: content?.subheadline ?? "The modern platform for every workflow.", zIndex: 1 },
       { id: u("hero-btn-primary"), type: "button_primary", x: btnX, y: 320, width: 156, height: 44, content: content?.ctaLabel ?? "Get Started Free", zIndex: 2 },
       { id: u("hero-btn-secondary"), type: "button_secondary", x: btnX + 172, y: 320, width: 156, height: 44, content: content?.secondaryCtaLabel ?? "See How It Works", zIndex: 2 },
