@@ -70,6 +70,17 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 - `font_url`: Cloudinary HTTPS URL of uploaded custom font file (.ttf/.otf/.woff/.woff2)
 - `font`: font name (preset name or custom font filename without extension)
 
+### Icon Generator
+
+`shared/iconGenerator.ts` — procedural SVG icon generator. All 25 icons across 5 semantic groups are rendered using parameterized SVG paths derived from the project's genome `iconStyle`.
+
+- **Groups**: `communication`, `navigation`, `system`, `commerce`, `media` (5 icons each)
+- **Icon names**: chat, mail, phone, notification, broadcast / search, menu, home, arrow, compass / settings, filter, grid, list, close / cart, tag, wallet, receipt, package / play, image, video, music, microphone
+- **Parameters**: `strokeWidth`, `cornerRoundness` (→ SVG rx), `geometryBias` (organic curves vs geometric angles), `variant` (filled vs outline)
+- **API**: `renderIconSvgContent(name, style)` → inner SVG string; `buildSvgString(name, style, size)` → full `<svg>` string
+- Rendered in the browser via `dangerouslySetInnerHTML` on a React `<svg>` wrapper (safe — no user input)
+- Project detail page shows icon style preview (5 sample icons) and a full **Icon Family** panel grouped by category
+
 ### Cloudinary Integration
 
 Logos and custom fonts are uploaded to Cloudinary on project creation. The server receives base64 data URLs from the client, uploads them to Cloudinary, and stores the resulting HTTPS URL in the database.

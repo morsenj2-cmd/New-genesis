@@ -38,6 +38,14 @@ import { useState, useEffect } from "react";
 import type { Project } from "@shared/schema";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
+import {
+  renderIconSvgContent,
+  GROUP_ICONS,
+  GROUP_LABELS,
+  type GenomeIconStyle,
+  type IconName,
+  type IconGroup,
+} from "@shared/iconGenerator";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -308,23 +316,21 @@ function GenomePanel({ genome }: { genome: DesignGenome }) {
               </div>
             </div>
 
-            <div className="pt-2">
-              <svg
-                viewBox="0 0 48 48"
-                className="h-12 w-12"
-                fill={genome.iconStyle.variant === "filled" ? "currentColor" : "none"}
-                stroke="currentColor"
-                strokeWidth={genome.iconStyle.strokeWidth}
-                strokeLinecap={genome.iconStyle.geometryBias === "organic" ? "round" : "square"}
-                strokeLinejoin={genome.iconStyle.geometryBias === "organic" ? "round" : "miter"}
-                style={{ color: genome.colors.primary }}
-              >
-                <rect
-                  x="8" y="8" width="32" height="32"
-                  rx={Math.round(genome.iconStyle.cornerRoundness / 10)}
+            <div className="pt-2 flex items-center gap-3 flex-wrap">
+              {(["chat", "search", "settings", "cart", "play"] as IconName[]).map((name) => (
+                <ProjectIcon
+                  key={name}
+                  name={name}
+                  style={{
+                    strokeWidth: genome.iconStyle.strokeWidth,
+                    cornerRoundness: genome.iconStyle.cornerRoundness,
+                    geometryBias: genome.iconStyle.geometryBias,
+                    variant: genome.iconStyle.variant,
+                  }}
+                  size={22}
+                  color={genome.colors.primary}
                 />
-                <circle cx="24" cy="24" r="8" />
-              </svg>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -387,6 +393,83 @@ function MotionPreview({ easing, duration }: { easing: string; duration: string 
       />
       <span className="absolute right-2 text-xs text-muted-foreground">tap to preview</span>
     </button>
+  );
+}
+
+function ProjectIcon({
+  name,
+  style,
+  size = 24,
+  color,
+}: {
+  name: IconName;
+  style: GenomeIconStyle;
+  size?: number;
+  color?: string;
+}) {
+  const fill = style.variant === "filled" ? "currentColor" : "none";
+  const lc = style.geometryBias === "organic" ? "round" : "square";
+  const lj = style.geometryBias === "organic" ? "round" : "miter";
+  const inner = renderIconSvgContent(name, style);
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill={fill}
+      stroke="currentColor"
+      strokeWidth={style.strokeWidth}
+      strokeLinecap={lc as "round" | "square" | "butt" | "inherit"}
+      strokeLinejoin={lj as "round" | "miter" | "bevel" | "inherit"}
+      style={{ color: color ?? "currentColor" }}
+      dangerouslySetInnerHTML={{ __html: inner }}
+    />
+  );
+}
+
+function IconFamilyPanel({ iconStyle, primaryColor }: { iconStyle: DesignGenome["iconStyle"]; primaryColor: string }) {
+  const style: GenomeIconStyle = {
+    strokeWidth: iconStyle.strokeWidth,
+    cornerRoundness: iconStyle.cornerRoundness,
+    geometryBias: iconStyle.geometryBias,
+    variant: iconStyle.variant,
+  };
+
+  const groups: IconGroup[] = ["communication", "navigation", "system", "commerce", "media"];
+
+  return (
+    <Card data-testid="card-icon-family">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <MousePointer className="h-3.5 w-3.5" />
+          Icon Family
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {groups.map((group) => (
+          <div key={group}>
+            <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-medium">
+              {GROUP_LABELS[group]}
+            </p>
+            <div className="flex items-center gap-4 flex-wrap">
+              {GROUP_ICONS[group].map((name) => (
+                <div
+                  key={name}
+                  className="flex flex-col items-center gap-1.5 group cursor-default"
+                  title={name}
+                  data-testid={`icon-${group}-${name}`}
+                >
+                  <div className="p-2 rounded-lg bg-muted/50 group-hover:bg-muted transition-colors">
+                    <ProjectIcon name={name} style={style} size={20} color={primaryColor} />
+                  </div>
+                  <span className="text-[9px] text-muted-foreground leading-none">{name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -801,7 +884,13 @@ export default function ProjectPage() {
                     </Card>
 
                     {genome ? (
-                      <GenomePanel genome={genome} />
+                      <>
+                        <GenomePanel genome={genome} />
+                        <IconFamilyPanel
+                          iconStyle={genome.iconStyle}
+                          primaryColor={genome.colors.primary}
+                        />
+                      </>
                     ) : (
                       <Card className="border-dashed">
                         <CardContent className="flex flex-col items-center justify-center py-10 text-center">

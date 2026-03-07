@@ -197,7 +197,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div>
-                <h1 className="text-lg font-semibold text-foreground">Projects</h1>
+                <h1 className="text-lg font-semibold text-foreground">Your work</h1>
                 {isSignedIn && (
                   <p className="text-xs text-muted-foreground">
                     {isLoading ? "Loading..." : `${projectCount} project${projectCount !== 1 ? "s" : ""}`}
