@@ -1,0 +1,85 @@
+Update the existing Replit project (do not recreate or overwrite Clerk or Neon config). Make the changes below, add any modules and UI necessary, and produce working code with server and client tests so the editor shows correct previews. Follow these exact tasks in order and confirm each task writes files listed.
+
+1) Fix: do NOT render the raw project.prompt inside the preview
+- Locate where the preview content is assembled. Remove any insertion of `project.prompt` into the rendered page HTML/JSX.
+- If `project.prompt` is used as placeholder text in a Hero or heading, replace it with generated content from `layout_json` or `genome_json` values (e.g., hero.title from layout or generated copy). If generated copy is missing, render a safe placeholder like "Your product headline" (do not display the original user prompt).
+- File changes to create/update: 
+  - `/pages/project/[id]/index.tsx` (preview render logic)
+  - `/lib/previewSanitizer.ts` (new small helper to remove prompt injection)
+- Add server-side safeguard: when returning project data to preview endpoint, strip `prompt` from any field that would render as UI text. Endpoint(s): `GET /api/project/[id]` and `GET /api/project/list`.
+
+2) Add Natural-Language Design Edit feature (no external LLMs)
+- Add UI in the project editor: "Edit design with natural language" textarea + "Apply" button.
+  - File: `/components/ui/NLDesigner.tsx`
+  - Add to editor page `/pages/project/[id]/index.tsx` (right panel).
+- Implement deterministic NL command parser: `/lib/nlParser.ts`
+  - Input: free-text command (examples below)
+  - Output: a normalized set of patch operations that update `design_context` and/or `genome_json` and/or `layout_json`.
+  - Use keyword/token matching and phrase rules only (no LLM).
+  - Support commands (case-insensitive):
+    - "make it more minimal" → set `design_context.tone = "clean"`, reduce `motion.energy`, increase whitespace scale by +1 step
+    - "use blue as primary" / "primary color blue" → set `genome_json.colors.primary` to a measured blue HSL and regenerate secondary palette
+    - "reduce animations" / "no heavy motion" → set `genome_json.motion.enabled = false` or `motion.energy = low`
+    - "use standard icons" / "disable custom icons" → set `project.settings.uniqueIcons = false`
+    - "disable unique genomes" / "turn off uniqueness" → set `project.settings.forceStandardGenome = true` (causes generation to use conservative defaults)
+    - "set industry to saas" / "saas cloud storage" → set `design_context.industry = "saas"`
+    - "make it accessible / more readable" → enforce larger base font-size and contrast adjustments
+  - The parser must return a JSON patch array: `{ op: "set"|"mutate", path: "genome_json.colors.primary", value: ... }`
+- Server API to apply patches:
+  - `POST /api/project/[id]/apply-nl` accepts `{ commands: string }`, runs `/lib/nlParser.ts`, applies patches atomically to DB, regenerates `genome_json`/`layout_json` if needed, runs designValidator, and returns updated project JSON.
+  - Ensure Clerk session verification in this route.
+- Client UX: when user hits Apply, call the API, then refresh preview.
+
+3) SaaS / Cloud Storage constraints and defaults
+- Add SaaS constraint layer that triggers when `design_context.industry === "saas"` or when NL parser sets industry to saas.
+- Implement in `/lib/saasConstraints.ts` (called during genome generation and apply-nl):
+  - Force conservative palette (muted blues/greys):
+    - primary hue in 200–220°, saturation low–medium, accessible contrast
+  - Typography: choose from safe list (`Inter`, `IBM Plex Sans`, `Plus Jakarta Sans`)
+  - Motion: minimal or disabled
+  - Icons: enforce `project.settings.uniqueIcons = false` and instead map to a neutral icon set (e.g., system icons). Do not generate or present many "icon families" or counters in the UI.
+  - Remove "unique genomes" and "icon families" counters/badges from editor preview for SaaS projects (UI removal).
+- Update genomeGenerator to accept an override flag `forceStandard=true` to produce a deterministic conservative genome (keeps seed behavior for non-SaaS).
+  - File: `/lib/genomeGenerator.ts` (add `options?: { forceStandard?: boolean }`)
+  - When forced, ignore artistic mutations (no neon, no high saturation, minimal animations).
+- Migration script: create `/scripts/migrateSaaSDefaults.ts` to update existing projects whose prompt or industry appears SaaS-like (simple token search for "saas", "cloud", "storage", "cloud storage", "s3", "object storage"). For each matched project:
+  - set `design_context.industry = "saas"` (if unset)
+  - set `project.settings.forceStandardGenome = true`
+  - set `project.settings.uniqueIcons = false`
+  - regenerate genome and layout, run designValidator, save.
+
+4) Icon system fix (prevent vibe-coded neon icons for SaaS)
+- Update `/lib/iconGenerator.ts` to:
+  - keep icon semantics mapping (chat→bubble, search→magnifier, settings→gear)
+  - produce stylistic variants only when `project.settings.uniqueIcons === true`
+  - when false, return icons from a standard neutral set (add `/public/icons/standard/` or programmatically generate standard SVG templates).
+- Remove or hide any UI elements that advertise "Icon families" or "Unique genomes" for projects with `forceStandardGenome` true.
+
+5) Preview/content clean-up
+- Remove visible seed hash, icon families counters, or designer-metrics from the public preview frame. If you must show seed info, move it to a hidden debug panel behind a toggle in the editor (not the main preview).
+- Ensure hero text shown in preview is pulled from `layout_json.sections[*].content` or from a `generatedCopy` field; never render raw `project.prompt`.
+
+6) Tests and verification
+- Add integration tests:
+  - `/tests/api.apply-nl.test.ts` to verify a command like "make it more minimal" updates genome and preview fields.
+  - `/tests/migrateSaaSDefaults.test.ts` to verify migration sets `forceStandardGenome` and `uniqueIcons=false`.
+- Add a manual QA checklist in repo root `QA.md` describing:
+  - Create project with prompt "i need a saas cloud storage platform"
+  - Verify preview shows conservative SaaS style, no neon, no icon families, hero text not raw prompt
+  - Enter NL command "use blue as primary" and verify palette updates
+  - Enter NL command "disable custom icons" and verify standard icons used
+
+7) Output and developer notes
+- Commit code and provide the list of changed/added files in the Replit AI response.
+- After code changes run `npm install` and `npm run dev` (or existing dev command) and confirm endpoints:
+  - `POST /api/project/[id]/apply-nl`
+  - `POST /api/project/migrate-saas`
+- Provide example NL commands to test:
+  - "set industry to saas cloud storage"
+  - "make it more minimal"
+  - "use blue as primary"
+  - "disable custom icons"
+  - "reduce animations"
+- Ensure all implementations use deterministic rules and keyword mapping only (explicitly: do not call any external LLM API).
+
+End.

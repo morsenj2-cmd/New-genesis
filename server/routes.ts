@@ -2,11 +2,13 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { clerkMiddleware, getAuth } from "@clerk/express";
 import { createHash } from "crypto";
+import archiver from "archiver";
 import { storage } from "./storage";
 import { createProjectSchema } from "@shared/schema";
 import { generateGenome } from "@shared/genomeGenerator";
 import { generateLayout } from "@shared/layoutEngine";
 import { uploadBase64Image, uploadBase64Font } from "./cloudinary";
+import { generateExportFiles, safeName } from "./exportGenerator";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -118,6 +120,58 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error fetching project:", err);
       res.status(500).json({ message: "Failed to fetch project" });
+    }
+  });
+
+  app.delete("/api/project/:id", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      await storage.deleteProject(req.params.id, userId!);
+      res.json({ message: "Project deleted" });
+    } catch (err) {
+      console.error("Error deleting project:", err);
+      res.status(500).json({ message: "Failed to delete project" });
+    }
+  });
+
+  app.get("/api/export/project/:id", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const genome = project.genomeJson
+        ? JSON.parse(project.genomeJson)
+        : generateGenome(project.seed);
+      const layout = project.layoutJson
+        ? JSON.parse(project.layoutJson)
+        : generateLayout(project.seed);
+
+      const files = generateExportFiles(project, genome, layout);
+      const folderName = safeName(project.name);
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${folderName}.zip"`);
+
+      const zip = archiver("zip", { zlib: { level: 9 } });
+      zip.on("error", (err) => {
+        console.error("Archiver error:", err);
+        if (!res.headersSent) res.status(500).json({ message: "Export failed" });
+      });
+      zip.pipe(res);
+
+      for (const file of files) {
+        zip.append(file.content, { name: `${folderName}/${file.path}` });
+      }
+
+      await zip.finalize();
+    } catch (err) {
+      console.error("Error exporting project:", err);
+      if (!res.headersSent) res.status(500).json({ message: "Export failed" });
     }
   });
 

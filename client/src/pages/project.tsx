@@ -38,8 +38,24 @@ import {
   Sparkles,
   ChevronDown,
   ChevronRight,
+  Download,
+  Trash2,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Project } from "@shared/schema";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import { generateGenome } from "@shared/genomeGenerator";
@@ -874,6 +890,7 @@ export default function ProjectPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { getToken } = useAuth();
+  const { toast } = useToast();
 
   const { data: project, isLoading, error } = useQuery<Project>({
     queryKey: ["/api/project", params.id],
@@ -952,12 +969,59 @@ export default function ProjectPage() {
     setIsRegenerating(false);
   }, [project?.seed, iteration]);
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/project/${params.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to delete project");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project/list"] });
+      toast({ title: "Project deleted", description: "Your project has been permanently removed." });
+      navigate("/dashboard");
+    },
+    onError: (err) => {
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "Something went wrong",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleExport = useCallback(async () => {
+    const token = await getToken();
+    const url = `/api/export/project/${params.id}`;
+    const res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
+    if (!res.ok) {
+      toast({ title: "Export failed", description: "Could not generate the project zip.", variant: "destructive" });
+      return;
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${project?.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "morse-export"}.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, [params.id, getToken, project?.name, toast]);
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background">
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm z-10 shrink-0">
+          <header className="flex items-center gap-2 px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm z-10 shrink-0">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <Button
               variant="ghost"
@@ -969,34 +1033,78 @@ export default function ProjectPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             {isLoading ? (
-              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-40 flex-1" />
             ) : project ? (
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                {project.logoUrl && (
-                  <img
-                    src={project.logoUrl}
-                    alt="Logo"
-                    className="h-6 w-6 rounded object-contain border border-border shrink-0"
-                  />
-                )}
-                <h1
-                  className="text-sm font-semibold text-foreground truncate"
-                  style={fontFamily ? { fontFamily } : {}}
-                  data-testid="header-project-name"
-                >
-                  {project.name}
-                </h1>
-                {project.themeColor && (
-                  <div
-                    className="h-3.5 w-3.5 rounded-full shrink-0 border border-border/50"
-                    style={{ backgroundColor: project.themeColor }}
-                  />
-                )}
-                <Badge variant="outline" className="text-xs gap-1 shrink-0 ml-1">
-                  <Hash className="h-2.5 w-2.5" />
-                  SHA-256
-                </Badge>
-              </div>
+              <>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {project.logoUrl && (
+                    <img
+                      src={project.logoUrl}
+                      alt="Logo"
+                      className="h-6 w-6 rounded object-contain border border-border shrink-0"
+                    />
+                  )}
+                  <h1
+                    className="text-sm font-semibold text-foreground truncate"
+                    style={fontFamily ? { fontFamily } : {}}
+                    data-testid="header-project-name"
+                  >
+                    {project.name}
+                  </h1>
+                  {project.themeColor && (
+                    <div
+                      className="h-3.5 w-3.5 rounded-full shrink-0 border border-border/50"
+                      style={{ backgroundColor: project.themeColor }}
+                    />
+                  )}
+                  <Badge variant="outline" className="text-xs gap-1 shrink-0 ml-1 hidden sm:flex">
+                    <Hash className="h-2.5 w-2.5" />
+                    SHA-256
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs h-8"
+                    onClick={handleExport}
+                    data-testid="button-export-project"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Export
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        data-testid="button-delete-project"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete project?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          <strong>{project.name}</strong> will be permanently deleted. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/90"
+                          onClick={() => deleteMutation.mutate()}
+                          data-testid="button-confirm-delete"
+                        >
+                          {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </>
             ) : null}
           </header>
 

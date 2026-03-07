@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "./db";
 import { users, projects, type User, type InsertUser, type Project } from "@shared/schema";
 
@@ -19,6 +19,7 @@ export interface IStorage {
     genomeJson?: string;
     layoutJson?: string;
   }): Promise<Project>;
+  deleteProject(id: string, userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -59,6 +60,12 @@ export class DatabaseStorage implements IStorage {
   }): Promise<Project> {
     const [project] = await db.insert(projects).values(data).returning();
     return project;
+  }
+
+  async deleteProject(id: string, userId: string): Promise<void> {
+    await db
+      .delete(projects)
+      .where(and(eq(projects.id, id), eq(projects.userId, userId)));
   }
 }
 

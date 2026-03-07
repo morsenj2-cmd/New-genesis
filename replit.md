@@ -11,7 +11,9 @@ Key features:
 - Deterministic seed generation (SHA-256 hash) per project
 - Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
 - Dashboard for listing user projects (public, tagline shown for guests)
-- Project detail view with full genome visualization panel
+- Project editor: two-panel layout with live GenomePreview + Regenerate Design (derives new seed client-side via SHA-256)
+- Export project as a downloadable zip — complete Vite + React project with genome baked in, runs with `npm install && npm run dev`
+- Delete project with confirmation dialog
 - Dark theme (pure black background)
 
 ## User Preferences
