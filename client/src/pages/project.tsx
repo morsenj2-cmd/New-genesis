@@ -25,18 +25,8 @@ import {
   Type,
   Image as ImageIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Project } from "@shared/schema";
-
-const FONT_LABELS: Record<string, string> = {
-  "Arimo": "Arimo",
-  "Inter": "Inter",
-  "Plus Jakarta Sans": "Plus Jakarta Sans",
-  "Poppins": "Poppins",
-  "Montserrat": "Montserrat",
-  "Space Grotesk": "Space Grotesk",
-  "Roboto": "Roboto",
-};
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -113,6 +103,21 @@ export default function ProjectPage() {
     enabled: !!params.id,
   });
 
+  useEffect(() => {
+    if (!project?.fontUrl) return;
+    const style = document.createElement("style");
+    style.id = `custom-font-${project.id}`;
+    style.textContent = `@font-face { font-family: 'ProjectFont-${project.id}'; src: url('${project.fontUrl}'); }`;
+    const existing = document.getElementById(`custom-font-${project.id}`);
+    if (existing) existing.remove();
+    document.head.appendChild(style);
+    return () => { style.remove(); };
+  }, [project?.fontUrl, project?.id]);
+
+  const fontFamily = project?.fontUrl
+    ? `'ProjectFont-${project.id}', sans-serif`
+    : project?.font ? `'${project.font}', sans-serif` : undefined;
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background">
@@ -142,7 +147,7 @@ export default function ProjectPage() {
                 )}
                 <h1
                   className="text-lg font-semibold text-foreground truncate"
-                  style={project.font ? { fontFamily: `'${project.font}', sans-serif` } : {}}
+                  style={fontFamily ? { fontFamily } : {}}
                   data-testid="header-project-name"
                 >
                   {project.name}
@@ -190,7 +195,7 @@ export default function ProjectPage() {
                           <p className="text-xs text-muted-foreground mb-1">Name</p>
                           <p
                             className="text-sm font-medium text-foreground"
-                            style={project.font ? { fontFamily: `'${project.font}', sans-serif` } : {}}
+                            style={fontFamily ? { fontFamily } : {}}
                             data-testid="text-project-name"
                           >
                             {project.name}
@@ -245,10 +250,10 @@ export default function ProjectPage() {
                             <Badge
                               variant="secondary"
                               className="text-xs"
-                              style={{ fontFamily: `'${project.font}', sans-serif` }}
+                              style={fontFamily ? { fontFamily } : {}}
                               data-testid="badge-project-font"
                             >
-                              {project.font}
+                              {project.font}{project.fontUrl ? " (custom)" : ""}
                             </Badge>
                           </div>
                         )}

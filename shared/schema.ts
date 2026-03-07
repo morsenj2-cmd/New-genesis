@@ -16,6 +16,7 @@ export const projects = pgTable("projects", {
   prompt: text("prompt").notNull(),
   seed: text("seed").notNull(),
   font: text("font"),
+  fontUrl: text("font_url"),
   themeColor: text("theme_color"),
   logoUrl: text("logo_url"),
   genomeJson: text("genome_json"),
@@ -33,6 +34,7 @@ export const createProjectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100),
   prompt: z.string().min(1, "Prompt is required").max(2000),
   font: z.string().optional(),
+  fontUrl: z.string().optional(),
   themeColor: z.string().optional(),
   logoUrl: z.string().optional(),
 });

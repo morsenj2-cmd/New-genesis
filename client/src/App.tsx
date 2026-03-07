@@ -61,7 +61,7 @@ function RootRedirect() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    navigate(isSignedIn ? "/dashboard" : "/sign-in");
+    navigate(isSignedIn ? "/dashboard" : "/sign-in", { replace: true });
   }, [isLoaded, isSignedIn]);
 
   return <LoadingScreen />;

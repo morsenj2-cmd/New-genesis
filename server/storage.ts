@@ -13,6 +13,7 @@ export interface IStorage {
     prompt: string;
     seed: string;
     font?: string;
+    fontUrl?: string;
     themeColor?: string;
     logoUrl?: string;
   }): Promise<Project>;
@@ -48,6 +49,7 @@ export class DatabaseStorage implements IStorage {
     prompt: string;
     seed: string;
     font?: string;
+    fontUrl?: string;
     themeColor?: string;
     logoUrl?: string;
   }): Promise<Project> {

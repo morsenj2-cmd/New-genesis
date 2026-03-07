@@ -38,11 +38,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
       }
-      const { name, prompt, font, themeColor, logoUrl } = parsed.data;
+      const { name, prompt, font, fontUrl, themeColor, logoUrl } = parsed.data;
       const timestamp = Date.now().toString();
       const tempId = `${userId}-${timestamp}`;
       const seed = createHash("sha256").update(`${userId}${tempId}${timestamp}`).digest("hex");
-      const project = await storage.createProject({ userId: userId!, name, prompt, seed, font, themeColor, logoUrl });
+      const project = await storage.createProject({ userId: userId!, name, prompt, seed, font, fontUrl, themeColor, logoUrl });
       res.status(201).json(project);
     } catch (err) {
       console.error("Error creating project:", err);

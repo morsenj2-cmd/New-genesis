@@ -7,7 +7,7 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <div className="hidden lg:flex flex-col w-1/2 bg-gradient-to-br from-primary/10 via-primary/5 to-background p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-col w-1/2 border-r border-border p-12 relative overflow-hidden">
         <div className="relative z-10 flex flex-col h-full">
           <div className="flex items-center gap-3 mb-16">
             <img
@@ -48,7 +48,7 @@ export default function SignUpPage() {
             appearance={{
               elements: {
                 rootBox: "w-full",
-                card: "shadow-none border border-card-border bg-card rounded-xl p-6",
+                card: "shadow-none border border-border bg-card rounded-xl p-6",
                 headerTitle: "hidden",
                 headerSubtitle: "hidden",
                 socialButtonsBlockButton: "border border-border bg-background text-foreground rounded-lg font-medium",
