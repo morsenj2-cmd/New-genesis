@@ -15,6 +15,9 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   prompt: text("prompt").notNull(),
   seed: text("seed").notNull(),
+  font: text("font"),
+  themeColor: text("theme_color"),
+  logoUrl: text("logo_url"),
   genomeJson: text("genome_json"),
   layoutJson: text("layout_json"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -29,6 +32,9 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
 export const createProjectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100),
   prompt: z.string().min(1, "Prompt is required").max(2000),
+  font: z.string().optional(),
+  themeColor: z.string().optional(),
+  logoUrl: z.string().optional(),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

@@ -7,28 +7,22 @@ import { createProjectSchema } from "@shared/schema";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
-  if (!userId) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
   next();
 }
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
-  app.use(clerkMiddleware());
-
   app.get("/api/config", (_req, res) => {
     res.json({ publishableKey: process.env.CLERK_PUBLISHABLE_KEY });
   });
+
+  app.use(clerkMiddleware());
 
   app.post("/api/user/sync", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
       const { email } = req.body;
-
-      if (!email) {
-        return res.status(400).json({ message: "Email is required" });
-      }
-
+      if (!email) return res.status(400).json({ message: "Email is required" });
       const user = await storage.upsertUser({ id: userId!, email });
       res.json(user);
     } catch (err) {
@@ -44,19 +38,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
       }
-
-      const { name, prompt } = parsed.data;
+      const { name, prompt, font, themeColor, logoUrl } = parsed.data;
       const timestamp = Date.now().toString();
       const tempId = `${userId}-${timestamp}`;
       const seed = createHash("sha256").update(`${userId}${tempId}${timestamp}`).digest("hex");
-
-      const project = await storage.createProject({
-        userId: userId!,
-        name,
-        prompt,
-        seed,
-      });
-
+      const project = await storage.createProject({ userId: userId!, name, prompt, seed, font, themeColor, logoUrl });
       res.status(201).json(project);
     } catch (err) {
       console.error("Error creating project:", err);
@@ -79,15 +65,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { userId } = getAuth(req);
       const project = await storage.getProject(req.params.id);
-
-      if (!project) {
-        return res.status(404).json({ message: "Project not found" });
-      }
-
-      if (project.userId !== userId) {
-        return res.status(403).json({ message: "Forbidden" });
-      }
-
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
       res.json(project);
     } catch (err) {
       console.error("Error fetching project:", err);

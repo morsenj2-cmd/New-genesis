@@ -1,13 +1,21 @@
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { users, projects, type User, type InsertUser, type Project, type InsertProject } from "@shared/schema";
+import { users, projects, type User, type InsertUser, type Project } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: InsertUser): Promise<User>;
   getProject(id: string): Promise<Project | undefined>;
   getProjectsByUser(userId: string): Promise<Project[]>;
-  createProject(project: InsertProject & { seed: string }): Promise<Project>;
+  createProject(data: {
+    userId: string;
+    name: string;
+    prompt: string;
+    seed: string;
+    font?: string;
+    themeColor?: string;
+    logoUrl?: string;
+  }): Promise<Project>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -20,10 +28,7 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .insert(users)
       .values(insertUser)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: { email: insertUser.email },
-      })
+      .onConflictDoUpdate({ target: users.id, set: { email: insertUser.email } })
       .returning();
     return user;
   }
@@ -37,7 +42,15 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(projects).where(eq(projects.userId, userId));
   }
 
-  async createProject(data: InsertProject & { seed: string }): Promise<Project> {
+  async createProject(data: {
+    userId: string;
+    name: string;
+    prompt: string;
+    seed: string;
+    font?: string;
+    themeColor?: string;
+    logoUrl?: string;
+  }): Promise<Project> {
     const [project] = await db.insert(projects).values(data).returning();
     return project;
   }

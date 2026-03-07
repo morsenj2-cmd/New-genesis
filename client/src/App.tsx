@@ -10,6 +10,7 @@ import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import DashboardPage from "@/pages/dashboard";
 import ProjectPage from "@/pages/project";
+import NewProjectPage from "@/pages/new-project";
 import { Loader2 } from "lucide-react";
 
 function LoadingScreen() {
@@ -25,11 +26,11 @@ function LoadingScreen() {
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isLoaded, isSignedIn } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      navigate("/sign-in");
+      navigate(`/sign-in?redirect=${encodeURIComponent(location)}`);
     }
   }, [isLoaded, isSignedIn]);
 
@@ -44,7 +45,8 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      navigate("/dashboard");
+      const params = new URLSearchParams(window.location.search);
+      navigate(params.get("redirect") || "/dashboard");
     }
   }, [isLoaded, isSignedIn]);
 
@@ -72,6 +74,7 @@ function Router() {
       <Route path="/sign-in" component={() => <PublicRoute component={SignInPage} />} />
       <Route path="/sign-up" component={() => <PublicRoute component={SignUpPage} />} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
+      <Route path="/new" component={() => <ProtectedRoute component={NewProjectPage} />} />
       <Route path="/project/:id" component={() => <ProtectedRoute component={ProjectPage} />} />
       <Route component={NotFound} />
     </Switch>

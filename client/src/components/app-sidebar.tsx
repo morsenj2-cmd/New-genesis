@@ -11,10 +11,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Layers, FolderOpen } from "lucide-react";
+import { LayoutDashboard, Plus } from "lucide-react";
+import logoPath from "@assets/--._1772868829725.png";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "New Project", url: "/new", icon: Plus },
 ];
 
 export function AppSidebar() {
@@ -24,13 +26,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <Layers className="h-4 w-4 text-primary-foreground" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-sidebar-foreground">Genome Studio</p>
-            <p className="text-xs text-muted-foreground">Generative Projects</p>
-          </div>
+          <img
+            src={logoPath}
+            alt="Morse"
+            className="h-8 w-8 rounded-lg object-cover dark:invert-0 invert shrink-0"
+          />
+          <span className="text-sm font-semibold text-sidebar-foreground tracking-tight">Morse</span>
         </div>
       </SidebarHeader>
 
@@ -47,7 +48,7 @@ export function AppSidebar() {
                       data-active={isActive}
                       className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
                     >
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase()}`}>
+                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(" ", "-")}`}>
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </Link>
@@ -64,11 +65,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <UserButton
             afterSignOutUrl="/sign-in"
-            appearance={{
-              elements: {
-                avatarBox: "h-8 w-8",
-              },
-            }}
+            appearance={{ elements: { avatarBox: "h-8 w-8" } }}
           />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-sidebar-foreground truncate">Account</p>
