@@ -30,7 +30,22 @@ Key features:
 - Design Source Priority: user's uploaded logo, selected font, selected primary color always override generator output via `mergeDesignSources()` in `shared/designMerger.ts`
 - Content Generator: category-specific headlines, subheadlines, CTA labels, features, stats, testimonials, CTA copy, and footer taglines from `shared/contentGenerator.ts` — 14 product types each with realistic copy, each with a distinct `brandName` (Vault, Relay, Lens, Shopbase, Sprint, Pipeline, Pulse, Flowbase, Devkit, Streamly, Clair, Medi, Coursify, Tempo)
 - Brand names shown in preview instead of project names: Navbar, hero badge, footer — all use `content.brandName` from `getProductContent()`; overridable via `contentOverrides.brandName`
-- Canvas Editor: rebuilt with drag-and-drop section reordering (HTML5 drag API), "Auto Design" vs "Canvas Editor" mode toggle at top of sidebar, section selection with visual highlight overlay in preview (colored border + label badge), delete section button, add section dropdown (Feature Grid, Card List, Stats Bar, Testimonials, CTA), column count selector; inline editing for hero headline/subheadline/CTA/brand name, feature grid title, card list title, CTA label; clicking sections in preview also selects them
+- Canvas Editor: rebuilt with 3-tab mode toggle (Auto | Canvas | Elements):
+  - **Auto Design mode**: AI-managed layout, read-only GenomePreview
+  - **Canvas mode**: drag-and-drop section reordering (HTML5 drag API), section selection with visual highlight overlay (colored border + label badge), delete section, add section dropdown (Feature Grid, Card List, Stats Bar, Testimonials, CTA), column count selector, inline content editing for hero/featureGrid/cardList/CTA; clicking sections in preview selects them
+  - **Elements mode** (new Figma-like editor, `client/src/components/ElementCanvas.tsx`):
+    - Renders each section as a relative container with absolutely positioned element nodes
+    - Virtual 1200px canvas scaled to fit container (zoom slider 30%-120%)
+    - Element types: badge, headline, subheadline, paragraph, button_primary, button_secondary, section_title, card_icon, card_title, card_description, stat_value, stat_label, testimonial_text, testimonial_author
+    - Click to select — bounding box outline appears + 8 resize handles (corners + edges)
+    - Pointer-based drag to reposition (8px grid snap), drag via pointer capture on element
+    - 8-handle resize system: each handle direction (nw/n/ne/e/se/s/sw/w) adjusts x/y/width/height
+    - Double-click text element to edit inline (textarea overlay replaces element)
+    - Sidebar shows: element type label, X/Y/W/H number inputs (snap 8px), content textarea, Forward/Back layer order buttons, Lock toggle, Delete button
+    - Locked elements show a lock icon badge; cannot be moved/resized
+    - Section backgrounds match genome tokens: hero=radial gradient, featureGrid/cardList=surface, stats=background with borders, cta=linear gradient
+    - Decomposition functions in `shared/elementCanvas.ts`: decomposeHero, decomposeFeatureGrid, decomposeCardList, decomposeStats, decomposeCta, decomposeTestimonial — all generate initial element positions on a 1200px reference canvas
+    - ContentOverrides type extended with `ctaHeadline`, `ctaBody` optional fields
 - Multi-page navigation: GenomePreview manages `activePage` state, navbar links navigate between home/features/pricing/about/blog/contact; full page components for each: GenomeFeaturesPage, GenomePricingPage (3-tier with FAQs), GenomeAboutPage (mission+stats+testimonials), GenomeBlogPage, GenomeContactPage; footer links also navigate
 - Context-driven layout generation: `shared/layoutEngine.ts` has `SITE_TYPE_POOLS` per page type (landing_page, web_app, dashboard, blog, portfolio, social_platform, ecommerce_store); `generateLayout` uses the correct section pool when `pageType` is provided in design context; `server/routes.ts` passes `intent.pageType` to `generateLayout`
 - Analytics/dashboard component filtering: `shared/productContextEngine.ts` strips `metric_cards`, `analytics_chart`, `data_table`, `filters`, `storage_usage_bar` component types from non-dashboard product types (only shown for analytics_dashboard, crm, project_management, fintech)

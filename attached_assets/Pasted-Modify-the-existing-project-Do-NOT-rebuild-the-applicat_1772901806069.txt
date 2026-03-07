@@ -1,0 +1,225 @@
+Modify the existing project. Do NOT rebuild the application and do NOT modify Clerk authentication or Neon database configuration.
+
+Goal
+
+Upgrade the canvas editor so every visual element on the page can be individually selected, dragged, resized, and repositioned — not just entire sections.
+
+Users must be able to select elements like:
+
+Pulse (logo text)
+"Building better experiences..."
+buttons
+profile cards
+icons
+feature titles
+paragraphs
+
+and move them anywhere inside their section.
+
+------------------------------------------------
+1. CONVERT SECTIONS INTO ELEMENT TREES
+------------------------------------------------
+
+The current system treats sections as the smallest editable unit.
+
+Replace this with an element hierarchy.
+
+Example structure
+
+page
+ ├ navbar
+ │   ├ logo
+ │   ├ nav_link
+ │   └ nav_button
+ ├ hero
+ │   ├ logo
+ │   ├ headline
+ │   ├ subheadline
+ │   ├ button_primary
+ │   └ button_secondary
+ ├ feature_grid
+ │   ├ card
+ │   │   ├ icon
+ │   │   ├ title
+ │   │   └ description
+
+Each element must have:
+
+{
+id
+type
+x
+y
+width
+height
+content
+styles
+children[]
+}
+
+Store this structure in
+
+layout_json
+
+------------------------------------------------
+2. ELEMENT SELECTION SYSTEM
+------------------------------------------------
+
+Modify the canvas renderer so every element node becomes selectable.
+
+Clicking an element should:
+
+highlight it
+display a bounding box
+show resize handles
+
+Selected element ID should update in state.
+
+------------------------------------------------
+3. DRAGGING SYSTEM
+------------------------------------------------
+
+Implement element-level dragging.
+
+Dragging updates
+
+element.x
+element.y
+
+Dragging must stay inside parent container unless explicitly unlocked.
+
+Snap rules
+
+8px grid
+12-column layout
+
+------------------------------------------------
+4. RESIZING SYSTEM
+------------------------------------------------
+
+Add resize handles on the bounding box.
+
+Resizing updates
+
+element.width
+element.height
+
+Text elements should auto-expand vertically.
+
+------------------------------------------------
+5. INLINE TEXT EDITING
+------------------------------------------------
+
+Allow text nodes to be edited directly.
+
+Elements with editable content:
+
+headline
+subheadline
+paragraph
+button label
+card titles
+nav links
+
+Click text → transform into editable input.
+
+Save changes into
+
+content_json
+
+------------------------------------------------
+6. ELEMENT TYPE SUPPORT
+------------------------------------------------
+
+Add support for these element types.
+
+logo
+headline
+subheadline
+paragraph
+button
+image
+icon
+nav_link
+card
+card_title
+card_description
+avatar
+metric
+
+Each must be independently selectable.
+
+------------------------------------------------
+7. ELEMENT LAYERING
+------------------------------------------------
+
+Introduce z-index control.
+
+Elements can be moved:
+
+forward
+backward
+send to back
+bring to front
+
+------------------------------------------------
+8. ELEMENT POSITION PANEL
+------------------------------------------------
+
+When an element is selected show controls in sidebar.
+
+Controls
+
+X position
+Y position
+Width
+Height
+Padding
+Margin
+Alignment
+
+------------------------------------------------
+9. ELEMENT LOCKING
+------------------------------------------------
+
+Allow elements to be locked.
+
+Locked elements cannot be moved accidentally.
+
+------------------------------------------------
+10. PREVENT STYLE REGENERATION FROM MOVING ELEMENTS
+------------------------------------------------
+
+Manual positioning must override auto layout.
+
+Separate fields
+
+layout_json → positions
+genome_json → styles
+
+Style regeneration must never overwrite layout_json.
+
+------------------------------------------------
+11. SECTION CONSTRAINTS
+------------------------------------------------
+
+Elements should move freely inside their section container.
+
+Sections themselves remain stacked vertically.
+
+User can reposition elements inside sections but cannot break page structure.
+
+------------------------------------------------
+12. RESULT
+------------------------------------------------
+
+After this update the canvas must behave like a real visual editor.
+
+Users must be able to:
+
+select individual elements
+drag them anywhere inside the section
+resize them
+edit text inline
+move buttons and logos independently
+adjust spacing visually

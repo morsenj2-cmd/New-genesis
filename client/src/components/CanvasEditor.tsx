@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { GenomePreview } from "@/components/genome-ui";
+import ElementCanvas from "@/components/ElementCanvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +19,7 @@ import {
   AlignCenter,
   AlignRight,
   ChevronDown,
+  MousePointer2,
 } from "lucide-react";
 
 export interface ContentOverrides {
@@ -27,6 +29,8 @@ export interface ContentOverrides {
   brandName?: string;
   featureGridTitle?: string;
   cardListTitle?: string;
+  ctaHeadline?: string;
+  ctaBody?: string;
 }
 
 interface CanvasEditorProps {
@@ -290,7 +294,7 @@ function EditPanel({
   );
 }
 
-type EditorMode = "auto" | "canvas";
+type EditorMode = "auto" | "canvas" | "elements";
 
 export function CanvasEditor({
   genome,
@@ -360,7 +364,8 @@ export function CanvasEditor({
     setShowAddMenu(false);
   }, [layout, onLayoutChange]);
 
-  const isCanvasMode = mode === "canvas";
+  const isCanvasMode   = mode === "canvas";
+  const isElementsMode = mode === "elements";
 
   return (
     <div className="flex h-full min-h-0 flex-1 overflow-hidden">
@@ -381,7 +386,7 @@ export function CanvasEditor({
               onClick={() => { setMode("auto"); setSelectedSectionIdx(null); }}
               data-testid="canvas-mode-auto"
             >
-              Auto Design
+              Auto
             </button>
             <button
               className={`flex-1 text-xs py-1.5 font-medium transition-colors ${
@@ -394,8 +399,33 @@ export function CanvasEditor({
             >
               Canvas
             </button>
+            <button
+              className={`flex-1 text-xs py-1.5 font-medium transition-colors flex items-center justify-center gap-1 ${
+                mode === "elements"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+              onClick={() => { setMode("elements"); setSelectedSectionIdx(null); }}
+              data-testid="canvas-mode-elements"
+            >
+              <MousePointer2 className="h-2.5 w-2.5" />
+              Elements
+            </button>
           </div>
         </div>
+
+        {isElementsMode && (
+          <div className="p-4 text-center text-muted-foreground mt-2 space-y-2">
+            <MousePointer2 className="h-6 w-6 mx-auto opacity-20" />
+            <p className="text-xs leading-relaxed">
+              <strong className="text-foreground">Element editor active.</strong>
+              <br />
+              Click any element in the canvas to select it.
+              <br />
+              Drag to reposition. Double-click text to edit.
+            </p>
+          </div>
+        )}
 
         {isCanvasMode && (
           <>
@@ -501,21 +531,31 @@ export function CanvasEditor({
 
       {/* ── Preview area ─────────────────────────────────────── */}
       <div
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-hidden"
         data-testid="canvas-preview-area"
         onClick={() => { if (showAddMenu) setShowAddMenu(false); }}
       >
-        <GenomePreview
-          genome={genome}
-          layout={layout}
-          projectName={projectName}
-          projectPrompt={projectPrompt}
-          projectLogoUrl={projectLogoUrl}
-          productType={productType}
-          contentOverrides={contentOverrides}
-          selectedSectionIdx={isCanvasMode ? selectedSectionIdx : null}
-          onSectionClick={isCanvasMode ? (idx) => setSelectedSectionIdx(idx) : undefined}
-        />
+        {isElementsMode ? (
+          <ElementCanvas
+            genome={genome}
+            layout={layout}
+            contentOverrides={contentOverrides}
+          />
+        ) : (
+          <div className="h-full overflow-y-auto">
+            <GenomePreview
+              genome={genome}
+              layout={layout}
+              projectName={projectName}
+              projectPrompt={projectPrompt}
+              projectLogoUrl={projectLogoUrl}
+              productType={productType}
+              contentOverrides={contentOverrides}
+              selectedSectionIdx={isCanvasMode ? selectedSectionIdx : null}
+              onSectionClick={isCanvasMode ? (idx) => setSelectedSectionIdx(idx) : undefined}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
