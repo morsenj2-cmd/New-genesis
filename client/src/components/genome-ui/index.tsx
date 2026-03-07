@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { renderProductSection } from "./ProductComponents";
+import { getProductContent, getNavLinks } from "@shared/contentGenerator";
 import {
   renderIconSvgContent,
   GROUP_ICONS,
@@ -13,6 +14,8 @@ export interface GenomeTokens {
   genome: DesignGenome;
   projectName: string;
   projectPrompt: string;
+  projectLogoUrl?: string | null;
+  productType?: string | null;
 }
 
 function toIconStyle(genome: DesignGenome): GenomeIconStyle {
@@ -90,8 +93,8 @@ function GenomeButton({
 }
 
 export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
-  const { genome, projectName } = tokens;
-  const navLinks = ["Work", "Features", "Pricing", "About"];
+  const { genome, projectName, projectLogoUrl, productType } = tokens;
+  const navLinks = getNavLinks(productType);
   return (
     <nav
       data-testid="genome-navbar"
@@ -107,7 +110,15 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.sm }}>
-        <GIcon name="compass" genome={genome} size={22} color={genome.colors.primary} />
+        {projectLogoUrl ? (
+          <img
+            src={projectLogoUrl}
+            alt={projectName}
+            style={{ width: 28, height: 28, objectFit: "contain", borderRadius: genome.radius.sm }}
+          />
+        ) : (
+          <GIcon name="compass" genome={genome} size={22} color={genome.colors.primary} />
+        )}
         <span
           style={{
             fontFamily: `'${genome.typography.heading}', sans-serif`,
@@ -141,27 +152,9 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
   );
 }
 
-const HERO_TAGLINES = [
-  "Built for scale. Designed for teams.",
-  "The modern platform for every workflow.",
-  "Fast, reliable, and beautifully designed.",
-  "Everything your team needs, in one place.",
-  "Built with precision. Delivered with care.",
-  "Simple to start. Powerful at scale.",
-  "The future of work, available today.",
-  "Engineered for performance. Crafted for people.",
-];
-
-function safeHeroTagline(projectName: string): string {
-  let hash = 0;
-  for (let i = 0; i < projectName.length; i++) {
-    hash = (hash * 31 + projectName.charCodeAt(i)) >>> 0;
-  }
-  return HERO_TAGLINES[hash % HERO_TAGLINES.length];
-}
-
 export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, projectName } = tokens;
+  const { genome, projectName, productType } = tokens;
+  const content = getProductContent(productType);
   const align = section.alignment;
   const hasImage = section.imagePlacement !== "none";
 
@@ -171,8 +164,8 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
     hasImage && section.imagePlacement === "right" ? "row-reverse" :
     "column";
 
-  const headlineWords = projectName.split(" ");
-  const subtext = safeHeroTagline(projectName);
+  const headlineWords = content.headline.split(" ");
+  const midpoint = Math.ceil(headlineWords.length / 2);
 
   return (
     <section
@@ -203,7 +196,7 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
         >
           <GIcon name="broadcast" genome={genome} size={13} color={genome.colors.accent} />
           <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.accent, fontWeight: 600 }}>
-            AI-Generated Design
+            {projectName}
           </span>
         </div>
         <h1
@@ -217,9 +210,9 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
             margin: 0,
           }}
         >
-          {headlineWords.slice(0, Math.ceil(headlineWords.length / 2)).join(" ")}{" "}
+          {headlineWords.slice(0, midpoint).join(" ")}{" "}
           <span style={{ color: genome.colors.primary }}>
-            {headlineWords.slice(Math.ceil(headlineWords.length / 2)).join(" ")}
+            {headlineWords.slice(midpoint).join(" ")}
           </span>
         </h1>
         <p
@@ -228,15 +221,15 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
             fontSize: genome.typography.sizes.base,
             color: genome.colors.secondary,
             lineHeight: 1.6,
-            maxWidth: "480px",
+            maxWidth: "520px",
             margin: 0,
           }}
         >
-          {subtext}
+          {content.subheadline}
         </p>
         <div style={{ display: "flex", gap: genome.spacing.sm, flexWrap: "wrap", justifyContent: align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start" }}>
-          <GenomeButton genome={genome} variant="primary">Start Building</GenomeButton>
-          <GenomeButton genome={genome} variant="outline">View Demo</GenomeButton>
+          <GenomeButton genome={genome} variant="primary">{content.ctaLabel}</GenomeButton>
+          <GenomeButton genome={genome} variant="outline">{content.secondaryCtaLabel}</GenomeButton>
         </div>
       </div>
       {hasImage && (
@@ -803,13 +796,17 @@ export function GenomePreview({
   layout,
   projectName,
   projectPrompt,
+  projectLogoUrl,
+  productType,
 }: {
   genome: DesignGenome;
   layout: LayoutGraph;
   projectName: string;
   projectPrompt: string;
+  projectLogoUrl?: string | null;
+  productType?: string | null;
 }) {
-  const tokens: GenomeTokens = { genome, projectName, projectPrompt };
+  const tokens: GenomeTokens = { genome, projectName, projectPrompt, projectLogoUrl, productType };
   useGenomeFonts(genome);
 
   return (

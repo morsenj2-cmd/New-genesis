@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, varchar, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -22,6 +22,8 @@ export const projects = pgTable("projects", {
   genomeJson: text("genome_json"),
   layoutJson: text("layout_json"),
   settingsJson: text("settings_json"),
+  productType: text("product_type"),
+  layoutLocked: boolean("layout_locked").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

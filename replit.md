@@ -11,15 +11,19 @@ Key features:
 - Deterministic seed generation (SHA-256 hash) per project
 - Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
 - Dashboard for listing user projects (public, tagline shown for guests)
-- Project editor: two-panel layout with live GenomePreview + Regenerate Design (derives new seed client-side via SHA-256)
-- NL Design Editor: intent-based natural language editor — understands product types ("make this a cloud storage platform"), styles ("futuristic"), and colors ("use blue as primary"); switches the entire layout to product-aware UI components
-- Product Context Engine: 13 product types (cloud_storage, chat_app, analytics_dashboard, ecommerce, project_management, crm, social_media, saas_generic, developer_tool, video_platform, fintech, healthcare, education, calendar_scheduling) each with specific UI components
+- Project editor: two-panel layout with live GenomePreview + two separate regeneration controls: "Regenerate Style" (changes genome/colors only, keeps layout) and "Regenerate Layout" (changes layout structure, can be locked)
+- Layout Lock: lock/unlock toggle per project — locked layout cannot be regenerated or overwritten by NL commands
+- NL Design Editor: intent-based natural language editor — understands product types ("make this a cloud storage platform"), styles ("futuristic"), and colors ("use blue as primary"); respects layoutLocked flag
+- Design Source Priority: user's uploaded logo, selected font, selected primary color always override generator output via `mergeDesignSources()` in `shared/designMerger.ts`
+- Content Generator: category-specific headlines, subheadlines, CTA labels, and nav links from `shared/contentGenerator.ts` — 14 product types each with realistic copy
+- No "AI-Generated Design" labels — preview looks like a real product website
+- Product Context Engine: 14 product types (cloud_storage, chat_app, analytics_dashboard, ecommerce, project_management, crm, social_media, saas_generic, developer_tool, video_platform, fintech, healthcare, education, calendar_scheduling) each with specific UI components
 - Context Library: `shared/contextLibrary.json` defines product types, keywords, and component sets — easily extensible
 - Intent Interpreter: keyword-based parser extracts productType, industry, style, features, and colorHint from free-form prompts
 - Export project as a downloadable zip — complete Vite + React project with genome baked in, runs with `npm install && npm run dev`
 - Delete project with confirmation dialog
 - Dark theme (pure black background)
-- Hero section shows generated taglines (not raw prompt text)
+- Hero section shows category-specific copy (e.g. "Secure cloud storage built for modern teams" for cloud_storage, "Your money. Smarter." for fintech)
 
 ## User Preferences
 
@@ -70,7 +74,7 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 | Table | Key columns |
 |---|---|
 | `users` | `id` (Clerk user ID, PK), `email`, `created_at` |
-| `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `settings_json`, `created_at` |
+| `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `settings_json`, `product_type`, `layout_locked` (bool), `created_at` |
 
 - `seed`: SHA-256 hash generated server-side
 - `logo_url`: Cloudinary HTTPS URL (uploaded from base64; resized to 256×256 server-side)

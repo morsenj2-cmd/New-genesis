@@ -40,6 +40,10 @@ import {
   ChevronRight,
   Download,
   Trash2,
+  Lock,
+  Unlock,
+  LayoutTemplate as LayoutIcon,
+  Wand2,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -59,6 +63,7 @@ import {
 import type { Project } from "@shared/schema";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import { generateGenome } from "@shared/genomeGenerator";
+import { mergeDesignSources } from "@shared/designMerger";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { generateLayout } from "@shared/layoutEngine";
 import {
@@ -686,8 +691,11 @@ function LeftPanel({
   activeSeed,
   iteration,
   isRegenerating,
+  isRegeneratingLayout,
   fontFamily,
-  onRegenerate,
+  onRegenerateStyle,
+  onRegenerateLayout,
+  onToggleLayoutLock,
   onNLApplied,
 }: {
   project: Project;
@@ -696,35 +704,52 @@ function LeftPanel({
   activeSeed: string;
   iteration: number;
   isRegenerating: boolean;
+  isRegeneratingLayout: boolean;
   fontFamily: string | undefined;
-  onRegenerate: () => void;
+  onRegenerateStyle: () => void;
+  onRegenerateLayout: () => void;
+  onToggleLayoutLock: () => void;
   onNLApplied: (genome: DesignGenome, layout: LayoutGraph) => void;
 }) {
   const [showTokens, setShowTokens] = useState(false);
+  const isLocked = !!project.layoutLocked;
 
   return (
     <div className="w-72 border-r border-border flex flex-col overflow-hidden bg-background">
       <div className="p-4 border-b border-border space-y-3">
         <Button
           className="w-full gap-2 font-medium"
-          onClick={onRegenerate}
-          disabled={isRegenerating}
-          data-testid="button-regenerate-design"
+          onClick={onRegenerateStyle}
+          disabled={isRegenerating || isRegeneratingLayout}
+          data-testid="button-regenerate-style"
+          variant="default"
         >
-          <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`} />
-          {isRegenerating ? "Generating…" : "Regenerate Design"}
+          <Wand2 className={`h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`} />
+          {isRegenerating ? "Generating…" : "Regenerate Style"}
         </Button>
-        {iteration > 0 && (
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-xs text-muted-foreground">
-              Variation <strong className="text-foreground">{iteration}</strong>
-            </span>
-            <Badge variant="outline" className="text-xs ml-auto px-1.5 py-0">
-              +{iteration}
-            </Badge>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button
+            className="flex-1 gap-1.5 font-medium text-xs"
+            onClick={onRegenerateLayout}
+            disabled={isLocked || isRegenerating || isRegeneratingLayout}
+            data-testid="button-regenerate-layout"
+            variant="outline"
+            size="sm"
+          >
+            <LayoutIcon className={`h-3.5 w-3.5 ${isRegeneratingLayout ? "animate-spin" : ""}`} />
+            {isRegeneratingLayout ? "…" : "Regenerate Layout"}
+          </Button>
+          <Button
+            size="sm"
+            variant={isLocked ? "default" : "outline"}
+            onClick={onToggleLayoutLock}
+            data-testid="button-layout-lock"
+            title={isLocked ? "Unlock layout" : "Lock layout"}
+            className="px-3"
+          >
+            {isLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
         <Separator />
         <NLDesigner projectId={project.id} onApplied={onNLApplied} />
       </div>
@@ -950,6 +975,7 @@ export default function ProjectPage() {
   const [activeLayout, setActiveLayout] = useState<LayoutGraph | null>(null);
   const [iteration, setIteration] = useState(0);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isRegeneratingLayout, setIsRegeneratingLayout] = useState(false);
 
   useEffect(() => {
     if (project?.seed && baseGenome && baseLayout) {
@@ -960,19 +986,71 @@ export default function ProjectPage() {
     }
   }, [project?.seed, baseGenome, baseLayout]);
 
-  const handleRegenerate = useCallback(async () => {
+  const effectiveProductType = useMemo<string | null>(() => {
+    if (!project) return null;
+    if (project.productType) return project.productType;
+    if (project.settingsJson) {
+      try {
+        const s = JSON.parse(project.settingsJson);
+        return s.productType ?? null;
+      } catch {}
+    }
+    return null;
+  }, [project?.productType, project?.settingsJson]);
+
+  const displayGenome = useMemo<DesignGenome | null>(() => {
+    if (!activeGenome || !project) return activeGenome;
+    return mergeDesignSources(activeGenome, {
+      selectedFont: project.font,
+      selectedPrimaryColor: project.themeColor,
+      uploadedLogoUrl: project.logoUrl,
+      productType: effectiveProductType,
+    });
+  }, [activeGenome, project?.font, project?.themeColor, project?.logoUrl, effectiveProductType]);
+
+  const handleRegenerateStyle = useCallback(async () => {
     if (!project?.seed) return;
     setIsRegenerating(true);
     const nextIteration = iteration + 1;
     const newSeed = await deriveSeed(project.seed, nextIteration);
     const newGenome = generateGenome(newSeed);
-    const newLayout = generateLayout(newSeed);
     setActiveSeed(newSeed);
     setActiveGenome(newGenome);
-    setActiveLayout(newLayout);
     setIteration(nextIteration);
     setIsRegenerating(false);
   }, [project?.seed, iteration]);
+
+  const handleRegenerateLayout = useCallback(async () => {
+    if (!project?.seed || project.layoutLocked) return;
+    setIsRegeneratingLayout(true);
+    const nextIteration = iteration + 1;
+    const newSeed = await deriveSeed(project.seed, nextIteration);
+    const newLayout = generateLayout(newSeed);
+    setActiveSeed(newSeed);
+    setActiveLayout(newLayout);
+    setIteration(nextIteration);
+    setIsRegeneratingLayout(false);
+  }, [project?.seed, project?.layoutLocked, iteration]);
+
+  const layoutLockMutation = useMutation({
+    mutationFn: async (locked: boolean) => {
+      const token = await getToken();
+      const res = await fetch(`/api/project/${params.id}/layout-lock`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify({ locked }),
+      });
+      if (!res.ok) throw new Error("Failed to toggle layout lock");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+    },
+  });
 
   const handleNLApplied = useCallback((genome: DesignGenome, layout: LayoutGraph) => {
     setActiveGenome(genome);
@@ -1143,24 +1221,29 @@ export default function ProjectPage() {
             <div className="flex flex-1 overflow-hidden" data-testid="editor-layout">
               <LeftPanel
                 project={project}
-                activeGenome={activeGenome}
+                activeGenome={displayGenome}
                 activeLayout={activeLayout}
                 activeSeed={activeSeed || project.seed}
                 iteration={iteration}
                 isRegenerating={isRegenerating}
+                isRegeneratingLayout={isRegeneratingLayout}
                 fontFamily={fontFamily}
-                onRegenerate={handleRegenerate}
+                onRegenerateStyle={handleRegenerateStyle}
+                onRegenerateLayout={handleRegenerateLayout}
+                onToggleLayoutLock={() => layoutLockMutation.mutate(!project.layoutLocked)}
                 onNLApplied={handleNLApplied}
               />
 
               <main className="flex-1 overflow-y-auto bg-muted/10" data-testid="section-website-preview">
-                {activeGenome && activeLayout ? (
+                {displayGenome && activeLayout ? (
                   <div className="min-h-full">
                     <GenomePreview
-                      genome={activeGenome}
+                      genome={displayGenome}
                       layout={activeLayout}
                       projectName={project.name}
                       projectPrompt={project.prompt}
+                      projectLogoUrl={project.logoUrl}
+                      productType={effectiveProductType}
                     />
                   </div>
                 ) : (

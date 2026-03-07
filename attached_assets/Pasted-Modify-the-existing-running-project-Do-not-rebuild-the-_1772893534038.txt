@@ -1,0 +1,297 @@
+Modify the existing running project. Do not rebuild the application. Do not overwrite Clerk authentication or Neon database configuration. Update the generation pipeline so the design engine respects user selections and produces category-specific layouts.
+
+Apply the following fixes in order.
+
+------------------------------------------------
+1. PRIORITY ORDER FOR DESIGN SOURCES
+------------------------------------------------
+
+Implement a strict precedence system so user choices override generator output.
+
+Priority order:
+
+1. user uploaded assets
+2. user selected design tokens
+3. project category defaults
+4. generator fallback
+
+Update generator pipeline so these sources are applied in this order.
+
+Files to modify:
+
+/lib/genomeGenerator.ts
+/lib/layoutEngine.ts
+/lib/designValidator.ts
+
+Add a merge function:
+
+mergeDesignSources({
+uploadedLogo,
+selectedFont,
+selectedPrimaryColor,
+designContext,
+generatedGenome
+})
+
+User selections must NEVER be overwritten by generator mutations.
+
+------------------------------------------------
+2. USE UPLOADED LOGO
+------------------------------------------------
+
+Currently the preview always renders placeholder branding.
+
+Fix logo usage.
+
+Add field to project table:
+
+logo_url
+
+When a logo is uploaded it must replace all brand placeholders.
+
+Update components:
+
+/components/ui/Navbar.tsx
+/components/ui/Hero.tsx
+
+Logic:
+
+if(project.logo_url){
+render <img src={logo_url}>
+}else{
+render text logo
+}
+
+Remove all hardcoded "Morse" and "Purple" placeholders.
+
+------------------------------------------------
+3. USE SELECTED FONT
+------------------------------------------------
+
+Add font override system.
+
+Database column:
+
+selected_font
+
+Supported fonts:
+
+Inter
+Plus Jakarta Sans
+IBM Plex Sans
+Space Grotesk
+
+Update:
+
+/styles/global.css
+/components/ui/Typography.tsx
+
+Preview must dynamically apply:
+
+document.documentElement.style.setProperty("--font-main", selected_font)
+
+Generator must not override selected fonts.
+
+------------------------------------------------
+4. USE SELECTED PRIMARY COLOR
+------------------------------------------------
+
+Add explicit color override.
+
+Database column:
+
+primary_color
+
+Update genome generator:
+
+if(primary_color exists){
+genome.colors.primary = primary_color
+skip hue generation
+}
+
+Also regenerate secondary palette based on selected primary.
+
+Update:
+
+/lib/genomeGenerator.ts
+
+------------------------------------------------
+5. REMOVE "AI GENERATED DESIGN" LABEL
+------------------------------------------------
+
+Delete this UI element.
+
+Files:
+
+/components/ui/Hero.tsx
+/components/ui/Navbar.tsx
+/pages/project/[id]/index.tsx
+
+Remove any string:
+
+"AI Generated Design"
+
+Preview must look like a real product website.
+
+------------------------------------------------
+6. CATEGORY-SPECIFIC LAYOUTS
+------------------------------------------------
+
+Currently all layouts look identical.
+
+Add category layout presets.
+
+Create module:
+
+/lib/layoutPresets.ts
+
+Layouts must depend on designContext.industry.
+
+Example presets:
+
+SAAS / CLOUD STORAGE
+
+Hero
+Product Demo
+Feature Grid
+Pricing
+Security Section
+Testimonials
+CTA
+Footer
+
+E-COMMERCE
+
+Hero
+Product Grid
+Categories
+Testimonials
+Promo Banner
+CTA
+Footer
+
+ANALYTICS DASHBOARD
+
+Navbar
+Dashboard Preview
+Feature Grid
+Use Cases
+Pricing
+CTA
+Footer
+
+CHAT / SOCIAL
+
+Hero
+Chat UI Preview
+Features
+Community
+CTA
+Footer
+
+Update layout engine:
+
+/lib/layoutEngine.ts
+
+If industry is detected use preset layout instead of random mutation.
+
+------------------------------------------------
+7. LOCK LAYOUT AFTER GENERATION
+------------------------------------------------
+
+Prevent layout from changing every regeneration.
+
+Add project field:
+
+layout_locked boolean
+
+Logic:
+
+if layout_locked true:
+skip layoutEngine generation
+
+User can unlock manually.
+
+Update UI button:
+
+"Regenerate Layout"
+
+Separate from:
+
+"Regenerate Style"
+
+------------------------------------------------
+8. CONTENT GENERATION
+------------------------------------------------
+
+Hero text must not be random placeholder.
+
+Generate text from category.
+
+Example:
+
+Cloud storage
+
+headline:
+"Secure cloud storage built for modern teams"
+
+subheadline:
+"Store, sync, and collaborate on files from anywhere."
+
+Create module:
+
+/lib/contentGenerator.ts
+
+Generate:
+
+headline
+subheadline
+cta labels
+feature titles
+
+------------------------------------------------
+9. PREVIEW CLEANUP
+------------------------------------------------
+
+Remove debug UI elements from preview:
+
+seed hashes
+variation counters
+icon family counters
+genome labels
+
+Move these into a collapsible debug panel only visible in editor.
+
+------------------------------------------------
+10. VALIDATION RULE
+------------------------------------------------
+
+Add validation rule:
+
+If industry == SaaS
+
+Disable:
+
+neon palettes
+high saturation gradients
+excess animations
+experimental icon styles
+
+Use professional UI defaults.
+
+------------------------------------------------
+11. REQUIRED RESULT
+------------------------------------------------
+
+After changes the system must:
+
+1. display uploaded logo
+2. apply selected font
+3. apply selected primary color
+4. generate industry-specific layouts
+5. remove AI labels
+6. stop layouts from constantly changing
+7. generate relevant product copy
+8. produce clean SaaS style designs
+
+Do not rebuild the project. Modify existing modules and components only.

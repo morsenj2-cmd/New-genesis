@@ -13,6 +13,7 @@ import { parseNLCommand, applyPatchesToGenome } from "@shared/nlParser";
 import { parseSettings, maybeApplyIndustryConstraints, detectIndustryFromText } from "@shared/saasConstraints";
 import { interpretIntent } from "@shared/intentInterpreter";
 import { getProductContext, generateContextualLayout, detectProductTypeFromText } from "@shared/productContextEngine";
+import { mergeDesignSources } from "@shared/designMerger";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -93,6 +94,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       let genome = generateGenome(seed, { name, prompt, font, themeColor });
       genome = maybeApplyIndustryConstraints(genome, initialSettings);
+      genome = mergeDesignSources(genome, { selectedFont: font, selectedPrimaryColor: themeColor, uploadedLogoUrl: logoUrl, productType: intent.productType });
       const genomeJson = JSON.stringify(genome);
 
       const layout = productContext
@@ -113,6 +115,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         genomeJson,
         layoutJson,
         settingsJson,
+        productType: intent.productType ?? undefined,
       });
       res.status(201).json(project);
     } catch (err) {
@@ -177,28 +180,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       currentGenome = maybeApplyIndustryConstraints(currentGenome, currentSettings);
 
       let currentLayout = project.layoutJson ? JSON.parse(project.layoutJson) : generateLayout(project.seed);
+      let newProductType: string | undefined = project.productType ?? undefined;
 
-      if (productType) {
-        const productContext = getProductContext(intent);
-        if (productContext) {
-          currentLayout = generateContextualLayout(project.seed, productContext);
-          (currentSettings as any).productType = productType;
-          description.push(`Layout regenerated for ${productContext.label}`);
+      if (!project.layoutLocked) {
+        if (productType) {
+          const productContext = getProductContext(intent);
+          if (productContext) {
+            currentLayout = generateContextualLayout(project.seed, productContext);
+            (currentSettings as any).productType = productType;
+            newProductType = productType;
+            description.push(`Layout switched to ${productContext.label}`);
+          }
+        } else if (currentSettings.forceStandardGenome || currentSettings.industry === "saas") {
+          currentLayout = generateLayout(project.seed, {});
         }
-      } else if (currentSettings.forceStandardGenome || currentSettings.industry === "saas") {
-        currentLayout = generateLayout(project.seed, {});
       }
+
+      currentGenome = mergeDesignSources(currentGenome, {
+        selectedFont: project.font,
+        selectedPrimaryColor: project.themeColor,
+        uploadedLogoUrl: project.logoUrl,
+        productType: newProductType,
+      });
 
       const updated = await storage.updateProject(project.id, userId!, {
         genomeJson: JSON.stringify(currentGenome),
         layoutJson: JSON.stringify(currentLayout),
         settingsJson: JSON.stringify(currentSettings),
+        productType: newProductType,
       });
 
       res.json({ project: updated, description, patchCount: patches.length });
     } catch (err) {
       console.error("Error applying NL command:", err);
       res.status(500).json({ message: "Failed to apply command" });
+    }
+  });
+
+  app.patch("/api/project/:id/layout-lock", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const { locked } = req.body;
+      if (typeof locked !== "boolean") return res.status(400).json({ message: "locked boolean required" });
+      const updated = await storage.updateProject(project.id, userId!, { layoutLocked: locked });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error toggling layout lock:", err);
+      res.status(500).json({ message: "Failed to toggle layout lock" });
     }
   });
 
