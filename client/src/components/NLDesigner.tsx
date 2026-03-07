@@ -3,7 +3,6 @@ import { useAuth } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Wand2, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph } from "@shared/layoutEngine";
@@ -20,20 +19,6 @@ interface NLDesignerProps {
   onApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch) => void;
 }
 
-const EXAMPLE_COMMANDS = [
-  "make the logo white",
-  "use Inter font",
-  "use blue as primary",
-  "make it minimal",
-  "make corners rounded",
-  "increase spacing",
-  "larger text",
-  "futuristic style",
-  "make it an ecommerce store",
-  "turn this into a chat app",
-  "reduce animations",
-  "sharp corners",
-];
 
 export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
   const { getToken } = useAuth();
@@ -142,22 +127,6 @@ export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
         </div>
       )}
 
-      <Separator />
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">Examples</p>
-        <div className="flex flex-wrap gap-1">
-          {EXAMPLE_COMMANDS.map((cmd) => (
-            <button
-              key={cmd}
-              onClick={() => setCommand(cmd)}
-              className="text-xs px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
-              data-testid={`nl-example-${cmd.replace(/\s+/g, "-")}`}
-            >
-              {cmd}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

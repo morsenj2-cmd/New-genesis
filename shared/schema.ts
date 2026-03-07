@@ -38,6 +38,7 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
 export const createProjectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100),
   prompt: z.string().min(1, "Prompt is required").max(2000),
+  brandName: z.string().max(60).optional(),
   font: z.string().optional(),
   fontUrl: z.string().optional(),
   themeColor: z.string().optional(),

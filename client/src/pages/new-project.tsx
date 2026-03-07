@@ -37,6 +37,7 @@ const PRESET_COLORS = [
 const detailsSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100),
   prompt: z.string().min(1, "Prompt is required").max(2000),
+  brandName: z.string().max(60).optional(),
 });
 
 type DetailsForm = z.infer<typeof detailsSchema>;
@@ -490,6 +491,23 @@ export default function NewProjectPage() {
                           <Input
                             placeholder="e.g. My Brand Website"
                             data-testid="input-project-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="brandName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Brand Name <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. Acme, Notion, Stripe"
+                            data-testid="input-brand-name"
                             {...field}
                           />
                         </FormControl>

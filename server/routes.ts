@@ -13,6 +13,7 @@ import { parseNLCommand, applyPatchesToGenome } from "@shared/nlParser";
 import { parseSettings, maybeApplyIndustryConstraints, detectIndustryFromText } from "@shared/saasConstraints";
 import { interpretIntent } from "@shared/intentInterpreter";
 import { getProductContext, generateContextualLayout, detectProductTypeFromText } from "@shared/productContextEngine";
+import { generatePromptContent } from "@shared/promptContent";
 import { mergeDesignSources } from "@shared/designMerger";
 import { interpretSemantic } from "@shared/semanticInterpreter";
 import { generatePatches } from "@shared/patchGenerator";
@@ -55,7 +56,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
       }
 
-      let { name, prompt, font, fontUrl, themeColor, logoUrl } = parsed.data;
+      let { name, prompt, brandName: explicitBrandName, font, fontUrl, themeColor, logoUrl } = parsed.data;
 
       const timestamp = Date.now().toString();
       const tempId = `${userId}-${timestamp}`;
@@ -86,12 +87,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const intent = interpretIntent(fullText);
       const productContext = getProductContext(intent);
 
+      // Determine brand name: explicit input > extracted from prompt > project name
+      const extractedProductName = intent.productName;
+      const resolvedBrandName = explicitBrandName?.trim() || extractedProductName || null;
+
+      // Generate prompt-derived content (headline, subheadline, CTA)
+      const promptContent = generatePromptContent(prompt, intent.productType, resolvedBrandName);
+
       const initialSettings = {
         uniqueIcons: detectedIndustry !== "saas",
         forceStandardGenome: detectedIndustry === "saas",
         industry: detectedIndustry,
         tone: "creative" as const,
         productType: intent.productType ?? undefined,
+        ...(resolvedBrandName ? { brandName: resolvedBrandName } : {}),
+        promptContent,
       };
 
       let genome = generateGenome(seed, { name, prompt, font, themeColor });

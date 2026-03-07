@@ -1,0 +1,231 @@
+Modify the existing project. Do NOT rebuild the app. Do NOT change Clerk authentication or the Neon database configuration.
+
+Goal
+
+1. All website content must be derived from the initial user prompt.
+2. The generator must correctly identify the website type (SaaS marketing site, landing page, dashboard, blog, etc.).
+3. Remove example prompts from the editor UI.
+4. Ensure natural language edits actually modify the design state.
+5. Prevent placeholder marketing text that does not relate to the user's product.
+6. Add optional user inputs for theme color and typography to improve generation accuracy.
+
+------------------------------------------------
+1. PROMPT-FIRST GENERATION PIPELINE
+------------------------------------------------
+
+The generator currently creates generic layouts and content.
+
+Replace generation pipeline.
+
+New pipeline
+
+1 interpret prompt
+2 extract product context
+3 generate website structure
+4 generate content for each section
+5 generate design tokens
+6 render layout
+
+File
+
+/lib/siteGenerator.ts
+
+------------------------------------------------
+2. PROMPT CONTEXT EXTRACTION
+------------------------------------------------
+
+Rewrite semantic interpreter.
+
+File
+
+/lib/semanticInterpreter.ts
+
+Extract
+
+{
+siteType
+productName
+productCategory
+audience
+coreFeatures
+valueProposition
+tone
+}
+
+Example prompt
+
+"Create a SaaS marketing site for a project management tool for remote teams"
+
+Interpreter output
+
+siteType: marketing_site
+productCategory: project_management
+audience: remote_teams
+coreFeatures:
+- task tracking
+- collaboration
+- reporting
+
+------------------------------------------------
+3. MARKETING SITE STRUCTURE
+------------------------------------------------
+
+If siteType == marketing_site
+
+Generate sections
+
+Navbar
+Hero
+Product Value Proposition
+Feature Grid
+Use Cases
+Testimonials
+Pricing
+Call To Action
+Footer
+
+Do NOT generate:
+
+analytics dashboards
+social feeds
+profile cards
+
+------------------------------------------------
+4. CONTENT GENERATION FROM PROMPT
+------------------------------------------------
+
+File
+
+/lib/contentGenerator.ts
+
+Generate text using extracted context.
+
+Example
+
+productCategory: project_management
+
+Hero headline
+
+"Manage projects with clarity and speed"
+
+Subheadline
+
+"A powerful platform designed for remote teams to plan, collaborate, and deliver results."
+
+Features
+
+Task management
+Team collaboration
+Progress tracking
+Reporting dashboards
+
+------------------------------------------------
+5. OPTIONAL USER INPUTS
+------------------------------------------------
+
+Add optional configuration during project creation.
+
+Prompt form should include:
+
+Brand name
+Theme color
+Preferred font
+
+If user leaves them blank
+
+generator chooses defaults.
+
+------------------------------------------------
+6. REMOVE EXAMPLE PROMPTS
+------------------------------------------------
+
+In editor sidebar remove
+
+Example command buttons.
+
+Files
+
+/components/editor/NaturalLanguagePanel.tsx
+
+Delete
+
+Examples section.
+
+------------------------------------------------
+7. NATURAL LANGUAGE PATCH FIX
+------------------------------------------------
+
+Currently commands report success but do not change the UI.
+
+Fix patch pipeline.
+
+File
+
+/api/project/[id]/apply-nl
+
+Pipeline
+
+1 parse command
+2 generate patch
+3 apply patch to design state
+4 save project
+5 refresh preview
+
+Preview must re-render immediately.
+
+------------------------------------------------
+8. CONTENT VALIDATION
+------------------------------------------------
+
+Add rule
+
+If generated content does not reference the product category
+
+regenerate content.
+
+Example
+
+If productCategory == project_management
+
+content must reference
+
+tasks
+projects
+teams
+workflows
+
+------------------------------------------------
+9. REMOVE GENERIC TEMPLATE TEXT
+------------------------------------------------
+
+Delete placeholder copy like
+
+"Built for teams that move fast"
+"The platform your team has been waiting for"
+
+All text must come from contentGenerator.
+
+------------------------------------------------
+10. DESIGN VALIDATION
+------------------------------------------------
+
+Before rendering preview validate
+
+1 siteType matches prompt
+2 sections appropriate for siteType
+3 content references product category
+4 no placeholder content remains
+
+------------------------------------------------
+11. RESULT
+------------------------------------------------
+
+After this update
+
+• prompt defines site type
+• page content reflects the product
+• SaaS marketing sites show marketing sections
+• dashboards only appear when requested
+• natural language edits actually update the page
+• example prompts are removed
+• design tokens can be optionally specified

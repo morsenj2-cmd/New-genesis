@@ -976,6 +976,7 @@ export default function ProjectPage() {
   const [activeSeed, setActiveSeed] = useState<string>("");
   const [activeGenome, setActiveGenome] = useState<DesignGenome | null>(null);
   const [activeLayout, setActiveLayout] = useState<LayoutGraph | null>(null);
+  const [nlColorOverride, setNlColorOverride] = useState<string | null>(null);
   const [iteration, setIteration] = useState(0);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isRegeneratingLayout, setIsRegeneratingLayout] = useState(false);
@@ -995,8 +996,13 @@ export default function ProjectPage() {
     if (project?.settingsJson) {
       try {
         const s = JSON.parse(project.settingsJson);
-        if (s.brandName) {
-          setContentOverrides(prev => ({ ...prev, brandName: s.brandName }));
+        const patch: Record<string, string> = {};
+        if (s.brandName) patch.brandName = s.brandName;
+        if (s.promptContent?.headline) patch.heroHeadline = s.promptContent.headline;
+        if (s.promptContent?.subheadline) patch.heroSubheadline = s.promptContent.subheadline;
+        if (s.promptContent?.ctaLabel) patch.heroCta = s.promptContent.ctaLabel;
+        if (Object.keys(patch).length > 0) {
+          setContentOverrides(prev => ({ ...prev, ...patch }));
         }
       } catch {}
     }
@@ -1018,11 +1024,11 @@ export default function ProjectPage() {
     if (!activeGenome || !project) return activeGenome;
     return mergeDesignSources(activeGenome, {
       selectedFont: project.font,
-      selectedPrimaryColor: project.themeColor,
+      selectedPrimaryColor: nlColorOverride ?? project.themeColor,
       uploadedLogoUrl: project.logoUrl,
       productType: effectiveProductType,
     });
-  }, [activeGenome, project?.font, project?.themeColor, project?.logoUrl, effectiveProductType]);
+  }, [activeGenome, project?.font, project?.themeColor, project?.logoUrl, effectiveProductType, nlColorOverride]);
 
   const handleRegenerateStyle = useCallback(async () => {
     if (!project?.id) return;
@@ -1042,6 +1048,7 @@ export default function ProjectPage() {
         const newGenome = data.genome ?? (data.project?.genomeJson ? JSON.parse(data.project.genomeJson) : null);
         if (newGenome) {
           setActiveGenome(newGenome);
+          setNlColorOverride(null);
           setActiveSeed(data.styleSeed ?? data.project?.styleSeed ?? project.seed);
           setIteration(prev => prev + 1);
           queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
@@ -1093,6 +1100,10 @@ export default function ProjectPage() {
     if (project?.seed) setActiveSeed(project.seed);
     if (contentPatch && Object.keys(contentPatch).length > 0) {
       setContentOverrides(prev => ({ ...prev, ...contentPatch }));
+    }
+    // Override themeColor with NL-patched color so mergeDesignSources doesn't clobber it
+    if (genome.colors?.primary) {
+      setNlColorOverride(genome.colors.primary);
     }
   }, [project?.seed]);
 

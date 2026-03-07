@@ -5,6 +5,7 @@ export type PageType = "landing_page" | "web_app" | "dashboard" | "blog" | "ecom
 export interface InterpretedIntent {
   industry: string | null;
   productType: string | null;
+  productName: string | null;
   pageType: PageType | null;
   style: string | null;
   features: string[];
@@ -418,6 +419,7 @@ export function interpretIntent(input: string): InterpretedIntent {
   return {
     industry,
     productType,
+    productName: detectProductName(text),
     pageType: detectPageType(text),
     style,
     features,
@@ -430,6 +432,30 @@ export function interpretIntent(input: string): InterpretedIntent {
     textSizeHint,
     rawText: input,
   };
+}
+
+const GENERIC_STARTERS = new Set([
+  "create", "build", "make", "design", "generate", "this", "our", "your",
+  "a", "an", "the", "i", "we", "my", "it", "he", "she", "they", "you",
+  "please", "need", "want", "would", "could", "should",
+  "saas", "app", "website", "platform", "service", "tool", "dashboard",
+]);
+
+function detectProductName(text: string): string | null {
+  const trimmed = text.trim();
+  // "ProductName is a..."
+  const isA = trimmed.match(/^([A-Z][a-zA-Z0-9]*(?:\s[A-Z][a-zA-Z0-9]*)?)\s+(?:is|are)\b/);
+  if (isA && !GENERIC_STARTERS.has(isA[1].toLowerCase())) return isA[1];
+  // "ProductName: description"
+  const colon = trimmed.match(/^([A-Z][a-zA-Z0-9]+(?:\s[A-Z][a-zA-Z0-9]+)?)\s*:/);
+  if (colon && !GENERIC_STARTERS.has(colon[1].toLowerCase())) return colon[1];
+  // "Build/Create/Launch ProductName"
+  const buildM = trimmed.match(/\b(?:build|create|launch|develop|design|introducing)\s+([A-Z][a-zA-Z0-9]+(?:\s[A-Z][a-zA-Z0-9]+)?)\b/);
+  if (buildM && !GENERIC_STARTERS.has(buildM[1].toLowerCase())) return buildM[1];
+  // "called/named ProductName"
+  const calledM = trimmed.match(/\b(?:called|named)\s+["']?([A-Z][a-zA-Z0-9]+)["']?/i);
+  if (calledM) return calledM[1];
+  return null;
 }
 
 export function describeIntent(intent: InterpretedIntent): string[] {
