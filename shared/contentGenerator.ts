@@ -56,6 +56,8 @@ export interface ProductContent {
   blogPosts: BlogPost[];
 }
 
+type BaseProductContent = Omit<ProductContent, "aboutMission" | "pricingPlans" | "blogPosts">;
+
 const DEFAULT_PRICING_PLANS: PricingPlan[] = [
   {
     name: "Free",
@@ -91,7 +93,7 @@ const DEFAULT_BLOG_POSTS: BlogPost[] = [
   { slug: "case-study", title: "How a 200-person team cut their workload in half", excerpt: "A behind-the-scenes look at how one fast-growing company restructured their workflows and reclaimed 12 hours per week per employee.", date: "Jan 2026", readTime: "6 min read", tag: "Case Study" },
 ];
 
-const CONTENT_MAP: Record<string, ProductContent> = {
+const CONTENT_MAP: Record<string, BaseProductContent> = {
   cloud_storage: {
     brandName: "Vault",
     headline: "Secure cloud storage built for modern teams",
@@ -556,7 +558,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
   },
 };
 
-const DEFAULT_CONTENT: ProductContent = {
+const DEFAULT_CONTENT: BaseProductContent = {
   brandName: "Workbase",
   headline: "Built for scale. Designed for teams.",
   subheadline: "The modern platform for every workflow. Fast, reliable, and beautifully designed for the teams that build great things.",

@@ -2,6 +2,23 @@ import contextLibrary from "./contextLibrary.json";
 import type { InterpretedIntent } from "./intentInterpreter";
 import type { LayoutGraph, LayoutSection, SectionType, Alignment, ImagePlacement, Orientation } from "./layoutEngine";
 
+// These component types render specialised data-heavy widgets — only appropriate for dashboard products
+const DASHBOARD_ONLY_COMPONENTS = new Set([
+  "metric_cards",
+  "analytics_chart",
+  "data_table",
+  "filters",
+  "storage_usage_bar",
+]);
+
+// Product types that legitimately show dashboard-style components
+const DASHBOARD_PRODUCT_TYPES = new Set([
+  "analytics_dashboard",
+  "crm",
+  "project_management",
+  "fintech",
+]);
+
 export interface ProductSection {
   type: SectionType;
   componentType: string | null;
@@ -37,6 +54,7 @@ export function generateContextualLayout(
   seed: string,
   context: ProductContext,
 ): LayoutGraph {
+  const isDashboard = DASHBOARD_PRODUCT_TYPES.has(context.productType);
   const sections: LayoutSection[] = context.sections.map((s, i) => {
     const base = i * 5;
 
@@ -71,7 +89,12 @@ export function generateContextualLayout(
       orientation,
       ...(columns !== undefined && { columns }),
       ...(cardCount !== undefined && { cardCount }),
-      ...(s.componentType != null && { componentType: s.componentType }),
+      ...(() => {
+        if (s.componentType == null) return {};
+        // Strip dashboard-only widget types from non-dashboard products so generic sections render
+        if (!isDashboard && DASHBOARD_ONLY_COMPONENTS.has(s.componentType)) return {};
+        return { componentType: s.componentType };
+      })(),
     };
   });
 

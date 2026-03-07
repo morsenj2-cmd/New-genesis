@@ -1111,6 +1111,8 @@ export function GenomePreview({
   projectLogoUrl,
   productType,
   contentOverrides,
+  selectedSectionIdx,
+  onSectionClick,
 }: {
   genome: DesignGenome;
   layout: LayoutGraph;
@@ -1119,6 +1121,8 @@ export function GenomePreview({
   projectLogoUrl?: string | null;
   productType?: string | null;
   contentOverrides?: ContentOverrides;
+  selectedSectionIdx?: number | null;
+  onSectionClick?: (idx: number) => void;
 }) {
   const [activePage, setActivePage] = useState<PreviewPage>("home");
   const tokens: GenomeTokens = { genome, projectName, projectPrompt, projectLogoUrl, productType, contentOverrides, activePage, onNavigate: setActivePage };
@@ -1134,11 +1138,43 @@ export function GenomePreview({
       default:
         return (
           <>
-            {layout.sections.map((section, i) => (
-              <div key={`${section.type}-${i}`}>
-                {renderSection(section.type, tokens, section)}
-              </div>
-            ))}
+            {layout.sections.map((section, i) => {
+              const isSelected = selectedSectionIdx === i && onSectionClick != null;
+              return (
+                <div
+                  key={`${section.type}-${i}`}
+                  data-testid={`preview-section-${section.type}-${i}`}
+                  onClick={onSectionClick ? () => onSectionClick(i) : undefined}
+                  style={{
+                    position: "relative",
+                    outline: isSelected ? `2px solid ${genome.colors.primary}` : "none",
+                    outlineOffset: "-2px",
+                    cursor: onSectionClick ? "pointer" : "default",
+                  }}
+                >
+                  {isSelected && (
+                    <div style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      padding: "4px 10px",
+                      backgroundColor: genome.colors.primary,
+                      zIndex: 20,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      pointerEvents: "none",
+                    }}>
+                      <span style={{ fontSize: "10px", fontWeight: 700, color: "#fff", letterSpacing: "0.04em", textTransform: "uppercase", fontFamily: "sans-serif" }}>
+                        {section.type}
+                      </span>
+                    </div>
+                  )}
+                  {renderSection(section.type, tokens, section)}
+                </div>
+              );
+            })}
           </>
         );
     }

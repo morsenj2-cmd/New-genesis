@@ -1,0 +1,292 @@
+Modify the existing project. Do NOT rebuild the application. Do NOT change Clerk authentication or Neon database configuration.
+
+Goals
+
+1. Stop inserting irrelevant sections like analytics cards unless the site type requires them.
+2. Make component generation depend on the interpreted website type.
+3. Fix the canvas editor so elements can be selected, dragged, resized, and reordered like Canva/Figma.
+4. Ensure the layout system supports manual positioning overrides from the canvas.
+
+------------------------------------------------
+1. CONTEXT-DRIVEN COMPONENT GENERATION
+------------------------------------------------
+
+The generator currently inserts generic components such as:
+
+analytics cards
+revenue charts
+user statistics
+
+These must NOT appear unless the prompt indicates a dashboard or analytics product.
+
+Update the layout generator.
+
+File
+
+/lib/layoutEngine.ts
+
+Introduce context-aware component rules.
+
+Site types
+
+landing_page
+web_app
+dashboard
+ecommerce
+blog
+portfolio
+social_platform
+
+------------------------------------------------
+2. COMPONENT RULE SET
+------------------------------------------------
+
+Landing page
+
+Navbar
+Hero
+Feature grid
+Product demo
+Testimonials
+Pricing
+CTA
+Footer
+
+Dashboard
+
+Navbar
+Sidebar
+Stats cards
+Analytics charts
+Activity feed
+User management
+Footer
+
+Blog
+
+Navbar
+Hero
+Article grid
+Featured article
+Newsletter
+Footer
+
+Portfolio
+
+Navbar
+Hero
+Projects grid
+About section
+Contact CTA
+Footer
+
+Social platform
+
+Navbar
+Feed
+Profiles
+Activity
+Messages
+Footer
+
+Remove analytics cards if pageType != dashboard.
+
+------------------------------------------------
+3. PROMPT CONTEXT EXTRACTION
+------------------------------------------------
+
+Improve prompt interpreter.
+
+File
+
+/lib/semanticInterpreter.ts
+
+Extract
+
+{
+pageType
+industry
+productType
+audience
+features
+}
+
+Examples
+
+Prompt
+
+"landing page for cloud storage"
+
+Result
+
+pageType = landing_page
+
+Prompt
+
+"SaaS analytics dashboard"
+
+Result
+
+pageType = dashboard
+
+------------------------------------------------
+4. REMOVE HARD-CODED COMPONENTS
+------------------------------------------------
+
+Search and remove analytics card injection from:
+
+/lib/layoutEngine.ts
+/lib/componentFactory.ts
+/components/ui/DashboardCards.tsx
+
+These should only render when pageType = dashboard.
+
+------------------------------------------------
+5. CANVAS EDITOR REBUILD
+------------------------------------------------
+
+The current canvas preview is static and elements cannot be manipulated.
+
+Rebuild canvas editor.
+
+File
+
+/pages/project/[id]/canvas.tsx
+
+Each element must become a selectable node.
+
+------------------------------------------------
+6. ELEMENT MODEL
+------------------------------------------------
+
+Introduce layout node model.
+
+Example
+
+{
+id
+type
+x
+y
+width
+height
+content
+styles
+children[]
+}
+
+Store nodes inside
+
+layout_json
+
+------------------------------------------------
+7. DRAG AND DROP SYSTEM
+------------------------------------------------
+
+Add drag engine.
+
+Elements must support
+
+click to select
+drag to move
+resize handles
+snap to grid
+
+Grid rules
+
+12 column layout
+8px spacing grid
+
+Dragging must update node.x and node.y.
+
+------------------------------------------------
+8. ELEMENT SELECTION
+------------------------------------------------
+
+Clicking an element should highlight it.
+
+Show bounding box.
+
+Controls
+
+move
+resize
+delete
+duplicate
+edit text
+
+------------------------------------------------
+9. INLINE TEXT EDITING
+------------------------------------------------
+
+Allow direct editing of
+
+headline
+subheadline
+feature titles
+button labels
+
+Click text → convert to editable input.
+
+Save updates to
+
+content_json
+
+------------------------------------------------
+10. SECTION REORDERING
+------------------------------------------------
+
+Allow drag to reorder sections.
+
+Example
+
+Hero
+Features
+Pricing
+Testimonials
+
+User should be able to move pricing above features.
+
+Update layout_json order.
+
+------------------------------------------------
+11. STYLE VS POSITION
+------------------------------------------------
+
+Separate style tokens from positioning.
+
+style → genome_json  
+position → layout_json
+
+This prevents style regeneration from breaking manual positioning.
+
+------------------------------------------------
+12. CANVAS MODE TOGGLE
+------------------------------------------------
+
+Editor sidebar should show two modes
+
+Auto Design
+Canvas Editor
+
+Auto Design
+
+AI-generated layouts.
+
+Canvas Editor
+
+Manual layout editing.
+
+------------------------------------------------
+13. RESULT
+------------------------------------------------
+
+After these changes
+
+• component types depend on the prompt
+• analytics cards appear only for dashboards
+• landing pages contain appropriate sections
+• canvas allows selecting individual elements
+• elements can be dragged and repositioned
+• sections can be reordered
+• inline text editing works

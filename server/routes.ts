@@ -101,7 +101,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const layout = productContext
         ? generateContextualLayout(seed, productContext)
-        : generateLayout(seed, { name, prompt, font, themeColor });
+        : generateLayout(seed, { name, prompt, font, themeColor, pageType: intent.pageType as any ?? undefined });
       const layoutJson = JSON.stringify(layout);
       const settingsJson = JSON.stringify(initialSettings);
 

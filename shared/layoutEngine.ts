@@ -31,12 +31,33 @@ export interface LayoutGraph {
   };
 }
 
+export type SitePageType =
+  | "landing_page"
+  | "web_app"
+  | "dashboard"
+  | "blog"
+  | "portfolio"
+  | "social_platform"
+  | "ecommerce_store";
+
 export interface LayoutDesignContext {
   name?: string;
   prompt?: string;
   font?: string;
   themeColor?: string;
+  pageType?: SitePageType | null;
 }
+
+// Sections allowed per site type (middle sections only — hero and footer are always added)
+const SITE_TYPE_POOLS: Record<SitePageType, SectionType[]> = {
+  landing_page:    ["featureGrid", "testimonial", "cta"],
+  web_app:         ["featureGrid", "cardList", "cta"],
+  dashboard:       ["stats", "featureGrid", "cardList"],
+  blog:            ["cardList", "featureGrid"],
+  portfolio:       ["featureGrid", "cardList", "cta"],
+  social_platform: ["cardList", "featureGrid", "stats"],
+  ecommerce_store: ["featureGrid", "cardList", "stats", "cta"],
+};
 
 function seedByte(seed: string, offset: number): number {
   const idx = (offset * 2) % (seed.length - 1);
@@ -60,12 +81,14 @@ const MIDDLE_POOL: SectionType[] = [
 
 export function generateLayout(
   seed: string,
-  _designContext?: LayoutDesignContext
+  designContext?: LayoutDesignContext
 ): LayoutGraph {
   const totalSections = 3 + (seedByte(seed, 0) % 4);
   const middleCount = totalSections - 2;
 
-  const pool = [...MIDDLE_POOL];
+  // Use site-type-specific pool when pageType is known
+  const pageType = designContext?.pageType;
+  const pool = [...(pageType && SITE_TYPE_POOLS[pageType] ? SITE_TYPE_POOLS[pageType] : MIDDLE_POOL)];
   const middleSections: SectionType[] = [];
   for (let i = 0; i < middleCount; i++) {
     const idx = seedByte(seed, i + 1) % pool.length;
