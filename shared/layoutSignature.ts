@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import type { LayoutGraph } from "./layoutEngine";
 import type { DesignGenome } from "./genomeGenerator";
 
@@ -8,6 +9,88 @@ export interface GenomeSig {
   buttonStyle: string;
   spacingMode: string;
   surfaceStyle: string;
+}
+
+export interface LayoutSigComponents {
+  projectSeed: string;
+  pageType: string;
+  gridStructure: string;
+  componentHierarchy: string;
+  spacingScale: string;
+  colorHarmony: string;
+  typographyScale: string;
+}
+
+export function buildLayoutSigComponents(
+  seed: string,
+  layout: LayoutGraph,
+  genome: DesignGenome,
+  pageType?: string,
+): LayoutSigComponents {
+  const gridStructure = layout.sections
+    .map(s => `${s.type}:${s.columns ?? 0}:${s.orientation ?? "h"}`)
+    .join(";");
+
+  const componentHierarchy = layout.sections
+    .map(s => `${s.type}[${s.componentType ?? "default"}]`)
+    .join(">");
+
+  const spacingScale = `${genome.spacing.base}:${genome.spacing.ratio}`;
+
+  const hues = genome.colors.hues;
+  const colorHarmony = `${Math.round(hues.primary / 30) * 30}-${Math.round(hues.secondary / 30) * 30}-${Math.round(hues.accent / 30) * 30}`;
+
+  const typographyScale = `${genome.typography.heading}:${genome.typography.scaleRatio.toFixed(3)}`;
+
+  return {
+    projectSeed: seed,
+    pageType: pageType ?? "unknown",
+    gridStructure,
+    componentHierarchy,
+    spacingScale,
+    colorHarmony,
+    typographyScale,
+  };
+}
+
+export function computeLayoutHash(components: LayoutSigComponents): string {
+  const raw = [
+    components.projectSeed,
+    components.pageType,
+    components.gridStructure,
+    components.componentHierarchy,
+    components.spacingScale,
+    components.colorHarmony,
+    components.typographyScale,
+  ].join("|");
+  return createHash("sha256").update(raw).digest("hex");
+}
+
+export function isLayoutTooSimilar(
+  candidateComponents: LayoutSigComponents,
+  previousHashes: string[],
+): boolean {
+  const hash = computeLayoutHash(candidateComponents);
+  return previousHashes.includes(hash);
+}
+
+export function computeLayoutDimensionSimilarity(
+  a: LayoutSigComponents,
+  b: LayoutSigComponents,
+): number {
+  const fields: (keyof LayoutSigComponents)[] = [
+    "pageType",
+    "gridStructure",
+    "componentHierarchy",
+    "spacingScale",
+    "colorHarmony",
+    "typographyScale",
+  ];
+  let matches = 0;
+  for (const f of fields) {
+    if (a[f] === b[f]) matches++;
+  }
+  return matches / fields.length;
 }
 
 export function buildGenomeSig(genome: DesignGenome): GenomeSig {

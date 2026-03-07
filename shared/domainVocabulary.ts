@@ -152,3 +152,157 @@ export function getAllDomainWords(industry: string): Set<string> {
   }
   return words;
 }
+
+const STOP_WORDS = new Set([
+  "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+  "have", "has", "had", "do", "does", "did", "will", "would", "shall",
+  "should", "may", "might", "can", "could", "must", "need",
+  "i", "me", "my", "we", "our", "you", "your", "he", "she", "it",
+  "they", "them", "their", "its", "this", "that", "these", "those",
+  "of", "in", "to", "for", "with", "on", "at", "by", "from", "as",
+  "into", "through", "during", "before", "after", "above", "below",
+  "between", "under", "over", "about", "up", "down", "out", "off",
+  "and", "but", "or", "nor", "not", "no", "so", "if", "than", "too",
+  "very", "just", "also", "only", "then", "now", "here", "there",
+  "when", "where", "how", "what", "which", "who", "whom", "why",
+  "all", "each", "every", "both", "few", "more", "most", "other",
+  "some", "such", "any", "many", "much", "own", "am",
+  "create", "build", "make", "design", "generate", "please",
+  "want", "like", "website", "site", "page", "web", "app",
+]);
+
+const VERB_SUFFIXES = ["ing", "tion", "sion", "ment", "ance", "ence", "ize", "ise", "ate", "ify"];
+const NOUN_SUFFIXES = ["ness", "ity", "ism", "ist", "ery", "ory", "ary", "ure", "age", "dom", "ship", "hood", "ling", "let"];
+const ADJ_SUFFIXES = ["ous", "ive", "ful", "less", "able", "ible", "ical", "ial", "ent", "ant"];
+
+function classifyWord(word: string): "noun" | "verb" | "adjective" | "unknown" {
+  const lower = word.toLowerCase();
+  for (const s of VERB_SUFFIXES) {
+    if (lower.endsWith(s) && lower.length > s.length + 2) return "verb";
+  }
+  for (const s of ADJ_SUFFIXES) {
+    if (lower.endsWith(s) && lower.length > s.length + 2) return "adjective";
+  }
+  for (const s of NOUN_SUFFIXES) {
+    if (lower.endsWith(s) && lower.length > s.length + 2) return "noun";
+  }
+  if (lower.endsWith("s") && !lower.endsWith("ss") && lower.length > 3) return "noun";
+  if (lower.endsWith("er") && lower.length > 3) return "noun";
+  return "unknown";
+}
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(t => t.length > 0);
+}
+
+function extractMeaningfulTokens(text: string): string[] {
+  return tokenize(text).filter(t => t.length > 2 && !STOP_WORDS.has(t));
+}
+
+function extractNGrams(tokens: string[], n: number): string[] {
+  const result: string[] = [];
+  for (let i = 0; i <= tokens.length - n; i++) {
+    const gram = tokens.slice(i, i + n).join(" ");
+    result.push(gram);
+  }
+  return result;
+}
+
+export function extractDynamicVocabulary(prompt: string, industry: string): DomainCluster {
+  const hasDirectMatch = industry in DOMAIN_VOCABULARY;
+  const baseVocab = getDomainVocabulary(industry);
+  const tokens = extractMeaningfulTokens(prompt);
+
+  const nouns = tokens.filter(t => {
+    const cls = classifyWord(t);
+    return cls === "noun" || cls === "unknown";
+  });
+  const verbs = tokens.filter(t => classifyWord(t) === "verb");
+  const adjectives = tokens.filter(t => classifyWord(t) === "adjective");
+
+  const bigrams = extractNGrams(tokens, 2).filter(bg => {
+    const parts = bg.split(" ");
+    return parts.every(p => !STOP_WORDS.has(p) && p.length > 2);
+  });
+  const trigrams = extractNGrams(tokens, 3).filter(tg => {
+    const parts = tg.split(" ");
+    return parts.every(p => !STOP_WORDS.has(p) && p.length > 2);
+  });
+
+  const dynamicCore = new Set<string>(hasDirectMatch ? baseVocab.core : []);
+  const dynamicActions = new Set<string>(hasDirectMatch ? baseVocab.actions : []);
+  const dynamicObjects = new Set<string>(hasDirectMatch ? baseVocab.objects : []);
+  const dynamicQualities = new Set<string>(hasDirectMatch ? baseVocab.qualities : []);
+  const dynamicRoles = new Set<string>(hasDirectMatch ? baseVocab.roles : []);
+
+  for (const noun of nouns) {
+    if (noun.length > 3) {
+      dynamicObjects.add(noun);
+    }
+  }
+
+  for (const verb of verbs) {
+    if (verb.length > 3) {
+      dynamicActions.add(verb);
+    }
+  }
+
+  for (const adj of adjectives) {
+    if (adj.length > 3) {
+      dynamicQualities.add(adj);
+    }
+  }
+
+  for (const bg of bigrams) {
+    dynamicCore.add(bg);
+  }
+
+  for (const tg of trigrams) {
+    dynamicCore.add(tg);
+  }
+
+  const rolePatterns = [
+    /\b([\w]+(?:\s[\w]+)?)\s+(?:manager|director|specialist|analyst|coordinator|officer|engineer|consultant|advisor|technician|supervisor|researcher|scientist|expert|practitioner|therapist|instructor|owner)\b/gi,
+  ];
+  for (const pattern of rolePatterns) {
+    let match;
+    while ((match = pattern.exec(prompt)) !== null) {
+      if (match[0] && match[0].length < 40) {
+        dynamicRoles.add(match[0].toLowerCase());
+      }
+    }
+  }
+
+  const servicePatterns = [
+    /(?:platform|tool|service|software|system|solution)\s+(?:for|to)\s+([\w\s]+?)(?:\.|,|$)/gi,
+    /(?:specializ(?:ing|es?)|focused?\s+(?:on|in)|dedicated\s+to)\s+([\w\s]+?)(?:\.|,|$)/gi,
+  ];
+  for (const pattern of servicePatterns) {
+    let match;
+    while ((match = pattern.exec(prompt)) !== null) {
+      if (match[1] && match[1].trim().length > 3 && match[1].trim().length < 50) {
+        const service = match[1].trim().toLowerCase();
+        dynamicCore.add(service);
+        for (const word of service.split(/\s+/)) {
+          if (word.length > 3 && !STOP_WORDS.has(word)) {
+            dynamicObjects.add(word);
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    core: Array.from(dynamicCore).slice(0, 25),
+    actions: Array.from(dynamicActions).slice(0, 25),
+    objects: Array.from(dynamicObjects).slice(0, 30),
+    qualities: Array.from(dynamicQualities).slice(0, 20),
+    roles: Array.from(dynamicRoles).slice(0, 15),
+  };
+}

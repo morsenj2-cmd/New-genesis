@@ -19,6 +19,12 @@ import { interpretSemanticMulti } from "@shared/semanticInterpreter";
 import { generateMultiPatches } from "@shared/patchGenerator";
 import { applyLayoutConstraints, simplifyIfNeeded } from "@shared/layoutConstraints";
 import { buildGenomeSig, serializeGenomeSig, isGenomeTooSimilar, hasSufficientMutation, legacySigToNew } from "@shared/layoutSignature";
+import { createContextLock, extractContextLock, applyContextLock, enforceContextLock, filterLockedFields } from "@shared/contextLock";
+import { extractUniversalContext } from "@shared/universalContext";
+import { isCorrectionPrompt, applyContextCorrection } from "@shared/contextOverride";
+import { computeLayoutHash, isLayoutTooSimilar, buildLayoutSigComponents } from "@shared/layoutSignature";
+import { needsMutation, mutateLayout } from "@shared/layoutMutation";
+import { validateContent, needsRegeneration } from "@shared/contextValidator";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -93,35 +99,62 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const extractedProductName = intent.productName;
       const resolvedBrandName = explicitBrandName?.trim() || extractedProductName || null;
 
-      const promptContent = generateContextContent(prompt, intent.productType, resolvedBrandName);
-      const semanticContext = buildSemanticContext(prompt, intent.productType);
+      const universalCtx = extractUniversalContext(fullText);
 
-      const initialSettings = {
-        uniqueIcons: detectedIndustry !== "saas",
-        forceStandardGenome: detectedIndustry === "saas",
-        industry: detectedIndustry,
+      const effectiveIndustry = universalCtx.industry || detectedIndustry;
+      const effectiveProductType = universalCtx.productType || intent.productType || undefined;
+
+      const promptContent = generateContextContent(prompt, effectiveProductType ?? null, resolvedBrandName, universalCtx);
+      const semanticContext = buildSemanticContext(prompt, effectiveProductType ?? null);
+
+      const initialSettings: Record<string, unknown> = {
+        uniqueIcons: effectiveIndustry !== "saas",
+        forceStandardGenome: effectiveIndustry === "saas",
+        industry: effectiveIndustry,
         tone: "creative" as const,
-        productType: intent.productType ?? undefined,
+        productType: effectiveProductType,
         ...(resolvedBrandName ? { brandName: resolvedBrandName } : {}),
         promptContent,
         semanticContext,
       };
 
+      const contextLock = createContextLock(universalCtx);
+      applyContextLock(initialSettings, contextLock);
+      initialSettings.contextLock = contextLock;
+
       let genome = generateGenome(seed, { name, prompt, font, themeColor });
-      genome = maybeApplyIndustryConstraints(genome, initialSettings);
-      genome = mergeDesignSources(genome, { selectedFont: font, selectedPrimaryColor: themeColor, uploadedLogoUrl: logoUrl, productType: intent.productType });
+      genome = maybeApplyIndustryConstraints(genome, initialSettings as any);
+      genome = mergeDesignSources(genome, { selectedFont: font, selectedPrimaryColor: themeColor, uploadedLogoUrl: logoUrl, productType: effectiveProductType });
       const genomeJson = JSON.stringify(genome);
 
-      // Landing page prompts always use the landing page layout engine (never dashboard/product context layouts)
-      const resolvedPageType = intent.pageType as any ?? undefined;
+      const resolvedPageType = universalCtx.pageType || (intent.pageType as any) || undefined;
       const isLandingPage = resolvedPageType === "landing_page" || resolvedPageType === "marketing_site";
       let layout = (productContext && !isLandingPage)
-        ? generateContextualLayout(seed, productContext)
+        ? generateContextualLayout(seed, productContext, universalCtx)
         : generateLayout(seed, { name, prompt, font, themeColor, pageType: resolvedPageType });
 
-      // Apply density and page-type constraints, then simplify if too complex
       layout = applyLayoutConstraints(layout, resolvedPageType);
       layout = simplifyIfNeeded(layout, resolvedPageType);
+
+      const layoutSigComponents = buildLayoutSigComponents(layout, genome);
+      const layoutHash = computeLayoutHash(layoutSigComponents, seed);
+      const previousGenomes: string[] = [];
+      if (isLayoutTooSimilar(layoutHash, previousGenomes)) {
+        if (needsMutation(layoutSigComponents, [])) {
+          layout = mutateLayout(layout, seed + "-mutation");
+          layout = applyLayoutConstraints(layout, resolvedPageType);
+          layout = simplifyIfNeeded(layout, resolvedPageType);
+        }
+      }
+
+      const contentValidation = validateContent(promptContent, universalCtx);
+      if (needsRegeneration(contentValidation)) {
+        const retryContent = generateContextContent(prompt, effectiveProductType ?? null, resolvedBrandName, universalCtx);
+        if (!needsRegeneration(validateContent(retryContent, universalCtx))) {
+          initialSettings.promptContent = retryContent;
+        }
+      }
+
       const layoutJson = JSON.stringify(layout);
       const settingsJson = JSON.stringify(initialSettings);
 
@@ -188,6 +221,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let newProductType: string | undefined = project.productType ?? undefined;
       const allDescriptions: string[] = [];
       let contentPatch: Record<string, string> = {};
+      const nlContextLock = extractContextLock(project.settingsJson);
 
       const intents = interpretSemanticMulti(commands);
       const patchSet = generateMultiPatches(intents);
@@ -197,6 +231,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       for (const [key, value] of Object.entries(patchSet.settingsPatch)) {
+        if (nlContextLock.locked && (key === "industry" || key === "productType" || key === "coreActivities" || key === "pageType")) {
+          continue;
+        }
         (currentSettings as any)[key] = value;
         if (key === "productType" && typeof value === "string") {
           newProductType = value;
@@ -307,11 +344,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const currentSettings = parseSettings(project.settingsJson);
+      const contextLock = extractContextLock(project.settingsJson);
+
+      if (contextLock.locked && contextLock.industry) {
+        (currentSettings as any).industry = contextLock.industry;
+      }
+
       newGenome = maybeApplyIndustryConstraints(newGenome as any, currentSettings) as any;
 
-      const effectiveProductType = project.productType
-        ?? (parseSettings(project.settingsJson) as any).productType
-        ?? undefined;
+      const effectiveProductType = (contextLock.locked && contextLock.productType)
+        ? contextLock.productType
+        : (project.productType
+          ?? (parseSettings(project.settingsJson) as any).productType
+          ?? undefined);
 
       newGenome = mergeDesignSources(newGenome as any, {
         selectedFont: project.font,
@@ -353,6 +398,65 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error toggling layout lock:", err);
       res.status(500).json({ message: "Failed to toggle layout lock" });
+    }
+  });
+
+  app.post("/api/project/:id/correct-context", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const { correction } = req.body;
+      if (!correction || typeof correction !== "string") {
+        return res.status(400).json({ message: "correction string is required" });
+      }
+
+      if (!isCorrectionPrompt(correction)) {
+        return res.status(400).json({ message: "Input does not appear to be a context correction. Try something like: 'this is an AI company, not a construction company'" });
+      }
+
+      const currentUniversalCtx = extractUniversalContext(project.prompt);
+      const correctionResult = applyContextCorrection(currentUniversalCtx, correction, project.prompt);
+
+      if (!correctionResult.corrected) {
+        return res.json({ corrected: false, message: "No corrections were applicable", corrections: [] });
+      }
+
+      const updatedCtx = correctionResult.updatedContext;
+      const newContextLock = createContextLock(updatedCtx);
+
+      const promptContent = generateContextContent(
+        project.prompt,
+        updatedCtx.productType,
+        project.name,
+        updatedCtx,
+      );
+
+      const currentSettings = parseSettings(project.settingsJson);
+      const newSettings: Record<string, unknown> = {
+        ...currentSettings,
+        industry: updatedCtx.industry,
+        productType: updatedCtx.productType ?? currentSettings.productType,
+        promptContent,
+        contextLock: newContextLock,
+      };
+
+      const updated = await storage.updateProject(project.id, userId!, {
+        settingsJson: JSON.stringify(newSettings),
+        productType: updatedCtx.productType ?? project.productType ?? undefined,
+      });
+
+      res.json({
+        corrected: true,
+        project: updated,
+        corrections: correctionResult.corrections,
+        newIndustry: updatedCtx.industry,
+      });
+    } catch (err) {
+      console.error("Error correcting context:", err);
+      res.status(500).json({ message: "Failed to correct context" });
     }
   });
 

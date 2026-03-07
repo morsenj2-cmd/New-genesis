@@ -1,0 +1,226 @@
+Refactor the design generation engine so it works for ANY industry without relying on hard-coded templates or example industries.
+
+The system must dynamically infer context from the prompt and generate layouts and widgets accordingly.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+------------------------------------------------
+1. UNIVERSAL SEMANTIC CONTEXT ENGINE
+------------------------------------------------
+
+Create a universal semantic interpreter.
+
+File:
+/lib/semanticContext.ts
+
+Input:
+raw user prompt
+
+Output structured context:
+
+{
+industry
+productType
+companyType
+coreActivities
+targetAudience
+domainVocabulary
+pageType
+}
+
+This must be derived from semantic analysis of the prompt, not keyword lists.
+
+The interpreter must support any domain without predefined industry templates.
+
+------------------------------------------------
+2. CONTEXT CORRECTION SYSTEM
+------------------------------------------------
+
+Allow the user to override context.
+
+Example correction prompt:
+
+"this is an AI company not a construction company"
+
+Create file:
+/lib/contextOverride.ts
+
+Rules:
+
+identify correction
+replace industry context
+update domain vocabulary
+regenerate dependent sections
+
+Context overrides must propagate across the entire design.
+
+------------------------------------------------
+3. DOMAIN VOCABULARY EXTRACTION
+------------------------------------------------
+
+Create dynamic vocabulary extraction.
+
+File:
+/lib/domainVocabulary.ts
+
+Instead of predefined industry lists:
+
+derive vocabulary directly from prompt context.
+
+Example extraction logic:
+
+identify nouns
+identify services
+identify domain entities
+identify technical terms
+
+Build a vocabulary graph for that specific project.
+
+This vocabulary becomes the allowed word pool for content generation.
+
+------------------------------------------------
+4. UNIVERSAL DASHBOARD GENERATION
+------------------------------------------------
+
+Dashboards must adapt to the interpreted context automatically.
+
+File:
+/lib/dashboardGenerator.ts
+
+Rules:
+
+dashboard widgets must be derived from context activities.
+
+Process:
+
+extract operational concepts from prompt
+convert them into metrics
+convert metrics into widgets
+
+Example logic (not hard-coded examples):
+
+activity → measurable metric → dashboard component
+
+------------------------------------------------
+5. GENERIC METRIC BLOCKER
+------------------------------------------------
+
+Create a metric validation system.
+
+File:
+/lib/metricValidator.ts
+
+Rule:
+
+metrics must originate from project context.
+
+If a metric does not relate to the extracted domain vocabulary it must be rejected.
+
+This prevents irrelevant financial dashboards from appearing in unrelated industries.
+
+------------------------------------------------
+6. UNIQUENESS ENGINE
+------------------------------------------------
+
+Prevent design repetition across projects.
+
+Create layout signature.
+
+File:
+/lib/layoutSignature.ts
+
+layoutSignature = SHA256(
+projectSeed +
+pageType +
+gridStructure +
+componentHierarchy +
+spacingScale +
+colorHarmony +
+typographyScale
+)
+
+Before finalizing layout:
+
+check if signature exists.
+
+If it exists:
+
+mutate layout parameters.
+
+------------------------------------------------
+7. LAYOUT MUTATION ENGINE
+------------------------------------------------
+
+File:
+/lib/layoutMutation.ts
+
+Mutatable parameters:
+
+grid system
+section ordering
+hero alignment
+component geometry
+spacing ratios
+border radius scale
+typography scale
+color distribution
+component density
+
+Each generation must mutate at least 30% of parameters.
+
+This guarantees visual uniqueness.
+
+------------------------------------------------
+8. CONTEXT LOCKING
+------------------------------------------------
+
+Once context is established it must be locked.
+
+File:
+/lib/contextLock.ts
+
+Locked parameters:
+
+industry
+productType
+coreActivities
+pageType
+
+Regenerate style must NOT change these.
+
+------------------------------------------------
+9. CONTEXT VALIDATION BEFORE RENDER
+------------------------------------------------
+
+File:
+/lib/contextValidator.ts
+
+Before rendering:
+
+verify that every section
+every widget
+every metric
+every sentence
+
+is derived from project context.
+
+If mismatch detected regenerate.
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After this refactor:
+
+the generator works for any industry dynamically
+
+designs no longer depend on example templates
+
+dashboards adapt to the specific domain of the prompt
+
+context corrections update the entire project
+
+designs remain unique across projects
+
+the system behaves like a universal semantic generator rather than a template engine.

@@ -1,7 +1,9 @@
 import type { FeatureItem, StatItem, TestimonialItem, ProductContent } from "./contentGenerator";
-import { getDomainVocabulary, getAllDomainWords } from "./domainVocabulary";
+import { getDomainVocabulary, getAllDomainWords, extractDynamicVocabulary } from "./domainVocabulary";
 import { containsBannedPhrase, isGenericHeadline } from "./genericPhraseFilter";
 import { scoreRelevance, extractPromptKeywords, pickMostRelevant } from "./relevanceScoring";
+import type { UniversalContext } from "./universalContext";
+import { getIndustryLabel } from "./universalContext";
 
 export interface ContextGraph {
   industry: string;
@@ -1213,16 +1215,211 @@ function buildDomainFallbackHeadline(ctx: ContextGraph): string {
   return `${cap} built for modern teams`;
 }
 
+// ── Universal content generator (no template needed) ─────────────────────────
+
+const ICON_POOL = ["grid", "filter", "broadcast", "settings", "search", "play"];
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function generateUniversalFeatures(ctx: ContextGraph, universalCtx?: UniversalContext): FeatureItem[] {
+  const vocab = universalCtx?.domainVocabulary ?? extractDynamicVocabulary(ctx.promptKeywords.join(" "), ctx.industry);
+  const activities = universalCtx?.coreActivities ?? ctx.services;
+  const features: FeatureItem[] = [];
+  const domainLabel = ctx.semanticDomain;
+
+  const SKIP_FEATURE_TERMS = new Set([
+    "landing", "homepage", "website", "page", "site", "platform", "portal",
+    "dashboard", "app", "application", "web", "online", "digital",
+  ]);
+  const isUsableTerm = (t: string) => t.length > 2 && !t.split(" ").some(p => SKIP_FEATURE_TERMS.has(p.toLowerCase()));
+
+  const allTerms: string[] = [];
+  for (const a of activities) { if (isUsableTerm(a)) allTerms.push(a); }
+  for (const c of vocab.core) { if (isUsableTerm(c) && !allTerms.includes(c)) allTerms.push(c); }
+  for (const o of vocab.objects) { if (isUsableTerm(o) && !allTerms.includes(o)) allTerms.push(o); }
+  for (const a of vocab.actions) { if (isUsableTerm(a) && !allTerms.includes(a)) allTerms.push(a); }
+
+  const actions = vocab.actions.filter(a => a.length > 2);
+  const qualities = vocab.qualities.filter(q => q.length > 2);
+
+  const featureTemplates = [
+    (term: string) => ({ title: capitalize(term), description: `Professional ${term} solutions tailored to your specific ${domainLabel} needs.` }),
+    (term: string) => ({
+      title: term.toLowerCase().includes("management") ? capitalize(term) : `${capitalize(term)} management`,
+      description: `Streamline your ${term} workflows with intelligent tools designed for ${domainLabel}.`,
+    }),
+    (term: string) => ({
+      title: term.toLowerCase().includes("services") ? capitalize(term) : `${capitalize(term)} services`,
+      description: `End-to-end ${term} capabilities that deliver consistent, measurable results.`,
+    }),
+  ];
+
+  const featureCount = Math.min(6, Math.max(3, allTerms.length));
+  for (let i = 0; i < featureCount; i++) {
+    const icon = ICON_POOL[i % ICON_POOL.length];
+    if (i < allTerms.length) {
+      const term = allTerms[i];
+      const template = featureTemplates[i % featureTemplates.length];
+      const { title, description } = template(term);
+      features.push({ icon, title, description });
+    } else {
+      features.push({
+        icon,
+        title: `${capitalize(domainLabel)} excellence`,
+        description: `Industry-leading ${domainLabel} solutions built for modern organisations.`,
+      });
+    }
+  }
+
+  if (features.length < 3) {
+    const fillers = [
+      { icon: "grid", title: `${capitalize(domainLabel)} management`, description: `Comprehensive ${domainLabel} tools designed for efficiency and scale.` },
+      { icon: "filter", title: "Analytics & insights", description: `Data-driven insights to optimize your ${domainLabel} operations.` },
+      { icon: "broadcast", title: "Seamless experience", description: `Intuitive tools that make ${domainLabel} effortless for your team and clients.` },
+      { icon: "settings", title: "Quality assurance", description: `Rigorous standards and processes that ensure consistent ${domainLabel} quality.` },
+      { icon: "search", title: "Smart scheduling", description: "Efficient booking and resource management to maximize productivity." },
+      { icon: "play", title: "Client management", description: "Build lasting relationships with comprehensive client tracking and communication." },
+    ];
+    while (features.length < 6) {
+      features.push(fillers[features.length % fillers.length]);
+    }
+  }
+
+  return features;
+}
+
+function generateUniversalStats(ctx: ContextGraph, universalCtx?: UniversalContext): StatItem[] {
+  const vocab = universalCtx?.domainVocabulary ?? extractDynamicVocabulary(ctx.promptKeywords.join(" "), ctx.industry);
+  const objects = vocab.objects.filter(o => o.length > 2);
+  const roles = vocab.roles.filter(r => r.length > 2);
+
+  const statTemplates: StatItem[] = [];
+
+  if (objects.length > 0) {
+    statTemplates.push({ icon: "grid", value: "10,000+", label: `${capitalize(objects[0])}s managed` });
+  }
+  if (roles.length > 0) {
+    statTemplates.push({ icon: "broadcast", value: "5,000+", label: `${capitalize(roles[0])}s served` });
+  }
+  statTemplates.push({ icon: "settings", value: "99.9%", label: "System uptime" });
+  statTemplates.push({ icon: "filter", value: "50+", label: "Countries" });
+
+  return statTemplates.slice(0, 4);
+}
+
+function generateUniversalTestimonials(ctx: ContextGraph): TestimonialItem[] {
+  const domainLabel = ctx.semanticDomain;
+  return [
+    {
+      text: `The ${domainLabel} platform transformed how we operate. Implementation was seamless and results were immediate.`,
+      author: "Alex M.",
+      role: `Director of Operations`,
+    },
+    {
+      text: `We evaluated several ${domainLabel} solutions before choosing this one. The depth of capability and quality of support set it apart.`,
+      author: "Sarah K.",
+      role: `VP of ${capitalize(ctx.industry.replace(/_/g, " "))}`,
+    },
+    {
+      text: `Outstanding platform. Our team productivity improved significantly within the first quarter of deployment.`,
+      author: "James R.",
+      role: "CTO",
+    },
+  ];
+}
+
+function generateUniversalContent(ctx: ContextGraph, brandName: string | null, universalCtx?: UniversalContext): ProductContent {
+  const industryLabel = getIndustryLabel(ctx.industry);
+  const domainLabel = ctx.semanticDomain;
+  const audience = ctx.audience[0] ?? "modern organisations";
+
+  const SKIP_TERMS = new Set(["landing", "platform", "website", "homepage", "page", "site"]);
+  const rawActivities = universalCtx?.coreActivities ?? ctx.services;
+  const activities = rawActivities.filter(a => !SKIP_TERMS.has(a.toLowerCase()) && !a.toLowerCase().startsWith("landing "));
+  const primaryActivity = activities.find(a => a.length > 3) ?? domainLabel;
+
+  let headline: string;
+  if (brandName && activities.length > 0) {
+    const bestActivity = activities.find(a => a.split(" ").length >= 2) ?? primaryActivity;
+    headline = `${brandName} — ${capitalize(bestActivity)} for ${audience}`;
+  } else if (activities.length > 0) {
+    const bestActivity = activities.find(a => a.split(" ").length >= 2) ?? primaryActivity;
+    headline = `${capitalize(bestActivity)} solutions for ${audience}`;
+  } else {
+    headline = `${capitalize(domainLabel)} solutions for ${audience}`;
+  }
+
+  const subheadline = ctx.productFunction
+    ? `Comprehensive ${ctx.productFunction} solutions designed for reliability, efficiency, and scale across every aspect of your operations.`
+    : `Advanced ${domainLabel} solutions that streamline your operations and deliver measurable results.`;
+
+  const ctaLabel = audienceCta(
+    [`Explore ${domainLabel}`, "Get started", "Request a demo", "Contact us"],
+    ctx.audience,
+    ctx.services,
+  );
+
+  const semanticCtaH = buildSemanticCtaHeadline(ctx);
+  const ctaHeadline = (semanticCtaH && !containsBannedPhrase(semanticCtaH))
+    ? semanticCtaH
+    : `Ready to transform your ${domainLabel} operations?`;
+
+  const features = generateUniversalFeatures(ctx, universalCtx);
+  const stats = generateUniversalStats(ctx, universalCtx);
+  const testimonials = generateUniversalTestimonials(ctx);
+
+  return {
+    brandName: brandName ?? "Company",
+    headline,
+    subheadline,
+    ctaLabel,
+    secondaryCtaLabel: "Learn more",
+    ctaHeadline,
+    ctaBody: `Our team specialises in ${domainLabel}. Whether you're just getting started or scaling existing operations, we have the expertise and technology to help.`,
+    ctaButtonLabel: ctaLabel,
+    featureGridTitle: `${industryLabel} capabilities`,
+    cardListTitle: "Core services",
+    footerTagline: `Trusted ${domainLabel} solutions for ${audience}.`,
+    navLinks: ["Solutions", "About", "Resources", "Contact"],
+    features,
+    stats,
+    testimonials,
+    aboutMission: `We are committed to advancing ${domainLabel} through technology, expertise, and a deep understanding of our clients' needs. Every solution we build is designed to create lasting value.`,
+    pricingPlans: [],
+    blogPosts: [],
+  };
+}
+
 // ── Main content generator (semantic) ────────────────────────────────────────
 
 export function generateContextContent(
   prompt: string,
   productType: string | null,
   brandName: string | null,
+  universalCtx?: UniversalContext,
 ): ProductContent {
   const ctx = extractContextGraph(prompt, productType);
-  const lib = INDUSTRY_LIBRARY[ctx.industry] ?? DEFAULT_INDUSTRY;
+
+  if (universalCtx) {
+    ctx.industry = universalCtx.industry;
+    ctx.semanticDomain = SEMANTIC_DOMAIN_MAP[universalCtx.industry] ?? universalCtx.industry.replace(/_/g, " ");
+    if (universalCtx.coreActivities.length > 0 && ctx.services.length === 0) {
+      ctx.services = universalCtx.coreActivities.slice(0, 6);
+    }
+    if (universalCtx.targetAudience.length > 0) {
+      ctx.audience = universalCtx.targetAudience;
+    }
+  }
+
+  const lib = INDUSTRY_LIBRARY[ctx.industry];
   const kw = ctx.promptKeywords;
+
+  const useUniversal = !lib || (universalCtx && universalCtx.industryConfidence <= 0.3);
+  if (useUniversal) {
+    return generateUniversalContent(ctx, brandName, universalCtx ?? undefined);
+  }
 
   const isEnterprise = ctx.tone === "enterprise" || ctx.descriptors.some(d => ["multinational", "global", "enterprise", "large-scale"].includes(d));
 
