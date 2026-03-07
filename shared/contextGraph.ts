@@ -1,6 +1,7 @@
 import type { FeatureItem, StatItem, TestimonialItem, ProductContent } from "./contentGenerator";
-
-// ── Context Graph ──────────────────────────────────────────────────────────────
+import { getDomainVocabulary, getAllDomainWords } from "./domainVocabulary";
+import { containsBannedPhrase, isGenericHeadline } from "./genericPhraseFilter";
+import { scoreRelevance, extractPromptKeywords, pickMostRelevant } from "./relevanceScoring";
 
 export interface ContextGraph {
   industry: string;
@@ -9,6 +10,21 @@ export interface ContextGraph {
   descriptors: string[];
   services: string[];
   tone: "enterprise" | "consumer" | "technical" | "startup";
+  semanticDomain: string;
+  productFunction: string | null;
+  promptKeywords: string[];
+}
+
+export interface SemanticContext {
+  industry: string;
+  productType: string | null;
+  companyType: string | null;
+  targetAudience: string[];
+  services: string[];
+  tone: string;
+  keywords: string[];
+  semanticDomain: string;
+  productFunction: string | null;
 }
 
 // ── Industry signal keywords ───────────────────────────────────────────────────
@@ -33,10 +49,32 @@ const INDUSTRY_SIGNALS: [string, string[]][] = [
   ["automotive",      ["automotive", "vehicle", "car", "truck", "fleet", "dealership", "auto", "mobility", "ev", "electric vehicle", "autonomous", "connected car", "telematics"]],
 ];
 
+const GENERIC_CONTEXT_WORDS: Record<string, RegExp[]> = {
+  construction: [/\bbuild\s+(?:me|a|an|the|my|your|our)\b/i, /\bbuilding\s+(?:a|an|the|my)\s+(?:website|app|platform|tool|page|site|landing)/i],
+};
+
+function matchesSignal(text: string, signal: string): boolean {
+  if (signal.includes(" ")) return text.includes(signal);
+  const regex = new RegExp(`\\b${signal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+  return regex.test(text);
+}
+
 function detectIndustry(text: string): string {
   const lower = text.toLowerCase();
   for (const [industry, signals] of INDUSTRY_SIGNALS) {
-    if (signals.some(s => lower.includes(s))) return industry;
+    const matched = signals.some(s => matchesSignal(lower, s));
+    if (!matched) continue;
+
+    const falsePositivePatterns = GENERIC_CONTEXT_WORDS[industry];
+    if (falsePositivePatterns) {
+      const matchedSignal = signals.find(s => matchesSignal(lower, s));
+      if (matchedSignal) {
+        const isFalsePositive = falsePositivePatterns.some(p => p.test(text));
+        const hasStrongerSignal = signals.filter(s => s !== matchedSignal && matchesSignal(lower, s)).length > 0;
+        if (isFalsePositive && !hasStrongerSignal) continue;
+      }
+    }
+    return industry;
   }
   return "technology";
 }
@@ -92,22 +130,123 @@ function detectTone(text: string, industry: string): ContextGraph["tone"] {
   return "consumer";
 }
 
+const SERVICE_PATTERNS = [
+  /(?:manage|manages|managing)\s+([\w\s]+?)(?:\s+for\b|\.|\,|$)/i,
+  /(?:that|which)\s+(?:helps?|enables?|allows?|provides?|offers?)\s+([\w\s]+?)(?:\s+for\b|\.|\,|$)/i,
+  /(?:platform|tool|service|software|app|system)\s+(?:for|to)\s+([\w\s]+?)(?:\.|,|$)/i,
+  /(?:automate|automating|automation of)\s+([\w\s]+?)(?:\.|,|$)/i,
+  /(?:specializing|specialising|focused)\s+(?:in|on)\s+([\w\s]+?)(?:\.|,|$)/i,
+];
+
+function extractServices(text: string, industry: string): string[] {
+  const lower = text.toLowerCase();
+  const found: string[] = [];
+  for (const pat of SERVICE_PATTERNS) {
+    const m = lower.match(pat);
+    if (m && m[1] && m[1].length > 3 && m[1].length < 60) {
+      found.push(m[1].trim());
+    }
+  }
+  const vocab = getDomainVocabulary(industry);
+  for (const term of vocab.core) {
+    if (lower.includes(term.toLowerCase()) && !found.includes(term)) {
+      found.push(term);
+    }
+  }
+  return [...new Set(found)].slice(0, 6);
+}
+
+const ACTION_VERBS = new Set([
+  "sells", "sell", "selling", "makes", "make", "making", "builds", "build", "building",
+  "creates", "create", "creating", "provides", "provide", "providing", "offers", "offer",
+  "offering", "does", "runs", "running", "has", "have", "having", "gets", "get", "getting",
+]);
+
+function extractProductFunction(text: string): string | null {
+  const lower = text.toLowerCase();
+
+  const prefixMatch = lower.match(/(?:^|[,.]\s*|(?:a|an|the)\s+)([\w]+(?:\s+[\w]+){0,2})\s+(?:platform|tool|service|software|app|system)\b/i);
+  if (prefixMatch && prefixMatch[1]) {
+    const result = prefixMatch[1].trim().replace(/^(?:a|an|the|make|create|build|is)\s+/i, "").trim();
+    if (result.length > 5 && result.length < 40 && result.split(/\s+/).length <= 3) {
+      const firstWord = result.split(/\s+/)[0];
+      if (!ACTION_VERBS.has(firstWord) && !TOO_GENERIC_SERVICES.has(firstWord)) return result;
+    }
+  }
+
+  const suffixPatterns = [
+    /(?:that|which)\s+(?:helps?|enables?|allows?|provides?)\s+([\w\s]+?)(?:\s+for\b|\.|,|$)/i,
+    /(?:manage|manages|managing)\s+([\w\s]+?)(?:\s+for\b|\.|,|$)/i,
+  ];
+  for (const pat of suffixPatterns) {
+    const m = lower.match(pat);
+    if (m && m[1] && m[1].length > 5 && m[1].length < 50) {
+      const result = m[1].trim();
+      const firstWord = result.split(/\s+/)[0];
+      if (!ACTION_VERBS.has(firstWord)) return result;
+    }
+  }
+  return null;
+}
+
+const SEMANTIC_DOMAIN_MAP: Record<string, string> = {
+  finance:       "financial technology",
+  energy:        "energy infrastructure",
+  healthcare:    "health technology",
+  education:     "education technology",
+  logistics:     "supply chain technology",
+  retail:        "retail technology",
+  real_estate:   "property technology",
+  legal:         "legal technology",
+  consulting:    "professional services",
+  technology:    "software technology",
+  manufacturing: "industrial technology",
+  media:         "media technology",
+  telecom:       "telecommunications",
+  government:    "government technology",
+  automotive:    "mobility technology",
+  agriculture:   "agricultural technology",
+  hospitality:   "hospitality technology",
+  construction:  "construction technology",
+};
+
 export function extractContextGraph(prompt: string, productType?: string | null): ContextGraph {
   const industry = detectIndustry(prompt);
   const descriptors = extractDescriptors(prompt);
   const audience = extractAudience(prompt);
   const tone = detectTone(prompt, industry);
+  const services = extractServices(prompt, industry);
+  const productFunction = extractProductFunction(prompt);
+  const promptKeywords = extractPromptKeywords(prompt);
 
   const lower = prompt.toLowerCase();
-  const companyTypeMatch = lower.match(/\b(company|firm|agency|organization|organisation|corporation|institute|group|platform|service|startup)\b/);
+  const companyTypeMatch = lower.match(/\b(company|firm|agency|organization|organisation|corporation|institute|group|startup)\b/);
 
   return {
     industry,
     companyType: companyTypeMatch ? companyTypeMatch[1] : null,
     audience,
     descriptors,
-    services: [],
+    services,
     tone,
+    semanticDomain: SEMANTIC_DOMAIN_MAP[industry] ?? "technology",
+    productFunction,
+    promptKeywords,
+  };
+}
+
+export function buildSemanticContext(prompt: string, productType: string | null | undefined): SemanticContext {
+  const ctx = extractContextGraph(prompt, productType);
+  return {
+    industry: ctx.industry,
+    productType: productType ?? null,
+    companyType: ctx.companyType,
+    targetAudience: ctx.audience,
+    services: ctx.services,
+    tone: ctx.tone,
+    keywords: ctx.promptKeywords,
+    semanticDomain: ctx.semanticDomain,
+    productFunction: ctx.productFunction,
   };
 }
 
@@ -822,6 +961,144 @@ const INDUSTRY_LIBRARY: Record<string, IndustryContent> = {
     ],
     aboutMission: "Feeding a growing world sustainably is one of the defining challenges of our time. We build the agricultural technology that helps producers grow more with less — improving profitability for farmers and sustainability for the planet.",
   },
+
+  retail: {
+    headlines: [
+      "Commerce designed for the modern consumer",
+      "Retail experiences that build lasting brand loyalty",
+      "Where every customer interaction counts",
+      "Omnichannel retail for a connected world",
+    ],
+    enterpriseHeadlines: [
+      "Enterprise retail infrastructure for global brands",
+      "Omnichannel commerce at scale for leading retailers",
+    ],
+    subheadlines: [
+      "From storefront to checkout — crafted experiences that bring your brand to life and keep customers coming back.",
+      "Seamless shopping across every channel. Intelligent inventory, personalised recommendations, and frictionless checkout.",
+      "Retail technology that connects your brand with customers wherever they shop — online, in-store, or on mobile.",
+    ],
+    ctaLabels: ["Shop now", "Explore the collection", "Browse our catalog", "Start shopping"],
+    secondaryCtaLabels: ["View lookbook", "See what's new", "Our story", "Learn more"],
+    ctaHeadlines: ["Find your next favourite piece", "Discover the full collection", "Ready to elevate your style?"],
+    ctaBodies: ["From timeless essentials to statement pieces — browse our curated collection and find exactly what you're looking for.", "Premium quality, thoughtful design, and effortless style. Explore the collection and experience the difference."],
+    featureGridTitles: ["What sets us apart", "The brand experience", "Why customers choose us"],
+    cardListTitles: ["Featured collections", "Our product lines", "Shop by category"],
+    footerTaglines: ["Premium quality and thoughtful design trusted by discerning customers worldwide."],
+    navLinks: ["Collections", "New Arrivals", "About", "Contact"],
+    features: [
+      { icon: "grid", title: "Curated collections", description: "Thoughtfully designed collections that blend timeless style with contemporary trends for every occasion." },
+      { icon: "filter", title: "Premium materials", description: "Sourced from the finest mills and tanneries — quality you can see and feel in every stitch." },
+      { icon: "broadcast", title: "Effortless shopping", description: "Intuitive browsing, smart sizing guides, and seamless checkout across all devices." },
+      { icon: "settings", title: "Tailored fit", description: "Expert pattern-making and fit engineering so every piece drapes and moves exactly as intended." },
+      { icon: "search", title: "Sustainable sourcing", description: "Transparent supply chain with responsibly sourced materials and ethical manufacturing practices." },
+      { icon: "play", title: "Personal styling", description: "Complimentary styling advice from our team to help you build a wardrobe that works for your life." },
+    ],
+    stats: [
+      { icon: "grid", value: "50,000+", label: "Happy customers" },
+      { icon: "broadcast", value: "200+", label: "Retail locations" },
+      { icon: "settings", value: "98%", label: "Customer satisfaction" },
+      { icon: "filter", value: "30+", label: "Countries shipped to" },
+    ],
+    testimonials: [
+      { text: "The quality is exceptional. I've bought from dozens of brands, and nothing compares to the fit and fabric quality here.", author: "Sophie R.", role: "Loyal Customer" },
+      { text: "Their styling service helped me build a professional wardrobe that actually works together. Every piece earns its place.", author: "Marcus T.", role: "Repeat Customer" },
+      { text: "Fast shipping, beautiful packaging, and the clothes look even better in person than online. My go-to brand now.", author: "Amara K.", role: "Fashion Enthusiast" },
+    ],
+    aboutMission: "We believe that great style should be accessible, sustainable, and effortless. Every piece in our collection is designed with intention — to look exceptional, feel comfortable, and last for years to come.",
+  },
+
+  hospitality: {
+    headlines: [
+      "Hospitality experiences your guests will remember",
+      "Where every stay becomes a story",
+      "Redefining guest experiences from arrival to departure",
+      "Exceptional hospitality for the modern traveller",
+    ],
+    enterpriseHeadlines: [
+      "Enterprise hospitality management for hotel groups and resorts",
+      "Scalable hospitality technology for global hotel portfolios",
+    ],
+    subheadlines: [
+      "From seamless check-in to curated local experiences — hospitality technology that makes every guest feel valued.",
+      "Revenue management, guest engagement, and operational excellence — the platform that powers exceptional hospitality.",
+      "Smart booking, personalised service, and operational efficiency — everything your property needs to deliver unforgettable experiences.",
+    ],
+    ctaLabels: ["Book your stay", "Check availability", "Explore our properties", "Contact our team"],
+    secondaryCtaLabels: ["View rooms", "See our venues", "Our story", "Learn more"],
+    ctaHeadlines: ["Ready to experience something extraordinary?", "Plan your perfect stay", "Your next escape starts here"],
+    ctaBodies: ["Whether it's a business trip, a family holiday, or a romantic getaway — our team is ready to make your stay unforgettable.", "Discover our properties and find the perfect setting for your next adventure."],
+    featureGridTitles: ["The guest experience", "What makes us different", "Our hospitality standards"],
+    cardListTitles: ["Our properties", "Accommodation options", "Guest services"],
+    footerTaglines: ["Award-winning hospitality trusted by travellers seeking memorable experiences worldwide."],
+    navLinks: ["Rooms", "Dining", "Experiences", "Contact"],
+    features: [
+      { icon: "grid", title: "Premium accommodation", description: "Beautifully appointed rooms and suites designed for comfort, productivity, and relaxation." },
+      { icon: "filter", title: "Fine dining", description: "Restaurant and bar experiences featuring locally sourced ingredients and world-class cuisine." },
+      { icon: "broadcast", title: "Concierge service", description: "Knowledgeable local concierge team to arrange tours, reservations, transportation, and bespoke experiences." },
+      { icon: "settings", title: "Event hosting", description: "Versatile event spaces for meetings, conferences, weddings, and celebrations of every scale." },
+      { icon: "search", title: "Wellness & spa", description: "Full-service spa and wellness facilities designed to rejuvenate body and mind." },
+      { icon: "play", title: "Seamless booking", description: "Easy online booking with instant confirmation, flexible cancellation, and personalised pre-arrival planning." },
+    ],
+    stats: [
+      { icon: "grid", value: "4.8/5", label: "Guest rating" },
+      { icon: "broadcast", value: "500K+", label: "Guests hosted" },
+      { icon: "settings", value: "25+", label: "Properties" },
+      { icon: "filter", value: "15+", label: "Destinations" },
+    ],
+    testimonials: [
+      { text: "From the moment we arrived, every detail was perfect. The staff anticipated what we needed before we even asked.", author: "Claudia R.", role: "Business Traveller" },
+      { text: "The spa facilities are world-class, and the dining was honestly some of the best food we've had anywhere. We've already booked our return.", author: "David L.", role: "Returning Guest" },
+      { text: "They hosted our company retreat for 200 people flawlessly. The event team was professional, responsive, and genuinely wonderful to work with.", author: "Nina P.", role: "Corporate Event Planner" },
+    ],
+    aboutMission: "We believe that hospitality is about more than a room — it's about creating moments of genuine connection, comfort, and discovery. Every property, every service, and every interaction is designed with our guests at the centre.",
+  },
+
+  construction: {
+    headlines: [
+      "Building the foundations of tomorrow",
+      "Construction excellence from blueprint to completion",
+      "Engineering and construction for complex projects",
+      "Precision building for lasting structures",
+    ],
+    enterpriseHeadlines: [
+      "Large-scale construction and engineering for infrastructure projects",
+      "Enterprise construction management for complex, multi-site developments",
+    ],
+    subheadlines: [
+      "From site survey through to handover — construction management that delivers on time, on budget, and to specification.",
+      "Civil engineering, structural design, and project management for commercial, residential, and infrastructure projects.",
+      "Construction technology that connects every stakeholder — from architects and engineers to site crews and project owners.",
+    ],
+    ctaLabels: ["Request a quote", "Discuss your project", "Contact our team", "Get a site assessment"],
+    secondaryCtaLabels: ["View portfolio", "See our projects", "Our capabilities", "Learn more"],
+    ctaHeadlines: ["Ready to start building?", "Let's discuss your next project", "From concept to completion"],
+    ctaBodies: ["Our project managers, engineers, and construction specialists work with clients across commercial, residential, and infrastructure sectors. Tell us about your project.", "From feasibility studies to final handover — we manage every phase of the construction lifecycle."],
+    featureGridTitles: ["Our construction capabilities", "Engineering excellence", "What we deliver"],
+    cardListTitles: ["Our project types", "Core construction services", "Areas of expertise"],
+    footerTaglines: ["Engineering and construction excellence trusted by developers, architects, and project owners."],
+    navLinks: ["Services", "Projects", "Safety", "Contact"],
+    features: [
+      { icon: "grid", title: "Project management", description: "End-to-end project management covering planning, procurement, scheduling, quality, and cost control." },
+      { icon: "settings", title: "Structural engineering", description: "Structural design and analysis for buildings, bridges, and infrastructure with rigorous safety standards." },
+      { icon: "broadcast", title: "Site supervision", description: "Experienced site supervisors ensuring quality, safety, and programme compliance throughout construction." },
+      { icon: "filter", title: "Safety & compliance", description: "Comprehensive HSE management with incident prevention, regulatory compliance, and safety certification." },
+      { icon: "search", title: "BIM & digital design", description: "Building Information Modelling and digital twin technology for better design coordination and clash detection." },
+      { icon: "play", title: "Sustainable construction", description: "Green building design, LEED certification support, and sustainable materials sourcing for environmentally responsible projects." },
+    ],
+    stats: [
+      { icon: "grid", value: "350+", label: "Projects completed" },
+      { icon: "broadcast", value: "99.2%", label: "Safety record" },
+      { icon: "settings", value: "$5B+", label: "Project value delivered" },
+      { icon: "filter", value: "40+", label: "Years of experience" },
+    ],
+    testimonials: [
+      { text: "They delivered our 50-storey commercial tower three weeks ahead of schedule. The project management and safety record were exemplary.", author: "James C.", role: "Director, Urban Development Corp" },
+      { text: "The BIM coordination caught 200+ clashes before we broke ground. Their digital-first approach saved us months of rework.", author: "Sarah K.", role: "Lead Architect, Foster & Associates" },
+      { text: "From demolition through to handover, the site was immaculate and their safety culture was infectious. Best contractor we've worked with.", author: "Ahmed N.", role: "Project Owner, Meridian Estates" },
+    ],
+    aboutMission: "Buildings and infrastructure shape how people live, work, and connect. We bring engineering precision, safety discipline, and project management rigour to every project — because what we build today must serve communities for generations.",
+  },
 };
 
 // ── Fallback (technology/generic) ────────────────────────────────────────────
@@ -841,17 +1118,102 @@ function applyDescriptors(headline: string, descriptors: string[]): string {
   return headline;
 }
 
-// ── Audience-based CTA modifiers ──────────────────────────────────────────────
+// ── Semantic headline builder ────────────────────────────────────────────────
+// Pattern: [Industry capability] + [product/service function]
 
-function audienceCta(ctaLabels: string[], audience: string[]): string {
+const TOO_GENERIC_SERVICES = new Set(["brand", "platform", "service", "tool", "app", "site", "website", "system", "product", "company", "business", "startup"]);
+
+function isQualityTerm(term: string): boolean {
+  if (!term || term.length < 6) return false;
+  const words = term.split(/\s+/);
+  if (words.length === 1 && TOO_GENERIC_SERVICES.has(words[0].toLowerCase())) return false;
+  return true;
+}
+
+function buildSemanticHeadline(ctx: ContextGraph, brandName: string | null): string {
+  const fn = ctx.productFunction;
+  const svc = ctx.services.find(s => isQualityTerm(s));
+  const audience = ctx.audience[0];
+
+  if (fn && isQualityTerm(fn)) {
+    const cap = fn.charAt(0).toUpperCase() + fn.slice(1);
+    if (audience && !fn.toLowerCase().includes(audience.toLowerCase().split(/\s+/)[0])) {
+      return `${cap} for ${audience}`;
+    }
+    if (ctx.companyType) {
+      return `${cap} for the modern ${ctx.companyType}`;
+    }
+    return `${cap} for modern teams`;
+  }
+
+  if (svc) {
+    const capSvc = svc.charAt(0).toUpperCase() + svc.slice(1);
+    if (audience && !svc.toLowerCase().includes(audience.toLowerCase().split(/\s+/)[0])) {
+      return `${capSvc} for ${audience}`;
+    }
+    return `${capSvc} for the modern enterprise`;
+  }
+
+  return "";
+}
+
+// ── Audience-based CTA selection ─────────────────────────────────────────────
+
+function audienceCta(ctaLabels: string[], audience: string[], services: string[]): string {
   if (audience.some(a => a.includes("government"))) return "Request a government briefing";
   if (audience.some(a => a.includes("enterprise"))) return "Request an enterprise demo";
   if (audience.some(a => a.includes("developer"))) return "Start building for free";
   if (audience.some(a => a.includes("student"))) return "Start learning free";
+  const qualitySvc = services.find(s => isQualityTerm(s));
+  if (qualitySvc) {
+    return `Get started with ${qualitySvc}`;
+  }
   return ctaLabels[0];
 }
 
-// ── Main content generator ────────────────────────────────────────────────────
+// ── Semantic CTA headline builder ───────────────────────────────────────────
+
+function buildSemanticCtaHeadline(ctx: ContextGraph): string | null {
+  const fn = ctx.productFunction;
+  const audience = ctx.audience[0];
+  const svc = ctx.services.find(s => isQualityTerm(s));
+  if (fn && isQualityTerm(fn) && audience) {
+    return `Ready to transform ${fn} for ${audience}?`;
+  }
+  if (fn && isQualityTerm(fn)) {
+    return `Ready to transform your ${fn}?`;
+  }
+  if (svc) {
+    return `Ready to modernize your ${svc}?`;
+  }
+  return null;
+}
+
+// ── Content relevance filtering ──────────────────────────────────────────────
+
+function selectBestContent<T extends string>(
+  candidates: T[],
+  industry: string,
+  keywords: string[],
+): T {
+  if (candidates.length <= 1) return candidates[0];
+  return pickMostRelevant(candidates, industry, keywords) as T;
+}
+
+function safePick(candidates: string[], industry: string, keywords: string[], safeFallback: string): string {
+  const clean = candidates.filter(c => !containsBannedPhrase(c));
+  if (clean.length === 0) return safeFallback;
+  return selectBestContent(clean, industry, keywords);
+}
+
+function buildDomainFallbackHeadline(ctx: ContextGraph): string {
+  const domainLabel = SEMANTIC_DOMAIN_MAP[ctx.industry] ?? "technology";
+  const cap = domainLabel.charAt(0).toUpperCase() + domainLabel.slice(1);
+  if (ctx.audience[0]) return `${cap} for ${ctx.audience[0]}`;
+  return `${cap} built for modern teams`;
+}
+
+// ── Main content generator (semantic) ────────────────────────────────────────
 
 export function generateContextContent(
   prompt: string,
@@ -860,18 +1222,57 @@ export function generateContextContent(
 ): ProductContent {
   const ctx = extractContextGraph(prompt, productType);
   const lib = INDUSTRY_LIBRARY[ctx.industry] ?? DEFAULT_INDUSTRY;
+  const kw = ctx.promptKeywords;
 
   const isEnterprise = ctx.tone === "enterprise" || ctx.descriptors.some(d => ["multinational", "global", "enterprise", "large-scale"].includes(d));
 
-  const headlinePool = isEnterprise && lib.enterpriseHeadlines.length > 0
-    ? lib.enterpriseHeadlines
-    : lib.headlines;
+  const domainFallback = buildDomainFallbackHeadline(ctx);
 
-  let headline = applyDescriptors(headlinePool[0], ctx.descriptors);
-  let subheadline = lib.subheadlines[0];
+  const semanticHeadline = buildSemanticHeadline(ctx, brandName);
+  let headline: string;
+  if (semanticHeadline && !isGenericHeadline(semanticHeadline)) {
+    headline = applyDescriptors(semanticHeadline, ctx.descriptors);
+  } else {
+    const headlinePool = isEnterprise && lib.enterpriseHeadlines.length > 0
+      ? [...lib.enterpriseHeadlines, ...lib.headlines]
+      : lib.headlines;
+    headline = applyDescriptors(
+      safePick(headlinePool, ctx.industry, kw, domainFallback),
+      ctx.descriptors,
+    );
+  }
 
-  const ctaLabel = audienceCta(lib.ctaLabels, ctx.audience);
-  const secondaryCtaLabel = lib.secondaryCtaLabels[0];
+  const subheadline = safePick(
+    lib.subheadlines, ctx.industry, kw,
+    `Comprehensive ${ctx.semanticDomain} solutions designed for reliability and scale.`,
+  );
+
+  const ctaLabel = audienceCta(lib.ctaLabels, ctx.audience, ctx.services);
+  const secondaryCtaLabel = selectBestContent(lib.secondaryCtaLabels, ctx.industry, kw);
+
+  const semanticCtaH = buildSemanticCtaHeadline(ctx);
+  const ctaHeadline = (semanticCtaH && !containsBannedPhrase(semanticCtaH))
+    ? semanticCtaH
+    : safePick(lib.ctaHeadlines, ctx.industry, kw, `Get started with ${ctx.semanticDomain}`);
+
+  const ctaBody = safePick(
+    lib.ctaBodies, ctx.industry, kw,
+    `Our team specialises in ${ctx.semanticDomain}. Let's discuss how we can help.`,
+  );
+
+  const featureGridTitle = safePick(
+    lib.featureGridTitles, ctx.industry, kw,
+    `Key ${ctx.semanticDomain} capabilities`,
+  );
+  const cardListTitle = safePick(
+    lib.cardListTitles, ctx.industry, kw,
+    `Core services`,
+  );
+
+  const footerTagline = safePick(
+    lib.footerTaglines, ctx.industry, kw,
+    `Trusted ${ctx.semanticDomain} for organisations worldwide.`,
+  );
 
   return {
     brandName: brandName ?? "Company",
@@ -879,12 +1280,12 @@ export function generateContextContent(
     subheadline,
     ctaLabel,
     secondaryCtaLabel,
-    ctaHeadline: lib.ctaHeadlines[0],
-    ctaBody: lib.ctaBodies[0],
-    ctaButtonLabel: lib.ctaLabels[1] ?? lib.ctaLabels[0],
-    featureGridTitle: lib.featureGridTitles[0],
-    cardListTitle: lib.cardListTitles[0],
-    footerTagline: lib.footerTaglines[0],
+    ctaHeadline,
+    ctaBody,
+    ctaButtonLabel: selectBestContent(lib.ctaLabels, ctx.industry, kw),
+    featureGridTitle,
+    cardListTitle,
+    footerTagline,
     navLinks: lib.navLinks,
     features: lib.features,
     stats: lib.stats,

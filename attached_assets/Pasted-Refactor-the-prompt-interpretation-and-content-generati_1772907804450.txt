@@ -1,0 +1,237 @@
+Refactor the prompt interpretation and content generation system so it behaves like an LLM-style semantic interpreter rather than a keyword matcher.
+
+The current generator behaves like a rule engine similar to Siri.  
+It must be replaced with a semantic prompt reasoning system.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+------------------------------------------------
+1. SEMANTIC PROMPT INTERPRETER
+------------------------------------------------
+
+Create a semantic interpretation layer.
+
+File:
+/lib/semanticInterpreter.ts
+
+Input:
+raw user prompt
+
+Output structured context:
+
+{
+industry
+productType
+companyType
+targetAudience
+services
+tone
+keywords
+semanticDomain
+}
+
+Example
+
+Prompt:
+"landing page for a fintech startup managing payroll for remote teams"
+
+Interpreter output:
+
+industry: fintech
+productType: payroll software
+companyType: startup
+targetAudience: companies with distributed teams
+services:
+- payroll automation
+- compliance
+- employee payments
+tone: modern fintech
+semanticDomain: finance technology
+
+This must be generated using semantic reasoning, not keyword detection.
+
+------------------------------------------------
+2. INDUSTRY VOCABULARY MODEL
+------------------------------------------------
+
+Create domain vocabulary sets.
+
+File:
+/lib/domainVocabulary.ts
+
+Each industry must contain word clusters.
+
+Example
+
+fintech:
+
+payments
+compliance
+transactions
+infrastructure
+settlement
+ledger
+financial operations
+automation
+bank integrations
+
+energy:
+
+grid
+renewable
+infrastructure
+power generation
+utilities
+sustainability
+
+healthcare:
+
+patients
+care
+medical data
+clinical systems
+diagnostics
+
+------------------------------------------------
+3. CONTEXT-LOCKED CONTENT GENERATION
+------------------------------------------------
+
+Content generator must only produce words belonging to:
+
+industry vocabulary
+semantic relations of the industry
+prompt keywords
+
+File:
+/lib/contextGenerator.ts
+
+Process:
+
+generate hero text  
+validate every word  
+reject words outside domain vocabulary
+
+Example
+
+If industry = fintech
+
+allowed hero:
+
+"Payroll infrastructure for modern companies"
+
+forbidden hero:
+
+"Build something remarkable"
+
+------------------------------------------------
+4. GENERIC TEMPLATE BLOCKER
+------------------------------------------------
+
+Create a banned phrase filter.
+
+File:
+/lib/genericPhraseFilter.ts
+
+Remove phrases such as:
+
+Ready to build something remarkable
+Build something incredible
+Technology solutions for tomorrow
+Start building today
+The platform your team has been waiting for
+
+These phrases must never appear unless explicitly derived from prompt context.
+
+------------------------------------------------
+5. SEMANTIC RELEVANCE SCORING
+------------------------------------------------
+
+Every generated sentence must pass a relevance score.
+
+File:
+/lib/relevanceScore.ts
+
+Score sentence against:
+
+industry vocabulary
+prompt keywords
+semantic context
+
+If score < 0.65 regenerate sentence.
+
+------------------------------------------------
+6. INDUSTRY-AWARE HERO GENERATION
+------------------------------------------------
+
+Hero generation must follow this rule.
+
+Hero headline =
+
+[Industry capability] + [product/service function]
+
+Examples
+
+fintech payroll startup
+
+"Automated payroll infrastructure for modern teams"
+
+renewable energy company
+
+"Powering global renewable energy infrastructure"
+
+------------------------------------------------
+7. CONTEXT MEMORY
+------------------------------------------------
+
+Store interpreted context per project.
+
+File:
+/lib/projectContext.ts
+
+Project generation must always use stored context.
+
+This prevents random industry switching during regeneration.
+
+------------------------------------------------
+8. REGENERATE STYLE RULE
+------------------------------------------------
+
+Style regeneration must NOT change industry or product context.
+
+It may only modify:
+
+layout
+typography
+color system
+component shapes
+
+Content must remain tied to the original prompt.
+
+------------------------------------------------
+9. PRE-RENDER CONTEXT VALIDATION
+------------------------------------------------
+
+Before rendering content validate:
+
+every sentence references industry vocabulary
+every CTA relates to product function
+hero reflects prompt intent
+
+If validation fails regenerate content.
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After this refactor:
+
+the generator interprets prompts semantically like an LLM
+
+generic marketing slogans disappear
+
+all generated copy reflects the industry described in the prompt
+
+hero text, CTAs, and features are derived from prompt meaning
+
+the system behaves like a semantic design engine rather than a keyword template system.
