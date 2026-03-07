@@ -5,6 +5,7 @@ import { createHash } from "crypto";
 import { storage } from "./storage";
 import { createProjectSchema } from "@shared/schema";
 import { generateGenome } from "@shared/genomeGenerator";
+import { generateLayout } from "@shared/layoutEngine";
 import { uploadBase64Image, uploadBase64Font } from "./cloudinary";
 
 function requireAuth(req: any, res: any, next: any) {
@@ -74,6 +75,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const genome = generateGenome(seed, { name, prompt, font, themeColor });
       const genomeJson = JSON.stringify(genome);
 
+      const layout = generateLayout(seed, { name, prompt, font, themeColor });
+      const layoutJson = JSON.stringify(layout);
+
       const project = await storage.createProject({
         userId: userId!,
         name,
@@ -84,6 +88,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         themeColor,
         logoUrl,
         genomeJson,
+        layoutJson,
       });
       res.status(201).json(project);
     } catch (err) {

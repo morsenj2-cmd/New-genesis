@@ -28,10 +28,16 @@ import {
   Circle,
   Zap,
   MousePointer,
+  LayoutTemplate,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Columns,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { Project } from "@shared/schema";
 import type { DesignGenome } from "@shared/genomeGenerator";
+import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -384,6 +390,142 @@ function MotionPreview({ easing, duration }: { easing: string; duration: string 
   );
 }
 
+const SECTION_META: Record<
+  SectionType,
+  { label: string; color: string; description: string }
+> = {
+  hero:        { label: "Hero",         color: "bg-primary/20 border-primary/40 text-primary",             description: "Full-width intro section" },
+  featureGrid: { label: "Feature Grid", color: "bg-blue-500/20 border-blue-500/40 text-blue-400",          description: "Grid of feature highlights" },
+  cardList:    { label: "Card List",    color: "bg-violet-500/20 border-violet-500/40 text-violet-400",    description: "Row or grid of cards" },
+  stats:       { label: "Stats",        color: "bg-amber-500/20 border-amber-500/40 text-amber-400",       description: "Key metrics and numbers" },
+  testimonial: { label: "Testimonial",  color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400", description: "Quotes and social proof" },
+  cta:         { label: "CTA",          color: "bg-rose-500/20 border-rose-500/40 text-rose-400",          description: "Call-to-action block" },
+  footer:      { label: "Footer",       color: "bg-muted border-border text-muted-foreground",             description: "Site footer" },
+};
+
+function AlignIcon({ alignment }: { alignment: string }) {
+  if (alignment === "center") return <AlignCenter className="h-3 w-3" />;
+  if (alignment === "right") return <AlignRight className="h-3 w-3" />;
+  return <AlignLeft className="h-3 w-3" />;
+}
+
+function SectionRow({ section, index }: { section: LayoutSection; index: number }) {
+  const meta = SECTION_META[section.type];
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-lg border bg-card"
+      data-testid={`section-row-${index}`}
+    >
+      <span className="text-xs font-mono text-muted-foreground w-4 shrink-0">{index + 1}</span>
+      <div className={`px-2 py-0.5 rounded text-xs font-medium border ${meta.color} shrink-0 min-w-[90px] text-center`}>
+        {meta.label}
+      </div>
+      <div className="flex items-center gap-1 text-muted-foreground shrink-0" title={`Alignment: ${section.alignment}`}>
+        <AlignIcon alignment={section.alignment} />
+        <span className="text-xs">{section.alignment}</span>
+      </div>
+      {section.columns !== undefined && (
+        <div className="flex items-center gap-1 text-muted-foreground shrink-0" title="Columns">
+          <Columns className="h-3 w-3" />
+          <span className="text-xs">{section.columns}col</span>
+        </div>
+      )}
+      {section.cardCount !== undefined && (
+        <Badge variant="outline" className="text-xs h-5">{section.cardCount} cards</Badge>
+      )}
+      {section.imagePlacement !== "none" && (
+        <Badge variant="outline" className="text-xs h-5">img {section.imagePlacement}</Badge>
+      )}
+      <span className="text-xs text-muted-foreground ml-auto hidden sm:block">{section.orientation}</span>
+    </div>
+  );
+}
+
+function WireframeBlock({ section }: { section: LayoutSection }) {
+  const meta = SECTION_META[section.type];
+  const isHero = section.type === "hero";
+  const isFooter = section.type === "footer";
+
+  return (
+    <div
+      className={`rounded border ${meta.color} flex flex-col gap-1 p-2 ${isHero ? "py-4" : ""} ${isFooter ? "py-2 opacity-60" : ""}`}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[9px] font-semibold uppercase tracking-wider">{meta.label}</span>
+        {section.columns && (
+          <span className="text-[9px] opacity-70">{section.columns}×</span>
+        )}
+      </div>
+      {section.imagePlacement !== "none" && (
+        <div className={`flex gap-1 ${section.imagePlacement === "left" ? "flex-row" : section.imagePlacement === "right" ? "flex-row-reverse" : "flex-col"}`}>
+          <div className="h-4 w-8 bg-current opacity-20 rounded-sm shrink-0" />
+          <div className="h-1.5 flex-1 bg-current opacity-10 rounded-sm mt-1" />
+        </div>
+      )}
+      {!isFooter && section.imagePlacement === "none" && (
+        <div className="space-y-0.5">
+          <div className={`h-1.5 bg-current opacity-20 rounded-sm ${section.alignment === "center" ? "mx-auto w-3/4" : section.alignment === "right" ? "ml-auto w-3/4" : "w-full"}`} />
+          <div className={`h-1 bg-current opacity-10 rounded-sm ${section.alignment === "center" ? "mx-auto w-1/2" : section.alignment === "right" ? "ml-auto w-1/2" : "w-2/3"}`} />
+        </div>
+      )}
+      {section.columns && section.columns > 1 && (
+        <div className={`grid gap-0.5`} style={{ gridTemplateColumns: `repeat(${Math.min(section.columns, 4)}, 1fr)` }}>
+          {Array.from({ length: section.columns }).map((_, i) => (
+            <div key={i} className="h-2 bg-current opacity-10 rounded-sm" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LayoutPanel({ layout }: { layout: LayoutGraph }) {
+  return (
+    <Card data-testid="card-layout-panel">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <LayoutTemplate className="h-3.5 w-3.5" />
+          Layout Graph
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="font-medium text-foreground">{layout.metadata.sectionCount}</span> sections
+          </span>
+          <span className="flex items-center gap-1">
+            dominant: <Badge variant="secondary" className="text-xs h-4 ml-1">{layout.metadata.dominantAlignment}</Badge>
+          </span>
+          <span className="flex items-center gap-1">
+            grid: <Badge variant="secondary" className="text-xs h-4 ml-1">{layout.metadata.gridStyle}</Badge>
+          </span>
+          {layout.metadata.hasMedia && (
+            <Badge variant="outline" className="text-xs h-4">
+              <ImageIcon className="h-2.5 w-2.5 mr-1" /> has media
+            </Badge>
+          )}
+        </div>
+
+        <Separator />
+
+        <div className="grid grid-cols-2 gap-2" data-testid="layout-wireframe">
+          {layout.sections.map((section, i) => (
+            <WireframeBlock key={i} section={section} />
+          ))}
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2" data-testid="layout-section-list">
+          {layout.sections.map((section, i) => (
+            <SectionRow key={i} section={section} index={i} />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ProjectSkeleton() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -441,6 +583,11 @@ export default function ProjectPage() {
   const genome: DesignGenome | null = (() => {
     if (!project?.genomeJson) return null;
     try { return JSON.parse(project.genomeJson); } catch { return null; }
+  })();
+
+  const layout: LayoutGraph | null = (() => {
+    if (!project?.layoutJson) return null;
+    try { return JSON.parse(project.layoutJson); } catch { return null; }
   })();
 
   return (
@@ -661,6 +808,19 @@ export default function ProjectPage() {
                           <Dna className="h-8 w-8 text-muted-foreground mb-3" />
                           <p className="text-sm text-muted-foreground">
                             No genome data — this project was created before genome generation was added.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {layout ? (
+                      <LayoutPanel layout={layout} />
+                    ) : (
+                      <Card className="border-dashed">
+                        <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                          <LayoutTemplate className="h-8 w-8 text-muted-foreground mb-3" />
+                          <p className="text-sm text-muted-foreground">
+                            No layout data — this project was created before layout generation was added.
                           </p>
                         </CardContent>
                       </Card>

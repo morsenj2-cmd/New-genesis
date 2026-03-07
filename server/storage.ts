@@ -17,6 +17,7 @@ export interface IStorage {
     themeColor?: string;
     logoUrl?: string;
     genomeJson?: string;
+    layoutJson?: string;
   }): Promise<Project>;
 }
 
@@ -54,6 +55,7 @@ export class DatabaseStorage implements IStorage {
     themeColor?: string;
     logoUrl?: string;
     genomeJson?: string;
+    layoutJson?: string;
   }): Promise<Project> {
     const [project] = await db.insert(projects).values(data).returning();
     return project;
