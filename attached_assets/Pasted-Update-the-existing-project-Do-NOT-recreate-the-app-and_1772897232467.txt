@@ -1,0 +1,305 @@
+Update the existing project. Do NOT recreate the app and do NOT modify Clerk authentication or the Neon database configuration.
+
+Goals
+
+1. Fix the natural language editor so it accepts a wide range of commands.
+2. Add a visual canvas editor so users can manually edit and move elements.
+3. Improve the design generation pipeline to prioritize high-quality layouts even if generation takes longer.
+4. Ensure natural language edits and canvas edits both update the same design state.
+
+------------------------------------------------
+1. REBUILD NATURAL LANGUAGE EDITOR
+------------------------------------------------
+
+The current NL editor relies on rigid phrase matching and fails frequently.
+
+Rewrite the system.
+
+File
+
+/lib/nlParser.ts
+
+New architecture
+
+Step 1
+Normalize input
+
+lowercase
+remove punctuation
+remove filler words
+
+Step 2
+Extract tokens
+
+object
+property
+value
+
+Example tokens
+
+objects
+
+logo
+text
+headline
+navbar
+background
+button
+card
+hero
+section
+font
+spacing
+
+properties
+
+color
+font
+size
+spacing
+radius
+weight
+alignment
+position
+
+values
+
+white
+black
+blue
+red
+inter
+serif
+large
+small
+rounded
+center
+left
+right
+
+------------------------------------------------
+2. FLEXIBLE COMMAND INTERPRETATION
+------------------------------------------------
+
+Commands that must work:
+
+make logo white  
+make the landchain logo white  
+change logo color to white  
+logo should be white  
+
+All must resolve to
+
+branding.logoColor = #ffffff
+
+Examples
+
+use inter font  
+change font to inter  
+make text inter  
+
+Map to
+
+genome.typography.fontFamily = "Inter"
+
+Examples
+
+make buttons rounded  
+round the buttons  
+buttons should be rounded  
+
+Map to
+
+genome.radius.button
+
+------------------------------------------------
+3. PATCH EXECUTION SYSTEM
+------------------------------------------------
+
+Ensure patches always apply.
+
+API
+
+POST /api/project/[id]/apply-nl
+
+Pipeline
+
+1 parse command
+2 create patches
+3 update project design state
+4 regenerate style if needed
+5 update preview
+
+Preview must re-render immediately.
+
+------------------------------------------------
+4. VISUAL CANVAS EDITOR
+------------------------------------------------
+
+Add a new editing mode.
+
+File
+
+/pages/project/[id]/canvas.tsx
+
+Canvas must allow:
+
+drag elements
+resize elements
+reorder sections
+edit text inline
+move hero blocks
+adjust spacing visually
+
+------------------------------------------------
+5. CANVAS ARCHITECTURE
+------------------------------------------------
+
+Use a layout tree model.
+
+Example
+
+page
+ ├ navbar
+ ├ hero
+ │   ├ headline
+ │   ├ subheadline
+ │   └ cta
+ ├ feature section
+ └ footer
+
+Each node has properties
+
+position
+size
+padding
+alignment
+
+Store this in
+
+layout_json
+
+------------------------------------------------
+6. DRAG AND DROP SYSTEM
+------------------------------------------------
+
+Use grid snapping.
+
+Grid rules
+
+12 column grid
+8px spacing system
+
+Dragging should update node positions.
+
+Resizing should update width tokens.
+
+------------------------------------------------
+7. INLINE TEXT EDITING
+------------------------------------------------
+
+Allow editing of:
+
+headline
+subheadline
+feature titles
+buttons
+
+Click text → editable input → save to content model.
+
+------------------------------------------------
+8. SYNCHRONIZE CANVAS AND NL EDITOR
+------------------------------------------------
+
+Both editors must modify the same design state.
+
+Natural language edits update
+
+genome_json
+layout_json
+content_json
+
+Canvas edits update
+
+layout_json
+content_json
+
+Preview renderer always reads from these.
+
+------------------------------------------------
+9. HIGH QUALITY DESIGN GENERATION
+------------------------------------------------
+
+Update generation pipeline.
+
+File
+
+/lib/layoutEngine.ts
+/lib/genomeGenerator.ts
+/lib/contentGenerator.ts
+
+Design generation must follow this order
+
+1 analyze prompt
+2 infer industry
+3 generate product copy
+4 generate layout
+5 generate design tokens
+6 validate accessibility
+7 validate spacing and hierarchy
+
+Allow generation to take longer if needed.
+
+Quality over speed.
+
+------------------------------------------------
+10. LAYOUT QUALITY VALIDATION
+------------------------------------------------
+
+Add design rules.
+
+Minimum spacing between sections
+
+64px
+
+Hero typography scale
+
+headline 48–72px
+subheadline 18–24px
+
+Feature grid
+
+max 4 columns
+
+Buttons must pass contrast rules.
+
+------------------------------------------------
+11. CANVAS MODE SWITCH
+------------------------------------------------
+
+Add toggle in editor sidebar
+
+Design Mode  
+Canvas Mode
+
+Design Mode
+
+automatic generation
+
+Canvas Mode
+
+manual editing
+
+------------------------------------------------
+12. FINAL RESULT
+------------------------------------------------
+
+After this update the system must
+
+accept many natural language commands  
+allow visual editing via canvas  
+allow drag and resize elements  
+allow inline text editing  
+maintain consistent layout structure  
+generate higher-quality designs  
+prioritize design quality over speed

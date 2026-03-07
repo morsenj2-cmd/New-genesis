@@ -17,6 +17,7 @@ export interface TestimonialItem {
 }
 
 export interface ProductContent {
+  brandName: string;
   headline: string;
   subheadline: string;
   ctaLabel: string;
@@ -35,6 +36,7 @@ export interface ProductContent {
 
 const CONTENT_MAP: Record<string, ProductContent> = {
   cloud_storage: {
+    brandName: "Vault",
     headline: "Secure cloud storage built for modern teams",
     subheadline: "Store, sync, and collaborate on files from anywhere with enterprise-grade security and zero compromise on speed.",
     ctaLabel: "Start Uploading Free",
@@ -67,6 +69,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   chat_app: {
+    brandName: "Relay",
     headline: "Where teams communicate, collaborate, and create",
     subheadline: "Bring all your team conversations, files, and tools into one powerful workspace built for speed.",
     ctaLabel: "Launch Your Workspace",
@@ -99,6 +102,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   analytics_dashboard: {
+    brandName: "Lens",
     headline: "Turn data into decisions that drive results",
     subheadline: "Powerful analytics, beautiful dashboards, and actionable insights. Track every metric that drives your business forward.",
     ctaLabel: "Start Analyzing",
@@ -131,6 +135,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   ecommerce: {
+    brandName: "Shopbase",
     headline: "Everything your online store needs to grow",
     subheadline: "Launch, manage, and scale your e-commerce business from one powerful platform. Reach customers everywhere.",
     ctaLabel: "Open Your Store",
@@ -163,6 +168,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   project_management: {
+    brandName: "Sprint",
     headline: "Ship projects faster. Together.",
     subheadline: "Plan, track, and deliver your best work. The project management platform designed for high-performing teams.",
     ctaLabel: "Start Free Trial",
@@ -195,6 +201,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   crm: {
+    brandName: "Pipeline",
     headline: "Close more deals. Build stronger relationships.",
     subheadline: "The CRM that works the way your team does. Manage leads, track deals, and grow revenue without the complexity.",
     ctaLabel: "Try Free for 14 Days",
@@ -227,6 +234,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   social_media: {
+    brandName: "Pulse",
     headline: "Connect with what matters most",
     subheadline: "Share moments, follow creators, and join communities that inspire you. Your world, your feed, your way.",
     ctaLabel: "Join the Community",
@@ -259,6 +267,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   saas_generic: {
+    brandName: "Flowbase",
     headline: "The platform your team has been waiting for",
     subheadline: "Streamline your workflow, scale your output, and deliver results that matter — built for teams that refuse to settle.",
     ctaLabel: "Get Started Free",
@@ -291,6 +300,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   developer_tool: {
+    brandName: "Devkit",
     headline: "Ship faster. Break nothing.",
     subheadline: "The developer platform designed for speed without sacrifice. Build, test, and deploy with confidence every time.",
     ctaLabel: "Start Building",
@@ -323,6 +333,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   video_platform: {
+    brandName: "Streamly",
     headline: "Stream. Create. Grow.",
     subheadline: "Host, manage, and share video content with the world. Professional streaming infrastructure made simple.",
     ctaLabel: "Start Streaming",
@@ -355,6 +366,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   fintech: {
+    brandName: "Clair",
     headline: "Your money. Smarter.",
     subheadline: "Manage, grow, and protect your finances with intelligent tools built for the way you live and work today.",
     ctaLabel: "Open Account",
@@ -387,6 +399,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   healthcare: {
+    brandName: "Medi",
     headline: "Better care starts here",
     subheadline: "Connect with healthcare providers, manage your records, and take control of your wellbeing — all in one place.",
     ctaLabel: "Book Appointment",
@@ -419,6 +432,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   education: {
+    brandName: "Coursify",
     headline: "Learn anything. Grow everywhere.",
     subheadline: "World-class courses taught by industry experts. Learn at your own pace and earn recognised certifications.",
     ctaLabel: "Explore Courses",
@@ -451,6 +465,7 @@ const CONTENT_MAP: Record<string, ProductContent> = {
     ],
   },
   calendar_scheduling: {
+    brandName: "Tempo",
     headline: "Time management, finally solved",
     subheadline: "Smart scheduling that works around you. Book meetings, manage availability, and eliminate the back-and-forth forever.",
     ctaLabel: "Get Your Booking Link",

@@ -1,0 +1,98 @@
+Modify the existing project. Do not rebuild the app. Do not change Clerk authentication or the Neon database configuration.
+
+Goal
+Stop rendering the project name (e.g., "Landchain") anywhere in the website preview.
+
+The project name is editor metadata only and must never appear inside generated page content.
+
+------------------------------------------------
+1. REMOVE PROJECT NAME BADGE
+------------------------------------------------
+
+Locate where the project name is rendered above the hero.
+
+Likely locations:
+
+/components/ui/Hero.tsx
+/components/ui/PageHeader.tsx
+/pages/project/[id]/index.tsx
+
+Remove any code similar to:
+
+{project.name}
+<span>{project.name}</span>
+badge showing project.name
+
+Delete this element entirely.
+
+Hero should only render:
+
+headline
+subheadline
+CTA buttons
+
+------------------------------------------------
+2. BLOCK PROJECT NAME FROM CONTENT GENERATOR
+------------------------------------------------
+
+Update the content generator so it never uses the project name.
+
+File
+
+/lib/contentGenerator.ts
+
+Add rule:
+
+ignore project.name when generating copy.
+
+Generated text must come only from:
+
+prompt
+designContext.industry
+designContext.product
+designContext.audience
+
+------------------------------------------------
+3. PREVIEW SANITIZER
+------------------------------------------------
+
+Add a filter so metadata never reaches the preview renderer.
+
+File
+
+/lib/previewSanitizer.ts
+
+Strip these fields before rendering:
+
+project.name
+project.seed
+project.variation
+project.genome labels
+
+Preview renderer should receive only:
+
+layout_json
+genome_json
+generatedContent
+
+------------------------------------------------
+4. REMOVE NAME TAG FROM HERO
+------------------------------------------------
+
+Search Hero component for code rendering a small label above headline.
+
+Example pattern:
+
+<span class="badge">{project.name}</span>
+
+Delete it.
+
+------------------------------------------------
+5. RESULT
+------------------------------------------------
+
+After this change:
+
+• project name remains visible only in the editor header
+• preview pages never show the project name
+• hero section contains only the generated product content
