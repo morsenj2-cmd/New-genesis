@@ -24,9 +24,14 @@ import {
   Palette,
   Type,
   Image as ImageIcon,
+  Ruler,
+  Circle,
+  Zap,
+  MousePointer,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { Project } from "@shared/schema";
+import type { DesignGenome } from "@shared/genomeGenerator";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -61,6 +66,321 @@ function SeedVisualization({ seed }: { seed: string }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function ColorSwatch({ color, label }: { color: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="flex flex-col gap-1.5 group text-left"
+      onClick={async () => {
+        await navigator.clipboard.writeText(color);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      title={`Copy ${color}`}
+      data-testid={`swatch-genome-${label}`}
+    >
+      <div
+        className="h-12 rounded-lg border border-white/10 transition-transform group-hover:scale-105"
+        style={{ backgroundColor: color }}
+      />
+      <p className="text-xs font-medium text-foreground capitalize">{label}</p>
+      <p className="text-xs text-muted-foreground font-mono leading-none">
+        {copied ? "Copied!" : color}
+      </p>
+    </button>
+  );
+}
+
+function SpacingBar({ label, value }: { label: string; value: string }) {
+  const px = parseInt(value);
+  const maxPx = 120;
+  const width = Math.min(100, (px / maxPx) * 100);
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-xs font-mono text-muted-foreground w-6 shrink-0">{label}</span>
+      <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-primary/70"
+          style={{ width: `${width}%` }}
+        />
+      </div>
+      <span className="text-xs font-mono text-muted-foreground w-12 text-right shrink-0">{value}</span>
+    </div>
+  );
+}
+
+function RadiusPreview({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div
+        className="h-10 w-10 bg-primary/20 border border-primary/40"
+        style={{ borderRadius: value === "9999px" ? "9999px" : value }}
+      />
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xs font-mono text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function GenomePanel({ genome }: { genome: DesignGenome }) {
+  return (
+    <div className="space-y-4">
+      <Card data-testid="card-genome-colors">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <Palette className="h-3.5 w-3.5" />
+            Color System
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-5 gap-3">
+            {Object.entries(genome.colors)
+              .filter(([k]) => k !== "hues")
+              .map(([key, val]) => (
+                <ColorSwatch key={key} label={key} color={val as string} />
+              ))}
+          </div>
+          <div className="mt-4 flex gap-3 text-xs text-muted-foreground">
+            <span>Primary hue: <strong className="text-foreground">{genome.colors.hues.primary}°</strong></span>
+            <span>Secondary: <strong className="text-foreground">{genome.colors.hues.secondary}°</strong></span>
+            <span>Accent: <strong className="text-foreground">{genome.colors.hues.accent}°</strong></span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-genome-typography">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <Type className="h-3.5 w-3.5" />
+            Typography
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Heading</p>
+              <p
+                className="text-xl font-bold text-foreground leading-tight"
+                style={{ fontFamily: `'${genome.typography.heading}', sans-serif` }}
+                data-testid="text-genome-heading-font"
+              >
+                {genome.typography.heading}
+              </p>
+              <p
+                className="text-sm text-muted-foreground mt-1"
+                style={{ fontFamily: `'${genome.typography.heading}', sans-serif` }}
+              >
+                The quick brown fox
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Body</p>
+              <p
+                className="text-xl font-bold text-foreground leading-tight"
+                style={{ fontFamily: `'${genome.typography.body}', sans-serif` }}
+              >
+                {genome.typography.body}
+              </p>
+              <p
+                className="text-sm text-muted-foreground mt-1"
+                style={{ fontFamily: `'${genome.typography.body}', sans-serif` }}
+              >
+                The quick brown fox
+              </p>
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Monospace · {genome.typography.mono}</p>
+            <p
+              className="text-sm text-foreground"
+              style={{ fontFamily: `'${genome.typography.mono}', monospace` }}
+            >
+              const genome = generateGenome(seed);
+            </p>
+          </div>
+          <Separator />
+          <div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Type scale · ratio {genome.typography.scaleRatio}×
+            </p>
+            <div className="space-y-1">
+              {Object.entries(genome.typography.sizes).map(([key, val]) => (
+                <div key={key} className="flex items-baseline gap-3">
+                  <span className="text-xs font-mono text-muted-foreground w-8">{key}</span>
+                  <span
+                    className="text-foreground leading-tight"
+                    style={{
+                      fontFamily: `'${genome.typography.heading}', sans-serif`,
+                      fontSize: val,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Aa
+                  </span>
+                  <span className="text-xs font-mono text-muted-foreground ml-auto">{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card data-testid="card-genome-spacing">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Ruler className="h-3.5 w-3.5" />
+              Spacing
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            <p className="text-xs text-muted-foreground">
+              Base {genome.spacing.base}px · ratio {genome.spacing.ratio}×
+            </p>
+            {(["xs", "sm", "md", "lg", "xl", "2xl"] as const).map((key) => (
+              <SpacingBar key={key} label={key} value={genome.spacing[key]} />
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-genome-radius">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Circle className="h-3.5 w-3.5" />
+              Border Radius
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-4 flex-wrap">
+              {(["sm", "md", "lg", "xl", "full"] as const).map((key) => (
+                <RadiusPreview key={key} label={key} value={genome.radius[key]} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card data-testid="card-genome-icons">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <MousePointer className="h-3.5 w-3.5" />
+              Icon Style
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Variant</span>
+              <Badge variant="secondary" className="text-xs capitalize">
+                {genome.iconStyle.variant}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Stroke Width</span>
+              <span className="text-xs font-mono text-foreground">{genome.iconStyle.strokeWidth}px</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Geometry Bias</span>
+              <Badge variant="outline" className="text-xs capitalize">
+                {genome.iconStyle.geometryBias}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Corner Roundness</span>
+              <div className="flex items-center gap-2">
+                <div className="w-20 bg-muted rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="h-full bg-primary/70 rounded-full"
+                    style={{ width: `${genome.iconStyle.cornerRoundness}%` }}
+                  />
+                </div>
+                <span className="text-xs font-mono text-foreground">{genome.iconStyle.cornerRoundness}%</span>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <svg
+                viewBox="0 0 48 48"
+                className="h-12 w-12"
+                fill={genome.iconStyle.variant === "filled" ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth={genome.iconStyle.strokeWidth}
+                strokeLinecap={genome.iconStyle.geometryBias === "organic" ? "round" : "square"}
+                strokeLinejoin={genome.iconStyle.geometryBias === "organic" ? "round" : "miter"}
+                style={{ color: genome.colors.primary }}
+              >
+                <rect
+                  x="8" y="8" width="32" height="32"
+                  rx={Math.round(genome.iconStyle.cornerRoundness / 10)}
+                />
+                <circle cx="24" cy="24" r="8" />
+              </svg>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-genome-motion">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5" />
+              Motion
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Easing</span>
+              <Badge variant="secondary" className="text-xs">{genome.motion.easingName}</Badge>
+            </div>
+            <Separator />
+            {(["fast", "base", "slow"] as const).map((key) => (
+              <div key={key} className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground capitalize">{key}</span>
+                <span className="text-xs font-mono text-foreground">{genome.motion.duration[key]}</span>
+              </div>
+            ))}
+            <Separator />
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Easing curve</p>
+              <p className="text-xs font-mono text-foreground break-all leading-relaxed">
+                {genome.motion.easing}
+              </p>
+            </div>
+            <div className="pt-1">
+              <MotionPreview easing={genome.motion.easing} duration={genome.motion.duration.base} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function MotionPreview({ easing, duration }: { easing: string; duration: string }) {
+  const [active, setActive] = useState(false);
+  return (
+    <button
+      className="w-full h-10 bg-muted rounded-lg overflow-hidden relative flex items-center px-2"
+      onClick={() => {
+        setActive(false);
+        requestAnimationFrame(() => requestAnimationFrame(() => setActive(true)));
+      }}
+      title="Click to preview"
+      data-testid="button-motion-preview"
+    >
+      <div
+        className="h-6 w-6 rounded-full bg-primary shrink-0"
+        style={{
+          transition: active ? `transform ${duration} ${easing}` : "none",
+          transform: active ? "translateX(calc(100vw - 4rem))" : "translateX(0)",
+          maxWidth: "calc(100% - 1.5rem)",
+        }}
+      />
+      <span className="absolute right-2 text-xs text-muted-foreground">tap to preview</span>
+    </button>
   );
 }
 
@@ -117,6 +437,11 @@ export default function ProjectPage() {
   const fontFamily = project?.fontUrl
     ? `'ProjectFont-${project.id}', sans-serif`
     : project?.font ? `'${project.font}', sans-serif` : undefined;
+
+  const genome: DesignGenome | null = (() => {
+    if (!project?.genomeJson) return null;
+    try { return JSON.parse(project.genomeJson); } catch { return null; }
+  })();
 
   return (
     <SidebarProvider>
@@ -221,64 +546,63 @@ export default function ProjectPage() {
                       </CardContent>
                     </Card>
 
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                          <Palette className="h-3.5 w-3.5" />
-                          Brand
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {project.logoUrl && (
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                              <ImageIcon className="h-3 w-3" /> Logo
-                            </p>
-                            <img
-                              src={project.logoUrl}
-                              alt="Project logo"
-                              className="h-14 w-14 rounded-lg object-contain border border-border"
-                              data-testid="img-project-logo"
-                            />
-                          </div>
-                        )}
-                        {project.font && (
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                              <Type className="h-3 w-3" /> Font
-                            </p>
-                            <Badge
-                              variant="secondary"
-                              className="text-xs"
-                              style={fontFamily ? { fontFamily } : {}}
-                              data-testid="badge-project-font"
-                            >
-                              {project.font}{project.fontUrl ? " (custom)" : ""}
-                            </Badge>
-                          </div>
-                        )}
-                        {project.themeColor && (
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                              <Palette className="h-3 w-3" /> Theme Color
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="h-6 w-6 rounded-full border border-border shrink-0"
-                                style={{ backgroundColor: project.themeColor }}
-                                data-testid="swatch-project-color"
+                    {(project.logoUrl || project.font || project.themeColor) && (
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                            <Palette className="h-3.5 w-3.5" />
+                            Brand
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {project.logoUrl && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                                <ImageIcon className="h-3 w-3" /> Logo
+                              </p>
+                              <img
+                                src={project.logoUrl}
+                                alt="Project logo"
+                                className="h-14 w-14 rounded-lg object-contain border border-border"
+                                data-testid="img-project-logo"
                               />
-                              <span className="text-xs font-mono text-muted-foreground">
-                                {project.themeColor}
-                              </span>
                             </div>
-                          </div>
-                        )}
-                        {!project.logoUrl && !project.font && !project.themeColor && (
-                          <p className="text-xs text-muted-foreground">No brand settings configured.</p>
-                        )}
-                      </CardContent>
-                    </Card>
+                          )}
+                          {project.font && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                <Type className="h-3 w-3" /> Font
+                              </p>
+                              <Badge
+                                variant="secondary"
+                                className="text-xs"
+                                style={fontFamily ? { fontFamily } : {}}
+                                data-testid="badge-project-font"
+                              >
+                                {project.font}{project.fontUrl ? " (custom)" : ""}
+                              </Badge>
+                            </div>
+                          )}
+                          {project.themeColor && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                                <Palette className="h-3 w-3" /> Theme Color
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="h-6 w-6 rounded-full border border-border shrink-0"
+                                  style={{ backgroundColor: project.themeColor }}
+                                  data-testid="swatch-project-color"
+                                />
+                                <span className="text-xs font-mono text-muted-foreground">
+                                  {project.themeColor}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
 
                     <Card>
                       <CardHeader className="pb-3">
@@ -324,10 +648,23 @@ export default function ProjectPage() {
                           <SeedVisualization seed={project.seed} />
                         </div>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          This deterministic seed is a SHA-256 hash generated from your account and project data at creation time. It produces the same output every time it's used.
+                          This deterministic seed is a SHA-256 hash generated from your account and project data at creation time. It produces the same output every time it&apos;s used.
                         </p>
                       </CardContent>
                     </Card>
+
+                    {genome ? (
+                      <GenomePanel genome={genome} />
+                    ) : (
+                      <Card className="border-dashed">
+                        <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                          <Dna className="h-8 w-8 text-muted-foreground mb-3" />
+                          <p className="text-sm text-muted-foreground">
+                            No genome data — this project was created before genome generation was added.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
                 </div>
               </div>

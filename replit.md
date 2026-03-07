@@ -5,12 +5,13 @@
 Morse is a web application for creating and managing generative AI projects with **deterministic seeds** and reproducible genome structures. Users can sign up, create named projects with text prompts, and view their project details including a seed hash derived from project data.
 
 Key features:
-- User authentication via Clerk
+- User authentication via Clerk (dashboard public, only project creation gated)
 - Project creation with name + prompt inputs
 - Brand setup: logo upload, font selection (preset or custom upload), theme color (custom picker + presets)
 - Deterministic seed generation (SHA-256 hash) per project
-- Dashboard for listing user projects
-- Project detail view with seed visualization
+- Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
+- Dashboard for listing user projects (public, tagline shown for guests)
+- Project detail view with full genome visualization panel
 - Dark theme (pure black background)
 
 ## User Preferences

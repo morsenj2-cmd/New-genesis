@@ -4,6 +4,7 @@ import { clerkMiddleware, getAuth } from "@clerk/express";
 import { createHash } from "crypto";
 import { storage } from "./storage";
 import { createProjectSchema } from "@shared/schema";
+import { generateGenome } from "@shared/genomeGenerator";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -42,7 +43,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const timestamp = Date.now().toString();
       const tempId = `${userId}-${timestamp}`;
       const seed = createHash("sha256").update(`${userId}${tempId}${timestamp}`).digest("hex");
-      const project = await storage.createProject({ userId: userId!, name, prompt, seed, font, fontUrl, themeColor, logoUrl });
+
+      const genome = generateGenome(seed, { name, prompt, font, themeColor });
+      const genomeJson = JSON.stringify(genome);
+
+      const project = await storage.createProject({
+        userId: userId!,
+        name,
+        prompt,
+        seed,
+        font,
+        fontUrl,
+        themeColor,
+        logoUrl,
+        genomeJson,
+      });
       res.status(201).json(project);
     } catch (err) {
       console.error("Error creating project:", err);
