@@ -1,0 +1,170 @@
+{
+  "cloud_storage": {
+    "label": "Cloud Storage",
+    "keywords": ["cloud storage", "file storage", "drive", "file hosting", "dropbox", "s3", "bucket", "object storage", "file sharing", "file sync", "backup service"],
+    "sections": [
+      { "type": "hero",        "componentType": "file_uploader",      "columns": 2 },
+      { "type": "cardList",    "componentType": "folder_browser",     "columns": 4 },
+      { "type": "stats",       "componentType": "storage_usage_bar",  "columns": 3 },
+      { "type": "featureGrid", "componentType": "file_list",          "columns": 1 },
+      { "type": "featureGrid", "componentType": "sharing_controls",   "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "chat_app": {
+    "label": "Chat / Messaging",
+    "keywords": ["chat", "messaging", "messenger", "slack", "discord", "dm", "direct message", "real-time chat", "instant message", "team chat"],
+    "sections": [
+      { "type": "hero",        "componentType": "chat_hero",          "columns": 2 },
+      { "type": "cardList",    "componentType": "chat_list",          "columns": 1 },
+      { "type": "featureGrid", "componentType": "message_bubbles",    "columns": 1 },
+      { "type": "stats",       "componentType": "online_status",      "columns": 4 },
+      { "type": "featureGrid", "componentType": "message_input_bar",  "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "analytics_dashboard": {
+    "label": "Analytics Dashboard",
+    "keywords": ["analytics", "dashboard", "data platform", "metrics", "reporting", "insights", "business intelligence", "bi tool", "kpi", "charts", "visualisation", "visualization"],
+    "sections": [
+      { "type": "hero",        "componentType": "metric_cards",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "analytics_chart",    "columns": 2 },
+      { "type": "cardList",    "componentType": "data_table",         "columns": 1 },
+      { "type": "featureGrid", "componentType": "filters",            "columns": 3 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "ecommerce": {
+    "label": "E-Commerce / Store",
+    "keywords": ["store", "shop", "ecommerce", "e-commerce", "marketplace", "product catalog", "online store", "retail", "shopping", "buy", "sell", "checkout", "cart"],
+    "sections": [
+      { "type": "hero",        "componentType": "product_hero",       "columns": 2 },
+      { "type": "cardList",    "componentType": "product_grid",       "columns": 3 },
+      { "type": "featureGrid", "componentType": "filters",            "columns": 4 },
+      { "type": "cardList",    "componentType": "reviews",            "columns": 2 },
+      { "type": "stats",       "componentType": "cart_summary",       "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "project_management": {
+    "label": "Project Management",
+    "keywords": ["project management", "task manager", "todo", "kanban", "trello", "jira", "asana", "sprint", "workflow", "team collaboration", "task tracking", "work management"],
+    "sections": [
+      { "type": "hero",        "componentType": "kanban_board",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "task_list",          "columns": 1 },
+      { "type": "cardList",    "componentType": "team_members",       "columns": 3 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "filters",            "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "crm": {
+    "label": "CRM / Sales",
+    "keywords": ["crm", "customer relationship", "sales pipeline", "lead management", "salesforce", "hubspot", "contacts", "deals", "pipeline", "sales tracking"],
+    "sections": [
+      { "type": "hero",        "componentType": "metric_cards",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "data_table",         "columns": 1 },
+      { "type": "cardList",    "componentType": "kanban_board",       "columns": 4 },
+      { "type": "stats",       "componentType": "analytics_chart",    "columns": 2 },
+      { "type": "featureGrid", "componentType": "team_members",       "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "social_media": {
+    "label": "Social Media",
+    "keywords": ["social media", "social network", "feed", "twitter", "instagram", "posts", "timeline", "followers", "profile", "community"],
+    "sections": [
+      { "type": "hero",        "componentType": "profile_hero",       "columns": 2 },
+      { "type": "cardList",    "componentType": "feed_posts",         "columns": 2 },
+      { "type": "featureGrid", "componentType": "online_status",      "columns": 4 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "cardList",    "componentType": "reviews",            "columns": 2 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "saas_generic": {
+    "label": "SaaS Platform",
+    "keywords": ["saas", "software as a service", "subscription", "platform", "b2b", "enterprise software", "cloud app", "web app", "service platform"],
+    "sections": [
+      { "type": "hero",        "componentType": "saas_hero",          "columns": 2 },
+      { "type": "featureGrid", "componentType": "metric_cards",       "columns": 3 },
+      { "type": "cardList",    "componentType": "billing_plan",       "columns": 3 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "sharing_controls",   "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "developer_tool": {
+    "label": "Developer Tool",
+    "keywords": ["developer tool", "devtool", "api", "sdk", "cli", "coding", "programming", "ide", "code editor", "version control", "git", "github", "deployment", "ci/cd", "devops"],
+    "sections": [
+      { "type": "hero",        "componentType": "code_editor",        "columns": 2 },
+      { "type": "featureGrid", "componentType": "api_docs",           "columns": 1 },
+      { "type": "cardList",    "componentType": "metric_cards",       "columns": 3 },
+      { "type": "featureGrid", "componentType": "filters",            "columns": 3 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "video_platform": {
+    "label": "Video Platform",
+    "keywords": ["video", "streaming", "youtube", "vimeo", "player", "podcast", "media platform", "video hosting", "live stream", "screencast", "webinar"],
+    "sections": [
+      { "type": "hero",        "componentType": "video_player",       "columns": 2 },
+      { "type": "cardList",    "componentType": "product_grid",       "columns": 3 },
+      { "type": "featureGrid", "componentType": "metric_cards",       "columns": 3 },
+      { "type": "stats",       "componentType": "online_status",      "columns": 4 },
+      { "type": "cardList",    "componentType": "reviews",            "columns": 2 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "fintech": {
+    "label": "Fintech / Finance",
+    "keywords": ["fintech", "finance", "banking", "payment", "wallet", "crypto", "investment", "trading", "budgeting", "accounting", "money transfer", "invoice"],
+    "sections": [
+      { "type": "hero",        "componentType": "metric_cards",       "columns": 3 },
+      { "type": "featureGrid", "componentType": "analytics_chart",    "columns": 2 },
+      { "type": "cardList",    "componentType": "data_table",         "columns": 1 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "filters",            "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "healthcare": {
+    "label": "Healthcare / Medical",
+    "keywords": ["healthcare", "medical", "health", "doctor", "patient", "clinic", "hospital", "telemedicine", "ehr", "electronic health", "appointment", "prescription"],
+    "sections": [
+      { "type": "hero",        "componentType": "profile_hero",       "columns": 2 },
+      { "type": "cardList",    "componentType": "team_members",       "columns": 3 },
+      { "type": "featureGrid", "componentType": "calendar_view",      "columns": 2 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "filters",            "columns": 3 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "education": {
+    "label": "Education / E-Learning",
+    "keywords": ["education", "e-learning", "elearning", "lms", "learning management", "course", "online learning", "tutoring", "school", "university", "edtech", "quiz", "lesson"],
+    "sections": [
+      { "type": "hero",        "componentType": "saas_hero",          "columns": 2 },
+      { "type": "cardList",    "componentType": "product_grid",       "columns": 3 },
+      { "type": "featureGrid", "componentType": "task_list",          "columns": 1 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "cardList",    "componentType": "reviews",            "columns": 2 },
+      { "type": "footer",      "componentType": null }
+    ]
+  },
+  "calendar_scheduling": {
+    "label": "Calendar / Scheduling",
+    "keywords": ["calendar", "scheduling", "booking", "appointment", "meeting", "calendly", "time slot", "schedule", "event", "availability"],
+    "sections": [
+      { "type": "hero",        "componentType": "calendar_view",      "columns": 2 },
+      { "type": "featureGrid", "componentType": "metric_cards",       "columns": 3 },
+      { "type": "cardList",    "componentType": "team_members",       "columns": 3 },
+      { "type": "stats",       "componentType": "metric_cards",       "columns": 4 },
+      { "type": "featureGrid", "componentType": "online_status",      "columns": 4 },
+      { "type": "footer",      "componentType": null }
+    ]
+  }
+}

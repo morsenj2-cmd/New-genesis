@@ -12,7 +12,10 @@ Key features:
 - Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
 - Dashboard for listing user projects (public, tagline shown for guests)
 - Project editor: two-panel layout with live GenomePreview + Regenerate Design (derives new seed client-side via SHA-256)
-- NL Design Editor: natural language command input in the left panel; parses commands into genome patches, applies SaaS constraints, saves updated genome/layout to DB, and updates the live preview
+- NL Design Editor: intent-based natural language editor — understands product types ("make this a cloud storage platform"), styles ("futuristic"), and colors ("use blue as primary"); switches the entire layout to product-aware UI components
+- Product Context Engine: 13 product types (cloud_storage, chat_app, analytics_dashboard, ecommerce, project_management, crm, social_media, saas_generic, developer_tool, video_platform, fintech, healthcare, education, calendar_scheduling) each with specific UI components
+- Context Library: `shared/contextLibrary.json` defines product types, keywords, and component sets — easily extensible
+- Intent Interpreter: keyword-based parser extracts productType, industry, style, features, and colorHint from free-form prompts
 - Export project as a downloadable zip — complete Vite + React project with genome baked in, runs with `npm install && npm run dev`
 - Delete project with confirmation dialog
 - Dark theme (pure black background)

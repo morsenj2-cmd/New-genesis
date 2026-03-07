@@ -14,11 +14,14 @@ interface NLDesignerProps {
 }
 
 const EXAMPLE_COMMANDS = [
+  "make this a cloud storage platform",
+  "turn this into a chat app",
+  "convert to analytics dashboard",
+  "make it an ecommerce store",
   "use blue as primary",
-  "make it more minimal",
+  "make it minimal",
+  "futuristic style",
   "reduce animations",
-  "set industry to saas",
-  "disable custom icons",
 ];
 
 export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {

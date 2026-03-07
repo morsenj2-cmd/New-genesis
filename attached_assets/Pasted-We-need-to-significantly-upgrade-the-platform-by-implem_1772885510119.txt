@@ -1,0 +1,222 @@
+We need to significantly upgrade the platform by implementing three major systems:
+
+1. Product Context Engine
+2. Context Library
+3. Intent Interpreter
+
+Current problem:
+The generator produces visually nice layouts but they are generic and unrelated to what the user actually wants to build.
+
+Example:
+If the user types "SaaS cloud storage platform", the generator still creates a generic landing page with hero + CTA instead of generating UI relevant to a cloud storage product.
+
+Additionally, our current natural language editor behaves like a command parser.
+It only accepts exact commands like:
+
+"make it minimal"
+"use blue as primary"
+"reduce animations"
+
+Anything else fails with "No recognized design commands found."
+
+This must be replaced with an intent-based interpretation system.
+
+Goal:
+The system should understand the user's product idea and generate UI based on the correct product context.
+
+Target architecture:
+
+User Prompt
+→ Intent Interpreter
+→ Product Context Engine
+→ Context Library Lookup
+→ Component Set Selected
+→ Layout Generator
+→ Design Genome Styling
+→ Final UI
+
+---
+
+1. Implement an Intent Interpreter
+
+Create a function that parses user prompts and extracts structured meaning.
+
+Example input:
+
+"make this a SaaS cloud storage platform"
+
+Example output:
+
+{
+industry: "saas",
+product_type: "cloud_storage",
+style: null
+}
+
+The interpreter should detect:
+
+* industry
+* product type
+* design style
+* feature requests
+
+It should rely on keyword detection and rule-based parsing.
+
+No LLMs should be used.
+
+---
+
+2. Implement the Product Context Engine
+
+The Context Engine determines what kind of product the user is building.
+
+It should map interpreted prompts to product types and load the correct component sets.
+
+Example pipeline:
+
+prompt
+→ interpret intent
+→ detect product type
+→ load component library
+→ pass components to generator
+
+---
+
+3. Create a Context Library
+
+Create a file called:
+
+contextLibrary.json
+
+This will define product types and their associated components.
+
+Example structure:
+
+{
+"cloud_storage": {
+"keywords": ["cloud storage", "file storage", "drive", "file hosting"],
+"components": [
+"file_uploader",
+"folder_browser",
+"file_list",
+"storage_usage_bar",
+"file_preview",
+"sharing_controls"
+]
+},
+
+"chat_app": {
+"keywords": ["chat", "messaging", "messenger"],
+"components": [
+"chat_list",
+"message_bubbles",
+"message_input_bar",
+"emoji_picker",
+"file_attachment",
+"online_status"
+]
+},
+
+"analytics_dashboard": {
+"keywords": ["analytics", "dashboard", "data platform"],
+"components": [
+"sidebar_navigation",
+"analytics_chart",
+"data_table",
+"filters",
+"metric_cards"
+]
+},
+
+"ecommerce": {
+"keywords": ["store", "shop", "ecommerce", "marketplace"],
+"components": [
+"product_grid",
+"product_card",
+"cart",
+"checkout",
+"reviews",
+"filters"
+]
+}
+}
+
+This library must be easily extendable so new product types can be added.
+
+---
+
+4. Update the Design Generator Pipeline
+
+The current generator produces generic sections like:
+
+Hero
+Call To Action
+Footer
+
+Instead, the generator must assemble layouts using the components selected by the context engine.
+
+Example:
+
+Prompt: "SaaS cloud storage platform"
+
+Context engine detects:
+
+product_type: cloud_storage
+
+Generator loads components:
+
+file uploader
+folder browser
+storage usage bar
+file list
+
+Then the layout engine generates a UI using those components.
+
+---
+
+5. Replace the Command Parser
+
+Remove the strict command-only behavior in the natural language editor.
+
+The system should no longer require exact commands like:
+
+"use blue as primary"
+
+Instead it should interpret meaning from user prompts.
+
+Example prompts the system must handle:
+
+"make this a SaaS cloud storage platform"
+"turn this into a dashboard"
+"add file uploading features"
+"this should feel futuristic"
+
+---
+
+6. Maintain Performance
+
+The system must remain extremely fast.
+
+Requirements:
+
+* deterministic behavior
+* rule-based parsing
+* no LLM usage
+* fast keyword matching
+* lightweight JSON context lookup
+
+---
+
+7. Final Goal
+
+After implementation, the generator should produce UI that matches the product idea.
+
+Example:
+
+Prompt:
+"build a SaaS cloud storage platform"
+
+Expected result:
+A UI containing storage-related components such as file upload, folders, storage usage indicators, and sharing controls.
+
+The platform should move from generating generic marketing layouts to generating product-aware UI systems.

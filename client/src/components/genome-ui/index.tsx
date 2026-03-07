@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
+import { renderProductSection } from "./ProductComponents";
 import {
   renderIconSvgContent,
   GROUP_ICONS,
@@ -772,6 +773,10 @@ export function renderSection(
   tokens: GenomeTokens,
   section: LayoutSection
 ): JSX.Element | null {
+  if (section.componentType) {
+    const productResult = renderProductSection(section.componentType, tokens, section);
+    if (productResult) return productResult as JSX.Element;
+  }
   const renderer = SECTION_RENDERERS[type];
   if (!renderer) return null;
   return renderer(tokens, section);

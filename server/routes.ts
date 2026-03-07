@@ -11,6 +11,8 @@ import { uploadBase64Image, uploadBase64Font } from "./cloudinary";
 import { generateExportFiles, safeName } from "./exportGenerator";
 import { parseNLCommand, applyPatchesToGenome } from "@shared/nlParser";
 import { parseSettings, maybeApplyIndustryConstraints, detectIndustryFromText } from "@shared/saasConstraints";
+import { interpretIntent } from "@shared/intentInterpreter";
+import { getProductContext, generateContextualLayout, detectProductTypeFromText } from "@shared/productContextEngine";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -77,18 +79,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const detectedIndustry = detectIndustryFromText(`${name} ${prompt}`);
+      const fullText = `${name} ${prompt}`;
+      const intent = interpretIntent(fullText);
+      const productContext = getProductContext(intent);
+
       const initialSettings = {
         uniqueIcons: detectedIndustry !== "saas",
         forceStandardGenome: detectedIndustry === "saas",
         industry: detectedIndustry,
         tone: "creative" as const,
+        productType: intent.productType ?? undefined,
       };
 
       let genome = generateGenome(seed, { name, prompt, font, themeColor });
       genome = maybeApplyIndustryConstraints(genome, initialSettings);
       const genomeJson = JSON.stringify(genome);
 
-      const layout = generateLayout(seed, { name, prompt, font, themeColor });
+      const layout = productContext
+        ? generateContextualLayout(seed, productContext)
+        : generateLayout(seed, { name, prompt, font, themeColor });
       const layoutJson = JSON.stringify(layout);
       const settingsJson = JSON.stringify(initialSettings);
 
@@ -148,7 +157,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "commands string is required" });
       }
 
-      const { patches, description } = parseNLCommand(commands);
+      const { patches, description, productType, intent } = parseNLCommand(commands);
 
       let currentGenome = project.genomeJson ? JSON.parse(project.genomeJson) : generateGenome(project.seed);
       let currentSettings = parseSettings(project.settingsJson);
@@ -168,7 +177,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       currentGenome = maybeApplyIndustryConstraints(currentGenome, currentSettings);
 
       let currentLayout = project.layoutJson ? JSON.parse(project.layoutJson) : generateLayout(project.seed);
-      if (currentSettings.forceStandardGenome || currentSettings.industry === "saas") {
+
+      if (productType) {
+        const productContext = getProductContext(intent);
+        if (productContext) {
+          currentLayout = generateContextualLayout(project.seed, productContext);
+          (currentSettings as any).productType = productType;
+          description.push(`Layout regenerated for ${productContext.label}`);
+        }
+      } else if (currentSettings.forceStandardGenome || currentSettings.industry === "saas") {
         currentLayout = generateLayout(project.seed, {});
       }
 

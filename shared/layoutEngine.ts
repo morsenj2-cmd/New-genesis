@@ -18,6 +18,7 @@ export interface LayoutSection {
   orientation: Orientation;
   columns?: number;
   cardCount?: number;
+  componentType?: string;
 }
 
 export interface LayoutGraph {
