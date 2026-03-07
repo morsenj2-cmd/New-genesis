@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { renderProductSection } from "./ProductComponents";
-import { getProductContent, getNavLinks } from "@shared/contentGenerator";
+import { getProductContent } from "@shared/contentGenerator";
 import {
   renderIconSvgContent,
   GROUP_ICONS,
@@ -19,6 +19,8 @@ export interface ContentOverrides {
   cardListTitle?: string;
 }
 
+export type PreviewPage = "home" | "features" | "pricing" | "about" | "blog" | "contact";
+
 export interface GenomeTokens {
   genome: DesignGenome;
   projectName: string;
@@ -26,6 +28,8 @@ export interface GenomeTokens {
   projectLogoUrl?: string | null;
   productType?: string | null;
   contentOverrides?: ContentOverrides;
+  activePage?: PreviewPage;
+  onNavigate?: (page: PreviewPage) => void;
 }
 
 function toIconStyle(genome: DesignGenome): GenomeIconStyle {
@@ -102,14 +106,20 @@ function GenomeButton({
   );
 }
 
+const PAGE_NAV_LINKS: { label: string; page: PreviewPage }[] = [
+  { label: "Features", page: "features" },
+  { label: "Pricing", page: "pricing" },
+  { label: "Blog", page: "blog" },
+  { label: "About", page: "about" },
+];
+
 export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
-  const { genome, projectName, projectLogoUrl, productType, contentOverrides } = tokens;
+  const { genome, projectName, projectLogoUrl, productType, contentOverrides, activePage, onNavigate } = tokens;
   const content = getProductContent(productType);
-  const navLinks = getNavLinks(productType);
   const logoColor = (genome as any).branding?.logoColor ?? genome.colors.primary;
   const logoFont = (genome as any).branding?.logoFont ?? genome.typography.heading;
   const logoWeight = (genome as any).branding?.logoWeight ?? 700;
-  const displayBrandName = contentOverrides?.brandName || content.brandName;
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
   return (
     <nav
       data-testid="genome-navbar"
@@ -122,13 +132,19 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
         justifyContent: "space-between",
         gap: genome.spacing.lg,
         flexWrap: "wrap",
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.sm }}>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: genome.spacing.sm, cursor: "pointer" }}
+        onClick={() => onNavigate?.("home")}
+      >
         {projectLogoUrl ? (
           <img
             src={projectLogoUrl}
-            alt={projectName}
+            alt={displayBrandName}
             style={{ width: 28, height: 28, objectFit: "contain", borderRadius: genome.radius.sm }}
           />
         ) : (
@@ -147,18 +163,23 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.lg }}>
-        {navLinks.map((link) => (
+        {PAGE_NAV_LINKS.map(({ label, page }) => (
           <span
-            key={link}
+            key={page}
+            onClick={() => onNavigate?.(page)}
             style={{
               fontFamily: `'${genome.typography.body}', sans-serif`,
               fontSize: genome.typography.sizes.sm,
-              color: genome.colors.secondary,
+              color: activePage === page ? genome.colors.primary : genome.colors.secondary,
               cursor: "pointer",
-              opacity: 0.85,
+              opacity: 0.9,
+              fontWeight: activePage === page ? 600 : 400,
+              borderBottom: activePage === page ? `2px solid ${genome.colors.primary}` : "2px solid transparent",
+              paddingBottom: "2px",
+              transition: "color 0.15s",
             }}
           >
-            {link}
+            {label}
           </span>
         ))}
         <GenomeButton genome={genome} variant="primary">Get Started</GenomeButton>
@@ -168,7 +189,7 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
 }
 
 export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section: LayoutSection }) {
-  const { genome, productType, contentOverrides } = tokens;
+  const { genome, projectName, productType, contentOverrides } = tokens;
   const content = getProductContent(productType);
   const align = section.alignment;
   const hasImage = section.imagePlacement !== "none";
@@ -179,6 +200,7 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
     hasImage && section.imagePlacement === "right" ? "row-reverse" :
     "column";
 
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
   const effectiveHeadline = contentOverrides?.headline || content.headline;
   const effectiveSubheadline = contentOverrides?.subheadline || content.subheadline;
   const effectiveCtaLabel = contentOverrides?.ctaLabel || content.ctaLabel;
@@ -214,7 +236,7 @@ export function GenomeHero({ tokens, section }: { tokens: GenomeTokens; section:
         >
           <GIcon name="broadcast" genome={genome} size={13} color={genome.colors.accent} />
           <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.accent, fontWeight: 600 }}>
-            {content.brandName}
+            {displayBrandName}
           </span>
         </div>
         <h1
@@ -666,13 +688,14 @@ export function GenomeCTA({ tokens, section }: { tokens: GenomeTokens; section: 
 }
 
 export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
-  const { genome, productType, contentOverrides } = tokens;
+  const { genome, projectName, projectLogoUrl, productType, contentOverrides, onNavigate } = tokens;
   const content = getProductContent(productType);
-  const displayBrandName = contentOverrides?.brandName || content.brandName;
+  const logoColor = (genome as any).branding?.logoColor ?? genome.colors.primary;
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
   const footerLinks = [
-    { group: "Product", links: ["Features", "Pricing", "Changelog"] },
-    { group: "Resources", links: ["Docs", "API", "Guides"] },
-    { group: "Company", links: ["About", "Blog", "Contact"] },
+    { group: "Product", links: ["Features", "Pricing", "Changelog"], pages: ["features", "pricing", null] as (PreviewPage | null)[] },
+    { group: "Resources", links: ["Docs", "API", "Guides"], pages: [null, null, null] as (PreviewPage | null)[] },
+    { group: "Company", links: ["About", "Blog", "Contact"], pages: ["about", "blog", "contact"] as (PreviewPage | null)[] },
   ];
 
   return (
@@ -693,14 +716,18 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
         }}
       >
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.sm, marginBottom: genome.spacing.sm }}>
-            <GIcon name="compass" genome={genome} size={18} color={genome.colors.primary} />
+          <div style={{ display: "flex", alignItems: "center", gap: genome.spacing.sm, marginBottom: genome.spacing.sm, cursor: "pointer" }} onClick={() => onNavigate?.("home")}>
+            {projectLogoUrl ? (
+              <img src={projectLogoUrl} alt={displayBrandName} style={{ width: 22, height: 22, objectFit: "contain", borderRadius: genome.radius.sm }} />
+            ) : (
+              <GIcon name="compass" genome={genome} size={18} color={logoColor} />
+            )}
             <span
               style={{
                 fontFamily: `'${genome.typography.heading}', sans-serif`,
                 fontSize: genome.typography.sizes.base,
                 fontWeight: 700,
-                color: genome.colors.primary,
+                color: logoColor,
               }}
             >
               {displayBrandName}
@@ -734,15 +761,16 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
             >
               {col.group}
             </p>
-            {col.links.map((link) => (
+            {col.links.map((link, idx) => (
               <p
                 key={link}
+                onClick={() => { const pg = col.pages[idx]; if (pg) onNavigate?.(pg); }}
                 style={{
                   fontFamily: `'${genome.typography.body}', sans-serif`,
                   fontSize: genome.typography.sizes.sm,
                   color: genome.colors.secondary,
                   marginBottom: genome.spacing.xs,
-                  cursor: "pointer",
+                  cursor: col.pages[idx] ? "pointer" : "default",
                   opacity: 0.8,
                 }}
               >
@@ -781,6 +809,260 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
   );
 }
 
+// ── Page components ──────────────────────────────────────────────────────────
+
+function GenomeFeaturesPage({ tokens }: { tokens: GenomeTokens }) {
+  const { genome, projectName, productType, contentOverrides } = tokens;
+  const content = getProductContent(productType);
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
+  return (
+    <div style={{ backgroundColor: genome.colors.background, minHeight: "100vh" }}>
+      <section style={{ padding: "80px 48px 60px", maxWidth: "1100px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "64px" }}>
+          <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.accent, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Features</span>
+          <h1 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["3xl"], fontWeight: 800, color: "#fff", marginTop: "12px", marginBottom: "16px", letterSpacing: "-0.03em" }}>
+            Everything {displayBrandName} offers
+          </h1>
+          <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.base, color: genome.colors.secondary, maxWidth: "560px", margin: "0 auto", lineHeight: 1.6 }}>
+            {content.featureGridTitle} — designed to make your team more productive from day one.
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "24px" }}>
+          {content.features.map((feat, i) => (
+            <div key={i} style={{ backgroundColor: genome.colors.surface, borderRadius: genome.radius.lg, border: `1px solid ${genome.colors.primary}18`, padding: "28px 32px" }}>
+              <div style={{ width: 44, height: 44, borderRadius: genome.radius.md, backgroundColor: `${genome.colors.primary}18`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+                <GIcon name={feat.icon as IconName} genome={genome} size={22} color={genome.colors.primary} />
+              </div>
+              <h3 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes.lg, fontWeight: 700, color: "#fff", margin: "0 0 10px" }}>{feat.title}</h3>
+              <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, lineHeight: 1.65, margin: 0 }}>{feat.description}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: "80px", backgroundColor: genome.colors.surface, borderRadius: genome.radius.xl, padding: "48px", border: `1px solid ${genome.colors.primary}20`, textAlign: "center" }}>
+          <h2 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["2xl"], fontWeight: 700, color: "#fff", margin: "0 0 12px", letterSpacing: "-0.02em" }}>
+            Ready to get started?
+          </h2>
+          <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.base, color: genome.colors.secondary, margin: "0 0 24px" }}>Join thousands of teams using {displayBrandName} every day.</p>
+          <GenomeButton genome={genome} variant="primary">{content.ctaLabel}</GenomeButton>
+        </div>
+      </section>
+      <GenomeFooter tokens={tokens} />
+    </div>
+  );
+}
+
+function GenomePricingPage({ tokens }: { tokens: GenomeTokens }) {
+  const { genome, projectName, productType, contentOverrides } = tokens;
+  const content = getProductContent(productType);
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
+  const plans = content.pricingPlans;
+  const faqs = [
+    { q: "Is there a free trial?", a: "Yes — all paid plans include a 14-day free trial. No credit card required to start." },
+    { q: "Can I change plans later?", a: "Absolutely. You can upgrade, downgrade, or cancel at any time directly from your account settings." },
+    { q: "What payment methods do you accept?", a: "We accept all major credit cards, PayPal, and bank transfer for annual enterprise plans." },
+    { q: "Is my data secure?", a: "Yes. All data is encrypted in transit and at rest. We're SOC 2 Type II certified and GDPR compliant." },
+  ];
+  return (
+    <div style={{ backgroundColor: genome.colors.background, minHeight: "100vh" }}>
+      <section style={{ padding: "80px 48px 60px", maxWidth: "1100px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "64px" }}>
+          <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.accent, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Pricing</span>
+          <h1 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["3xl"], fontWeight: 800, color: "#fff", marginTop: "12px", marginBottom: "16px", letterSpacing: "-0.03em" }}>
+            Simple, transparent pricing
+          </h1>
+          <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.base, color: genome.colors.secondary, maxWidth: "480px", margin: "0 auto", lineHeight: 1.6 }}>
+            Start free. Scale as you grow. No hidden fees.
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px", marginBottom: "80px" }}>
+          {plans.map((plan) => (
+            <div key={plan.name} style={{ backgroundColor: plan.highlighted ? genome.colors.primary : genome.colors.surface, borderRadius: genome.radius.xl, border: plan.highlighted ? "none" : `1px solid ${genome.colors.primary}20`, padding: "36px 28px", position: "relative", transform: plan.highlighted ? "scale(1.03)" : "none" }}>
+              {plan.highlighted && (
+                <div style={{ position: "absolute", top: "-12px", left: "50%", transform: "translateX(-50%)", backgroundColor: genome.colors.accent, color: "#fff", fontSize: "11px", fontWeight: 700, padding: "4px 14px", borderRadius: genome.radius.full, fontFamily: `'${genome.typography.body}', sans-serif`, letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                  Most Popular
+                </div>
+              )}
+              <p style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes.base, fontWeight: 700, color: plan.highlighted ? "#fff" : "#fff", margin: "0 0 8px" }}>{plan.name}</p>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "8px" }}>
+                <span style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["3xl"], fontWeight: 800, color: plan.highlighted ? "#fff" : genome.colors.primary }}>{plan.price}</span>
+                {plan.price !== "Custom" && <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: plan.highlighted ? "rgba(255,255,255,0.7)" : genome.colors.secondary }}>{plan.period}</span>}
+              </div>
+              <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: plan.highlighted ? "rgba(255,255,255,0.8)" : genome.colors.secondary, margin: "0 0 24px", lineHeight: 1.5 }}>{plan.description}</p>
+              <div style={{ marginBottom: "24px" }}>
+                {plan.features.map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <span style={{ color: plan.highlighted ? "#fff" : genome.colors.accent, fontSize: "14px", fontWeight: 700 }}>✓</span>
+                    <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: plan.highlighted ? "rgba(255,255,255,0.9)" : genome.colors.secondary }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "inline-block", backgroundColor: plan.highlighted ? "#fff" : genome.colors.primary, color: plan.highlighted ? genome.colors.primary : "#fff", borderRadius: genome.radius.md, padding: `${genome.spacing.xs} ${genome.spacing.md}`, fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes.sm, fontWeight: 700, cursor: "pointer", width: "100%", textAlign: "center", boxSizing: "border-box" as const }}>
+                {plan.cta}
+              </div>
+            </div>
+          ))}
+        </div>
+        <h2 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["2xl"], fontWeight: 700, color: "#fff", textAlign: "center", marginBottom: "40px", letterSpacing: "-0.02em" }}>Frequently asked questions</h2>
+        <div style={{ maxWidth: "700px", margin: "0 auto", display: "grid", gap: "16px" }}>
+          {faqs.map((faq) => (
+            <div key={faq.q} style={{ backgroundColor: genome.colors.surface, borderRadius: genome.radius.lg, border: `1px solid ${genome.colors.primary}18`, padding: "20px 24px" }}>
+              <p style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes.base, fontWeight: 600, color: "#fff", margin: "0 0 8px" }}>{faq.q}</p>
+              <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, margin: 0, lineHeight: 1.6 }}>{faq.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <GenomeFooter tokens={tokens} />
+    </div>
+  );
+}
+
+function GenomeAboutPage({ tokens }: { tokens: GenomeTokens }) {
+  const { genome, projectName, projectLogoUrl, productType, contentOverrides } = tokens;
+  const content = getProductContent(productType);
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
+  const logoColor = (genome as any).branding?.logoColor ?? genome.colors.primary;
+  return (
+    <div style={{ backgroundColor: genome.colors.background, minHeight: "100vh" }}>
+      <section style={{ padding: "80px 48px 60px", maxWidth: "900px", margin: "0 auto" }}>
+        <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.accent, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>About</span>
+        <h1 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["3xl"], fontWeight: 800, color: "#fff", marginTop: "12px", marginBottom: "24px", letterSpacing: "-0.03em" }}>
+          About {displayBrandName}
+        </h1>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "48px", alignItems: "center", marginBottom: "72px" }}>
+          <div>
+            <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.lg, color: genome.colors.secondary, lineHeight: 1.7, margin: "0 0 20px" }}>
+              {content.aboutMission}
+            </p>
+            <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.base, color: genome.colors.secondary, lineHeight: 1.7, opacity: 0.8, margin: 0 }}>
+              {content.footerTagline}
+            </p>
+          </div>
+          <div style={{ backgroundColor: genome.colors.surface, borderRadius: genome.radius.xl, padding: "40px", border: `1px solid ${genome.colors.primary}20`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+            {projectLogoUrl ? (
+              <img src={projectLogoUrl} alt={displayBrandName} style={{ width: 64, height: 64, objectFit: "contain", borderRadius: genome.radius.lg }} />
+            ) : (
+              <GIcon name="compass" genome={genome} size={48} color={logoColor} />
+            )}
+            <span style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["2xl"], fontWeight: 800, color: logoColor, letterSpacing: "-0.02em" }}>{displayBrandName}</span>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px", marginBottom: "72px" }}>
+          {content.stats.map((stat) => (
+            <div key={stat.label} style={{ backgroundColor: genome.colors.surface, borderRadius: genome.radius.lg, border: `1px solid ${genome.colors.primary}18`, padding: "28px 24px", textAlign: "center" }}>
+              <p style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["2xl"], fontWeight: 800, color: genome.colors.primary, margin: "0 0 4px" }}>{stat.value}</p>
+              <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, margin: 0 }}>{stat.label}</p>
+            </div>
+          ))}
+        </div>
+        <h2 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["2xl"], fontWeight: 700, color: "#fff", marginBottom: "32px", letterSpacing: "-0.02em" }}>What our users say</h2>
+        <div style={{ display: "grid", gap: "16px" }}>
+          {content.testimonials.map((t, i) => (
+            <div key={i} style={{ backgroundColor: genome.colors.surface, borderRadius: genome.radius.lg, border: `1px solid ${genome.colors.primary}15`, padding: "24px 28px" }}>
+              <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.base, color: genome.colors.secondary, lineHeight: 1.65, margin: "0 0 12px", fontStyle: "italic" }}>"{t.text}"</p>
+              <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.primary, margin: 0, fontWeight: 600 }}>{t.author} · {t.role}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <GenomeFooter tokens={tokens} />
+    </div>
+  );
+}
+
+function GenomeBlogPage({ tokens }: { tokens: GenomeTokens }) {
+  const { genome, projectName, productType, contentOverrides } = tokens;
+  const content = getProductContent(productType);
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
+  const posts = content.blogPosts;
+  return (
+    <div style={{ backgroundColor: genome.colors.background, minHeight: "100vh" }}>
+      <section style={{ padding: "80px 48px 60px", maxWidth: "960px", margin: "0 auto" }}>
+        <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.accent, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Blog</span>
+        <h1 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["3xl"], fontWeight: 800, color: "#fff", marginTop: "12px", marginBottom: "16px", letterSpacing: "-0.03em" }}>
+          {displayBrandName} Blog
+        </h1>
+        <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.base, color: genome.colors.secondary, margin: "0 0 56px", lineHeight: 1.6 }}>
+          Guides, updates, and insights from the {displayBrandName} team.
+        </p>
+        <div style={{ display: "grid", gap: "20px" }}>
+          {posts.map((post, i) => (
+            <div key={post.slug} style={{ backgroundColor: genome.colors.surface, borderRadius: genome.radius.xl, border: `1px solid ${genome.colors.primary}18`, padding: "32px 36px", display: "grid", gridTemplateColumns: "1fr auto", alignItems: "start", gap: "24px", cursor: "pointer" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                  <span style={{ backgroundColor: `${genome.colors.accent}22`, color: genome.colors.accent, borderRadius: genome.radius.full, padding: "3px 12px", fontSize: "11px", fontWeight: 700, fontFamily: `'${genome.typography.body}', sans-serif`, textTransform: "uppercase", letterSpacing: "0.05em" }}>{post.tag}</span>
+                  <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.secondary, opacity: 0.6 }}>{post.date} · {post.readTime}</span>
+                </div>
+                <h2 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes.xl, fontWeight: 700, color: "#fff", margin: "0 0 10px", letterSpacing: "-0.01em", lineHeight: 1.3 }}>{post.title}</h2>
+                <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, margin: 0, lineHeight: 1.65, opacity: 0.85 }}>{post.excerpt}</p>
+              </div>
+              <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.primary, fontWeight: 600, whiteSpace: "nowrap", marginTop: "4px" }}>Read →</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <GenomeFooter tokens={tokens} />
+    </div>
+  );
+}
+
+function GenomeContactPage({ tokens }: { tokens: GenomeTokens }) {
+  const { genome, projectName, productType, contentOverrides } = tokens;
+  const content = getProductContent(productType);
+  const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
+  const inputStyle = {
+    width: "100%",
+    backgroundColor: genome.colors.surface,
+    border: `1px solid ${genome.colors.primary}30`,
+    borderRadius: genome.radius.md,
+    padding: "12px 16px",
+    fontFamily: `'${genome.typography.body}', sans-serif`,
+    fontSize: genome.typography.sizes.sm,
+    color: "#fff",
+    outline: "none",
+    boxSizing: "border-box" as const,
+  };
+  return (
+    <div style={{ backgroundColor: genome.colors.background, minHeight: "100vh" }}>
+      <section style={{ padding: "80px 48px 60px", maxWidth: "760px", margin: "0 auto" }}>
+        <span style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.accent, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Contact</span>
+        <h1 style={{ fontFamily: `'${genome.typography.heading}', sans-serif`, fontSize: genome.typography.sizes["3xl"], fontWeight: 800, color: "#fff", marginTop: "12px", marginBottom: "16px", letterSpacing: "-0.03em" }}>
+          Get in touch
+        </h1>
+        <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.base, color: genome.colors.secondary, margin: "0 0 48px", lineHeight: 1.6 }}>
+          Have a question or want to work with us? The {displayBrandName} team typically replies within one business day.
+        </p>
+        <div style={{ backgroundColor: genome.colors.surface, borderRadius: genome.radius.xl, border: `1px solid ${genome.colors.primary}20`, padding: "48px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            <div>
+              <label style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, display: "block", marginBottom: "6px" }}>Name</label>
+              <input style={inputStyle} placeholder="Your name" readOnly />
+            </div>
+            <div>
+              <label style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, display: "block", marginBottom: "6px" }}>Email</label>
+              <input style={inputStyle} placeholder="you@company.com" readOnly />
+            </div>
+          </div>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, display: "block", marginBottom: "6px" }}>Subject</label>
+            <input style={inputStyle} placeholder="How can we help?" readOnly />
+          </div>
+          <div style={{ marginBottom: "24px" }}>
+            <label style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.sm, color: genome.colors.secondary, display: "block", marginBottom: "6px" }}>Message</label>
+            <textarea style={{ ...inputStyle, height: "140px", resize: "none" }} placeholder="Tell us more..." readOnly />
+          </div>
+          <GenomeButton genome={genome} variant="primary">Send message</GenomeButton>
+          <p style={{ fontFamily: `'${genome.typography.body}', sans-serif`, fontSize: genome.typography.sizes.xs, color: genome.colors.secondary, margin: "16px 0 0", opacity: 0.6 }}>
+            Or email us directly at hello@{displayBrandName.toLowerCase().replace(/\s+/g, "")}.com
+          </p>
+        </div>
+      </section>
+      <GenomeFooter tokens={tokens} />
+    </div>
+  );
+}
+
+// ── Section renderers ─────────────────────────────────────────────────────────
 const SECTION_RENDERERS: Partial<Record<SectionType, (tokens: GenomeTokens, section: LayoutSection) => JSX.Element>> = {
   hero: (t, s) => <GenomeHero tokens={t} section={s} />,
   featureGrid: (t, s) => <GenomeFeatureGrid tokens={t} section={s} />,
@@ -838,24 +1120,41 @@ export function GenomePreview({
   productType?: string | null;
   contentOverrides?: ContentOverrides;
 }) {
-  const tokens: GenomeTokens = { genome, projectName, projectPrompt, projectLogoUrl, productType, contentOverrides };
+  const [activePage, setActivePage] = useState<PreviewPage>("home");
+  const tokens: GenomeTokens = { genome, projectName, projectPrompt, projectLogoUrl, productType, contentOverrides, activePage, onNavigate: setActivePage };
   useGenomeFonts(genome);
+
+  function renderPageContent() {
+    switch (activePage) {
+      case "features": return <GenomeFeaturesPage tokens={tokens} />;
+      case "pricing": return <GenomePricingPage tokens={tokens} />;
+      case "about": return <GenomeAboutPage tokens={tokens} />;
+      case "blog": return <GenomeBlogPage tokens={tokens} />;
+      case "contact": return <GenomeContactPage tokens={tokens} />;
+      default:
+        return (
+          <>
+            {layout.sections.map((section, i) => (
+              <div key={`${section.type}-${i}`}>
+                {renderSection(section.type, tokens, section)}
+              </div>
+            ))}
+          </>
+        );
+    }
+  }
 
   return (
     <div
       data-testid="genome-preview"
       style={{
         backgroundColor: genome.colors.background,
-        overflow: "hidden",
+        overflow: "auto",
         minHeight: "100%",
       }}
     >
       <GenomeNavbar tokens={tokens} />
-      {layout.sections.map((section, i) => (
-        <div key={`${section.type}-${i}`}>
-          {renderSection(section.type, tokens, section)}
-        </div>
-      ))}
+      {renderPageContent()}
     </div>
   );
 }

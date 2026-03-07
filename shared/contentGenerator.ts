@@ -16,6 +16,25 @@ export interface TestimonialItem {
   role: string;
 }
 
+export interface PricingPlan {
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  features: string[];
+  cta: string;
+  highlighted?: boolean;
+}
+
+export interface BlogPost {
+  slug: string;
+  title: string;
+  excerpt: string;
+  date: string;
+  readTime: string;
+  tag: string;
+}
+
 export interface ProductContent {
   brandName: string;
   headline: string;
@@ -28,11 +47,49 @@ export interface ProductContent {
   featureGridTitle: string;
   cardListTitle: string;
   footerTagline: string;
+  aboutMission: string;
   features: FeatureItem[];
   stats: StatItem[];
   testimonials: TestimonialItem[];
   navLinks: string[];
+  pricingPlans: PricingPlan[];
+  blogPosts: BlogPost[];
 }
+
+const DEFAULT_PRICING_PLANS: PricingPlan[] = [
+  {
+    name: "Free",
+    price: "$0",
+    period: "forever",
+    description: "Perfect for individuals and small projects getting started.",
+    features: ["Up to 3 projects", "5 GB storage", "Community support", "Basic analytics", "API access"],
+    cta: "Get started free",
+  },
+  {
+    name: "Pro",
+    price: "$12",
+    period: "per user / month",
+    description: "For growing teams that need more power and flexibility.",
+    features: ["Unlimited projects", "100 GB storage", "Priority support", "Advanced analytics", "Custom integrations", "Team collaboration", "Audit logs"],
+    cta: "Start free trial",
+    highlighted: true,
+  },
+  {
+    name: "Enterprise",
+    price: "Custom",
+    period: "contact us",
+    description: "For large organizations with advanced security and compliance needs.",
+    features: ["Unlimited everything", "SAML SSO", "SLA guarantee", "Dedicated account manager", "Custom contracts", "On-premise option", "99.99% uptime SLA"],
+    cta: "Contact sales",
+  },
+];
+
+const DEFAULT_BLOG_POSTS: BlogPost[] = [
+  { slug: "getting-started", title: "Getting started: your first 30 minutes", excerpt: "A step-by-step walkthrough to set up your account, invite your team, and get your first project running in under half an hour.", date: "Mar 2026", readTime: "5 min read", tag: "Guide" },
+  { slug: "best-practices", title: "10 best practices our top teams swear by", excerpt: "We analyzed usage patterns from thousands of teams. Here are the habits and workflows that consistently lead to the best outcomes.", date: "Feb 2026", readTime: "8 min read", tag: "Tips" },
+  { slug: "product-update", title: "What's new: February 2026 product update", excerpt: "New dashboard views, faster load times, improved mobile experience, and a handful of quality-of-life improvements from your feedback.", date: "Feb 2026", readTime: "3 min read", tag: "Product" },
+  { slug: "case-study", title: "How a 200-person team cut their workload in half", excerpt: "A behind-the-scenes look at how one fast-growing company restructured their workflows and reclaimed 12 hours per week per employee.", date: "Jan 2026", readTime: "6 min read", tag: "Case Study" },
+];
 
 const CONTENT_MAP: Record<string, ProductContent> = {
   cloud_storage: {
@@ -533,11 +590,54 @@ const DEFAULT_CONTENT: ProductContent = {
   ],
 };
 
+// Per-product about missions and custom blog posts
+const ABOUT_MISSIONS: Record<string, string> = {
+  cloud_storage: "We believe your files should be safe, accessible, and organized — without compromise. We're building the storage platform that teams actually trust.",
+  chat_app: "We started because we were tired of bad communication tools slowing great teams down. We're building the workspace that keeps everyone aligned.",
+  analytics_dashboard: "Data is only powerful when it's understood. We're making analytics accessible to every team, not just data scientists.",
+  ecommerce: "We believe every merchant deserves enterprise-grade tools without enterprise-grade complexity. We're leveling the playing field for independent commerce.",
+  project_management: "We built the project management tool we always wanted but could never find. One that's powerful enough for complex projects, simple enough for daily use.",
+  crm: "CRMs should help you sell, not slow you down with data entry. We're building the system that actually works the way your sales team does.",
+  social_media: "We believe creators deserve a platform that puts them first — not the algorithm. We're building the social network that rewards authenticity.",
+  saas_generic: "Great software should be invisible — it should simply help you do your best work. We're building the platform that gets out of your way.",
+  developer_tool: "We build for developers because we are developers. Every feature we ship starts with the question: would we want this in our own workflow?",
+  video_platform: "Video is the most powerful medium for human connection and learning. We're building the infrastructure that makes it accessible to every creator.",
+  fintech: "Managing money should be empowering, not confusing. We're reimagining financial tools to work for individuals and businesses of every size.",
+  healthcare: "Healthcare access shouldn't depend on where you live or who you know. We're connecting patients with the care they need, when they need it.",
+  education: "Education is the highest-return investment any person can make. We're making world-class learning accessible to anyone with curiosity and a connection.",
+  calendar_scheduling: "Scheduling shouldn't take more time than the meeting itself. We're eliminating the back-and-forth so you can focus on what the meeting is actually about.",
+};
+
+const PRODUCT_BLOG_POSTS: Record<string, BlogPost[]> = {
+  cloud_storage: [
+    { slug: "zero-knowledge-encryption", title: "Why zero-knowledge encryption is the gold standard for cloud storage", excerpt: "Most storage providers can read your files. Here's how zero-knowledge architecture changes that — and why it matters for your team's security posture.", date: "Mar 2026", readTime: "7 min read", tag: "Security" },
+    { slug: "storage-benchmark", title: "We benchmarked 6 cloud storage platforms. Here's what we found.", excerpt: "Speed, reliability, upload limits, API quality — we put the major platforms through a rigorous test. The results were surprising.", date: "Feb 2026", readTime: "10 min read", tag: "Research" },
+    { slug: "team-storage-guide", title: "The complete guide to team file management in 2026", excerpt: "Folder structures, permission strategies, version control, and backup practices that the most organized teams actually use.", date: "Jan 2026", readTime: "9 min read", tag: "Guide" },
+  ],
+  chat_app: [
+    { slug: "async-communication", title: "Async-first communication: how top remote teams stay aligned", excerpt: "The best remote teams aren't always online — they're structured to work effectively across time zones without constant real-time dependency.", date: "Mar 2026", readTime: "6 min read", tag: "Remote Work" },
+    { slug: "channel-structure", title: "How to structure your team channels for maximum clarity", excerpt: "Too many channels create noise. Too few create bottlenecks. Here's the framework that the most organized teams use.", date: "Feb 2026", readTime: "5 min read", tag: "Tips" },
+  ],
+  fintech: [
+    { slug: "international-transfers", title: "The real cost of international wire transfers in 2026", excerpt: "Hidden fees, exchange rate markups, and processing delays cost businesses billions annually. Here's how to stop overpaying.", date: "Mar 2026", readTime: "6 min read", tag: "Finance" },
+    { slug: "budgeting-framework", title: "The budgeting framework that actually works for growing teams", excerpt: "Category-based budgets, rolling forecasts, and real-time visibility — the three pillars of financial discipline that scale.", date: "Feb 2026", readTime: "7 min read", tag: "Tips" },
+  ],
+  ecommerce: [
+    { slug: "conversion-rate", title: "12 proven ways to increase your store's conversion rate", excerpt: "Small changes to your product pages, checkout flow, and trust signals can meaningfully move the needle on sales.", date: "Mar 2026", readTime: "8 min read", tag: "Growth" },
+    { slug: "abandoned-cart", title: "Recovering abandoned carts: a data-driven playbook", excerpt: "Most stores recover less than 10% of abandoned carts. The best recover 30%+. Here's what they do differently.", date: "Feb 2026", readTime: "6 min read", tag: "Revenue" },
+  ],
+};
+
 export function getProductContent(productType: string | null | undefined): ProductContent {
-  if (!productType) return DEFAULT_CONTENT;
-  return CONTENT_MAP[productType] ?? DEFAULT_CONTENT;
+  const base = productType ? (CONTENT_MAP[productType] ?? DEFAULT_CONTENT) : DEFAULT_CONTENT;
+  return {
+    ...base,
+    aboutMission: ABOUT_MISSIONS[productType ?? ""] ?? "We're building tools that help teams do their best work — faster, smarter, and with more confidence.",
+    pricingPlans: DEFAULT_PRICING_PLANS,
+    blogPosts: (productType && PRODUCT_BLOG_POSTS[productType]) ? PRODUCT_BLOG_POSTS[productType] : DEFAULT_BLOG_POSTS,
+  };
 }
 
 export function getNavLinks(productType: string | null | undefined): string[] {
-  return getProductContent(productType).navLinks;
+  return ["Features", "Pricing", "Blog", "About"];
 }

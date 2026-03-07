@@ -1,8 +1,11 @@
 import contextLibrary from "./contextLibrary.json";
 
+export type PageType = "landing_page" | "web_app" | "dashboard" | "blog" | "ecommerce_store" | "social_platform" | "portfolio";
+
 export interface InterpretedIntent {
   industry: string | null;
   productType: string | null;
+  pageType: PageType | null;
   style: string | null;
   features: string[];
   colorHint: string | null;
@@ -13,6 +16,26 @@ export interface InterpretedIntent {
   backgroundHint: "light" | "dark" | null;
   textSizeHint: "increase" | "decrease" | null;
   rawText: string;
+}
+
+const PAGE_TYPE_SIGNALS: Record<PageType, string[]> = {
+  landing_page: ["landing page", "landing", "marketing page", "homepage", "home page", "promotional page", "product page", "waitlist", "coming soon"],
+  web_app: ["web app", "webapp", "application", "platform", "tool", "saas", "software"],
+  dashboard: ["dashboard", "admin panel", "admin dashboard", "analytics dashboard", "control panel", "management console"],
+  blog: ["blog", "articles", "posts", "content site", "magazine", "news site", "publication"],
+  ecommerce_store: ["store", "shop", "e-commerce", "ecommerce", "marketplace", "online store", "shopping"],
+  social_platform: ["social network", "social platform", "community", "forum", "social media", "creator platform", "network"],
+  portfolio: ["portfolio", "personal site", "cv site", "showcase", "resume site"],
+};
+
+function detectPageType(text: string): PageType | null {
+  const lower = text.toLowerCase();
+  for (const [pageType, signals] of Object.entries(PAGE_TYPE_SIGNALS)) {
+    if (signals.some(s => lower.includes(s))) {
+      return pageType as PageType;
+    }
+  }
+  return null;
 }
 
 const STYLE_MAP: Record<string, string> = {
@@ -395,6 +418,7 @@ export function interpretIntent(input: string): InterpretedIntent {
   return {
     industry,
     productType,
+    pageType: detectPageType(text),
     style,
     features,
     colorHint,

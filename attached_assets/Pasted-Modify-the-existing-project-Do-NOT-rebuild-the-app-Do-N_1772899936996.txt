@@ -1,0 +1,287 @@
+Modify the existing project. Do NOT rebuild the app. Do NOT change Clerk authentication or Neon database configuration.
+
+Goal
+
+1. Fix incorrect brand name rendering (e.g., "Pulse" appearing instead of the user brand).
+2. Ensure the uploaded logo is always used.
+3. Correct prompt interpretation so the system understands the user's intent (example: landing page vs social platform).
+4. Ensure all required website pages (landing, about, blog, pricing, docs etc.) are generated and accessible.
+5. Ensure brand name and logo propagate across all pages.
+
+------------------------------------------------
+1. FIX BRAND NAME SOURCE
+------------------------------------------------
+
+Problem
+
+The generator sometimes replaces the user's brand name with random placeholders like "Pulse".
+
+Solution
+
+Create a single source of truth.
+
+Add object:
+
+project.brand = {
+name,
+logo_url,
+logoColor,
+logoFont
+}
+
+All components must use:
+
+project.brand.name
+
+Search and replace across files:
+
+/components/ui/Navbar.tsx
+/components/ui/Hero.tsx
+/components/ui/Footer.tsx
+/components/ui/ProfileCard.tsx
+/components/ui/Sections/*
+/lib/contentGenerator.ts
+
+Remove any hardcoded names like:
+
+Pulse
+Flowbase
+Landchain
+
+Brand name must ONLY come from:
+
+project.brand.name
+
+------------------------------------------------
+2. ALWAYS USE UPLOADED LOGO
+------------------------------------------------
+
+Add priority rule:
+
+If logo_url exists → use it everywhere.
+
+Navbar:
+
+if(project.brand.logo_url){
+<img src={project.brand.logo_url}>
+} else {
+render text logo using brand.name
+}
+
+Update:
+
+/components/ui/Navbar.tsx
+/components/ui/Footer.tsx
+
+Ensure logo appears on every page.
+
+------------------------------------------------
+3. PROMPT INTENT DETECTION
+------------------------------------------------
+
+Rewrite prompt interpretation.
+
+File
+
+/lib/semanticInterpreter.ts
+
+Extract these fields:
+
+{
+pageType
+productType
+industry
+audience
+features
+tone
+}
+
+Examples
+
+Prompt
+
+"generate a landing page for a cloud storage SaaS"
+
+Output
+
+{
+pageType: "landing_page"
+productType: "cloud_storage"
+industry: "saas"
+}
+
+Prompt
+
+"build a social network for creators"
+
+Output
+
+{
+pageType: "web_app"
+productType: "social_platform"
+industry: "social"
+}
+
+------------------------------------------------
+4. PAGE TYPE RULES
+------------------------------------------------
+
+If pageType == landing_page
+
+Generate structure:
+
+Navbar
+Hero
+Features
+Product demo
+Testimonials
+Pricing
+CTA
+Footer
+
+Do NOT generate dashboard or social feed components.
+
+------------------------------------------------
+5. CONTEXT-AWARE COMPONENT GENERATION
+------------------------------------------------
+
+Update layout engine.
+
+File
+
+/lib/layoutEngine.ts
+
+Use pageType to choose layout.
+
+Landing page
+
+Navbar
+Hero
+Feature grid
+Demo
+Testimonials
+Pricing
+CTA
+Footer
+
+Web app
+
+Navbar
+Dashboard
+Cards
+Activity feed
+Profile
+
+------------------------------------------------
+6. CONTENT GENERATION
+------------------------------------------------
+
+Update content generator.
+
+File
+
+/lib/contentGenerator.ts
+
+All text must derive from:
+
+project.context.productType
+project.context.industry
+project.context.audience
+
+Example
+
+cloud storage
+
+headline
+
+Secure cloud storage built for modern teams
+
+features
+
+File sync
+Version history
+Collaboration
+Enterprise security
+
+------------------------------------------------
+7. GENERATE FULL WEBSITE STRUCTURE
+------------------------------------------------
+
+Landing page must include multiple pages.
+
+Generate routes:
+
+/
+/features
+/pricing
+/about
+/blog
+/contact
+
+Create files automatically.
+
+Example
+
+/pages/index.tsx
+/pages/features.tsx
+/pages/pricing.tsx
+/pages/about.tsx
+/pages/blog.tsx
+/pages/contact.tsx
+
+Navbar must link to these pages.
+
+------------------------------------------------
+8. BLOG SYSTEM
+------------------------------------------------
+
+Create simple blog engine.
+
+Blog list page
+
+/blog
+
+Blog article page
+
+/blog/[slug]
+
+Generate placeholder articles based on context.
+
+------------------------------------------------
+9. GLOBAL BRAND PROPAGATION
+------------------------------------------------
+
+Brand name and logo must appear consistently in:
+
+Navbar
+Footer
+Page titles
+Meta tags
+OpenGraph tags
+
+Use project.brand.name everywhere.
+
+------------------------------------------------
+10. VALIDATION
+------------------------------------------------
+
+Before rendering preview validate:
+
+1 brand.name exists
+2 logo_url used if available
+3 pageType matches prompt
+4 layout corresponds to pageType
+
+------------------------------------------------
+11. RESULT
+------------------------------------------------
+
+After these fixes:
+
+• brand name never replaced by random placeholders
+• uploaded logo always used
+• prompt intent correctly interpreted
+• landing page requests generate landing pages
+• full website pages created (features, blog, about, pricing)
+• navigation links work
+• brand identity consistent across the site
