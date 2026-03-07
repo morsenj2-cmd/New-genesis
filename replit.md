@@ -70,6 +70,24 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 - `font_url`: Cloudinary HTTPS URL of uploaded custom font file (.ttf/.otf/.woff/.woff2)
 - `font`: font name (preset name or custom font filename without extension)
 
+### Genome UI Components
+
+`client/src/components/genome-ui/index.tsx` — 7 fully genome-aware UI components that consume design tokens to render a live website preview on the project detail page.
+
+**Components** (all take `tokens: GenomeTokens` = `{ genome, projectName, projectPrompt }` + `section: LayoutSection`):
+- `GenomeNavbar` — brand logo (compass icon), nav links, CTA button styled with genome colors/fonts/radius
+- `GenomeHero` — headline split at midpoint with primary color accent, subtitle from project prompt, image placeholder when `section.imagePlacement !== "none"`, alignment from section data
+- `GenomeFeatureGrid` — feature cards in `section.columns` columns, icon per feature, horizontal/vertical orientation from section
+- `GenomeCardList` — `section.cardCount` cards in `section.columns` grid, each with icon + title + description
+- `GenomeStats` — `section.columns` stat blocks with large genome-primary-colored numbers
+- `GenomeTestimonial` — `section.cardCount` quote cards in a grid
+- `GenomeCTA` — gradient background (primary → accent), full-width call-to-action
+- `GenomeFooter` — brand, 3 link columns, social icons from icon generator
+
+**GenomePreview** composite — renders layout sections in order using the correct component per section type, wrapped in a 640px scrollable container on the project detail page. Only shown when both `genome` and `layout` are available.
+
+All typography uses `@import` from Google Fonts loaded dynamically via `useEffect`. All colors, spacing, radius, and icon style come directly from genome tokens — no hardcoded values.
+
 ### Icon Generator
 
 `shared/iconGenerator.ts` — procedural SVG icon generator. All 25 icons across 5 semantic groups are rendered using parameterized SVG paths derived from the project's genome `iconStyle`.

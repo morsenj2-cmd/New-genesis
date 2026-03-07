@@ -46,6 +46,7 @@ import {
   type IconName,
   type IconGroup,
 } from "@shared/iconGenerator";
+import { GenomePreview } from "@/components/genome-ui";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -916,6 +917,29 @@ export default function ProjectPage() {
                     )}
                   </div>
                 </div>
+
+                {genome && layout && (
+                  <div data-testid="section-website-preview">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          <LayoutTemplate className="h-3.5 w-3.5" />
+                          Website Preview
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3">
+                        <div className="overflow-y-auto max-h-[640px] rounded-lg">
+                          <GenomePreview
+                            genome={genome}
+                            layout={layout}
+                            projectName={project.name}
+                            projectPrompt={project.prompt}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
               </div>
             ) : null}
           </main>
