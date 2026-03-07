@@ -95,6 +95,9 @@ function GenomeButton({
 export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
   const { genome, projectName, projectLogoUrl, productType } = tokens;
   const navLinks = getNavLinks(productType);
+  const logoColor = (genome as any).branding?.logoColor ?? genome.colors.primary;
+  const logoFont = (genome as any).branding?.logoFont ?? genome.typography.heading;
+  const logoWeight = (genome as any).branding?.logoWeight ?? 700;
   return (
     <nav
       data-testid="genome-navbar"
@@ -117,14 +120,14 @@ export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
             style={{ width: 28, height: 28, objectFit: "contain", borderRadius: genome.radius.sm }}
           />
         ) : (
-          <GIcon name="compass" genome={genome} size={22} color={genome.colors.primary} />
+          <GIcon name="compass" genome={genome} size={22} color={logoColor} />
         )}
         <span
           style={{
-            fontFamily: `'${genome.typography.heading}', sans-serif`,
+            fontFamily: `'${logoFont}', sans-serif`,
             fontSize: genome.typography.sizes.lg,
-            fontWeight: 700,
-            color: genome.colors.primary,
+            fontWeight: logoWeight,
+            color: logoColor,
             letterSpacing: "-0.02em",
           }}
         >

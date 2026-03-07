@@ -15,6 +15,8 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   prompt: text("prompt").notNull(),
   seed: text("seed").notNull(),
+  styleSeed: text("style_seed"),
+  previousGenomesJson: text("previous_genomes_json"),
   font: text("font"),
   fontUrl: text("font_url"),
   themeColor: text("theme_color"),

@@ -1,4 +1,4 @@
-import { interpretIntent } from "./intentInterpreter";
+import { interpretIntent, COLOR_KEYWORDS } from "./intentInterpreter";
 import contextLibrary from "./contextLibrary.json";
 
 export interface NLPatch {
@@ -37,6 +37,35 @@ const COLOR_MAP: Record<string, { h: number; s: number; l: number }> = {
   violet:  { h: 255, s: 68, l: 60 },
   indigo:  { h: 240, s: 60, l: 52 },
   lavender:{ h: 265, s: 50, l: 68 },
+  gray:    { h: 0,   s: 0,  l: 55 },
+};
+
+const LOGO_COLOR_MAP: Record<string, string> = {
+  white:   "#ffffff",
+  black:   "#000000",
+  gray:    "#9ca3af",
+  blue:    "hsl(210, 70%, 65%)",
+  red:     "hsl(0, 68%, 65%)",
+  green:   "hsl(145, 60%, 55%)",
+  purple:  "hsl(265, 65%, 68%)",
+  orange:  "hsl(25, 82%, 65%)",
+  pink:    "hsl(330, 70%, 70%)",
+  yellow:  "hsl(45, 85%, 62%)",
+  teal:    "hsl(173, 60%, 50%)",
+  cyan:    "hsl(185, 70%, 60%)",
+  indigo:  "hsl(240, 60%, 62%)",
+  violet:  "hsl(255, 68%, 70%)",
+  emerald: "hsl(152, 65%, 52%)",
+  amber:   "hsl(35, 85%, 62%)",
+  rose:    "hsl(345, 65%, 68%)",
+  crimson: "hsl(348, 72%, 58%)",
+  navy:    "hsl(220, 65%, 45%)",
+  cobalt:  "hsl(215, 75%, 58%)",
+  sky:     "hsl(200, 80%, 70%)",
+  azure:   "hsl(200, 70%, 65%)",
+  mint:    "hsl(160, 55%, 60%)",
+  lime:    "hsl(85, 70%, 58%)",
+  lavender:"hsl(265, 50%, 78%)",
 };
 
 const STYLE_GENOME_PATCHES: Record<string, NLPatch[]> = {
@@ -92,13 +121,17 @@ function derivePalette(primary: { h: number; s: number; l: number }): NLPatch[] 
   const secH = (primary.h + 30) % 360;
   const accH = (primary.h + 150) % 360;
   return [
-    { op: "set", path: "colors.primary",          value: toHsl(primary) },
-    { op: "set", path: "colors.secondary",         value: toHsl({ h: secH, s: primary.s - 10, l: primary.l - 5 }) },
-    { op: "set", path: "colors.accent",            value: toHsl({ h: accH, s: primary.s + 5, l: primary.l }) },
-    { op: "set", path: "colors.hues.primary",      value: primary.h },
-    { op: "set", path: "colors.hues.secondary",    value: secH },
-    { op: "set", path: "colors.hues.accent",       value: accH },
+    { op: "set", path: "colors.primary",       value: toHsl(primary) },
+    { op: "set", path: "colors.secondary",      value: toHsl({ h: secH, s: primary.s - 10, l: primary.l - 5 }) },
+    { op: "set", path: "colors.accent",         value: toHsl({ h: accH, s: primary.s + 5, l: primary.l }) },
+    { op: "set", path: "colors.hues.primary",   value: primary.h },
+    { op: "set", path: "colors.hues.secondary", value: secH },
+    { op: "set", path: "colors.hues.accent",    value: accH },
   ];
+}
+
+function resolveLogoColor(colorKey: string): string {
+  return LOGO_COLOR_MAP[colorKey] ?? "#ffffff";
 }
 
 export function parseNLCommand(input: string): ParseResult {
@@ -120,14 +153,153 @@ export function parseNLCommand(input: string): ParseResult {
     description.push(`Applied ${intent.style} style`);
   }
 
-  if (intent.colorHint && COLOR_MAP[intent.colorHint]) {
-    const hasColorIntent = has("color", "primary", "theme", "make it", "use", "set");
-    if (hasColorIntent || text.split(" ").length <= 4) {
-      patches.push(...derivePalette(COLOR_MAP[intent.colorHint]));
-      description.push(`Set primary color to ${intent.colorHint}`);
+  // ── LOGO COLOR ──────────────────────────────────────────────────
+  if (intent.logoColorHint) {
+    const logoColor = resolveLogoColor(intent.logoColorHint);
+    patches.push({ op: "set", path: "branding.logoColor", value: logoColor });
+    description.push(`Set logo color to ${intent.logoColorHint}`);
+  }
+
+  // ── FONT CONTROL ────────────────────────────────────────────────
+  if (intent.fontHint) {
+    const isSerif = ["Playfair Display", "Lora", "Merriweather", "Libre Baskerville", "Cormorant", "Fraunces"].includes(intent.fontHint);
+    const isMono = ["JetBrains Mono", "Fira Code", "IBM Plex Mono", "Space Mono", "Roboto Mono"].includes(intent.fontHint);
+    const bodyFont = isSerif ? "Lora" : isMono ? "JetBrains Mono" : intent.fontHint;
+    patches.push(
+      { op: "set", path: "typography.heading", value: intent.fontHint },
+      { op: "set", path: "typography.body", value: bodyFont },
+    );
+    description.push(`Set font to ${intent.fontHint}`);
+  }
+
+  // Heading weight
+  if (has("make headings bold", "bold headings", "heavy headings", "bold heading")) {
+    patches.push({ op: "set", path: "typography.headingWeight", value: 800 });
+    description.push("Made headings bold");
+  }
+  if (has("light headings", "thin headings", "regular headings")) {
+    patches.push({ op: "set", path: "typography.headingWeight", value: 400 });
+    description.push("Set headings to light weight");
+  }
+
+  // Letter spacing
+  if (has("increase letter spacing", "more letter spacing", "wider letters", "tracked text")) {
+    patches.push({ op: "set", path: "typography.letterSpacing", value: "0.06em" });
+    description.push("Increased letter spacing");
+  }
+  if (has("reduce letter spacing", "less letter spacing", "tighter letters")) {
+    patches.push({ op: "set", path: "typography.letterSpacing", value: "-0.01em" });
+    description.push("Reduced letter spacing");
+  }
+
+  // ── TEXT SIZE ────────────────────────────────────────────────────
+  if (intent.textSizeHint === "increase") {
+    patches.push(
+      { op: "set", path: "typography.sizes.base", value: "18px" },
+      { op: "set", path: "typography.sizes.sm",   value: "15px" },
+      { op: "set", path: "typography.sizes.xs",   value: "13px" },
+    );
+    description.push("Increased text size");
+  } else if (intent.textSizeHint === "decrease") {
+    patches.push(
+      { op: "set", path: "typography.sizes.base", value: "14px" },
+      { op: "set", path: "typography.sizes.sm",   value: "12px" },
+      { op: "set", path: "typography.sizes.xs",   value: "10px" },
+    );
+    description.push("Decreased text size");
+  }
+
+  // ── PRIMARY COLOR (non-logo) ─────────────────────────────────────
+  if (!intent.logoColorHint && intent.colorHint) {
+    if (intent.colorHint === "white") {
+      patches.push(
+        { op: "set", path: "colors.background", value: "hsl(0, 0%, 98%)" },
+        { op: "set", path: "colors.surface",    value: "hsl(0, 0%, 94%)" },
+      );
+      description.push("Set light background");
+    } else if (intent.colorHint === "black") {
+      patches.push(
+        { op: "set", path: "colors.background", value: "hsl(0, 0%, 3%)" },
+        { op: "set", path: "colors.surface",    value: "hsl(0, 0%, 8%)" },
+      );
+      description.push("Set dark background");
+    } else if (COLOR_MAP[intent.colorHint]) {
+      const hasColorIntent = has("color", "primary", "theme", "make it", "use", "set");
+      if (hasColorIntent || text.split(" ").length <= 4) {
+        patches.push(...derivePalette(COLOR_MAP[intent.colorHint]));
+        description.push(`Set primary color to ${intent.colorHint}`);
+      }
     }
   }
 
+  // ── SPACING ──────────────────────────────────────────────────────
+  if (intent.spacingHint === "decrease") {
+    patches.push(
+      { op: "set", path: "spacing.ratio", value: 1.18 },
+      { op: "set", path: "spacing.xs", value: "4px" },
+      { op: "set", path: "spacing.sm", value: "5px" },
+      { op: "set", path: "spacing.md", value: "6px" },
+      { op: "set", path: "spacing.lg", value: "8px" },
+      { op: "set", path: "spacing.xl", value: "10px" },
+    );
+    description.push("Reduced spacing");
+  } else if (intent.spacingHint === "increase") {
+    patches.push(
+      { op: "set", path: "spacing.ratio", value: 1.5 },
+      { op: "set", path: "spacing.xs", value: "6px" },
+      { op: "set", path: "spacing.sm", value: "10px" },
+      { op: "set", path: "spacing.md", value: "16px" },
+      { op: "set", path: "spacing.lg", value: "24px" },
+      { op: "set", path: "spacing.xl", value: "36px" },
+    );
+    description.push("Increased spacing");
+  }
+
+  // ── BORDER RADIUS ─────────────────────────────────────────────────
+  if (intent.radiusHint === "increase") {
+    patches.push(
+      { op: "set", path: "radius.sm", value: "8px" },
+      { op: "set", path: "radius.md", value: "16px" },
+      { op: "set", path: "radius.lg", value: "24px" },
+      { op: "set", path: "radius.xl", value: "32px" },
+    );
+    description.push("Made corners more rounded");
+  } else if (intent.radiusHint === "decrease") {
+    patches.push(
+      { op: "set", path: "radius.sm", value: "1px" },
+      { op: "set", path: "radius.md", value: "2px" },
+      { op: "set", path: "radius.lg", value: "4px" },
+      { op: "set", path: "radius.xl", value: "6px" },
+    );
+    description.push("Made corners sharper");
+  }
+
+  // ── BACKGROUND ─────────────────────────────────────────────────────
+  if (intent.backgroundHint === "light") {
+    patches.push(
+      { op: "set", path: "colors.background", value: "hsl(0, 0%, 98%)" },
+      { op: "set", path: "colors.surface",    value: "hsl(0, 0%, 93%)" },
+    );
+    description.push("Set light background");
+  } else if (intent.backgroundHint === "dark") {
+    patches.push(
+      { op: "set", path: "colors.background", value: "hsl(222, 15%, 5%)" },
+      { op: "set", path: "colors.surface",    value: "hsl(222, 12%, 9%)" },
+    );
+    description.push("Set dark background");
+  }
+
+  // ── GRADIENT CONTROL ───────────────────────────────────────────────
+  if (has("remove gradient", "no gradient", "remove gradients", "no gradients", "flat design", "flat colors")) {
+    patches.push({ op: "set", path: "settings.removeGradients", value: true });
+    description.push("Removed gradient effects");
+  }
+  if (has("add gradient", "use gradient", "add gradients", "use gradients")) {
+    patches.push({ op: "set", path: "settings.removeGradients", value: false });
+    description.push("Enabled gradient effects");
+  }
+
+  // ── ANIMATION ──────────────────────────────────────────────────────
   const noMotion = has("no animation", "no motion", "reduce animation", "reduce motion",
     "disable animation", "disable motion", "less animation", "static");
   if (noMotion) {
@@ -141,6 +313,7 @@ export function parseNLCommand(input: string): ParseResult {
     description.push("Reduced animation speed");
   }
 
+  // ── ICONS ──────────────────────────────────────────────────────────
   const noIcons = has("standard icon", "neutral icon", "disable icon", "plain icon",
     "no custom icon", "disable custom icon", "remove icon", "simple icon");
   if (noIcons) {
@@ -158,8 +331,9 @@ export function parseNLCommand(input: string): ParseResult {
     description.push("Using conservative design defaults");
   }
 
-  const isAccessible = has("accessible", "more readable", "legible", "large text", "bigger text");
-  if (isAccessible) {
+  // ── ACCESSIBILITY ──────────────────────────────────────────────────
+  const isAccessible = has("accessible", "more readable", "legible");
+  if (isAccessible && intent.textSizeHint !== "increase") {
     patches.push(
       { op: "set", path: "typography.sizes.base", value: "18px" },
       { op: "set", path: "typography.sizes.sm",   value: "15px" },
@@ -167,6 +341,7 @@ export function parseNLCommand(input: string): ParseResult {
     description.push("Improved accessibility — larger base text size");
   }
 
+  // ── INDUSTRY CONSTRAINTS ───────────────────────────────────────────
   if (intent.industry === "saas" && !intent.productType) {
     patches.push(
       { op: "set", path: "settings.industry", value: "saas" },
@@ -179,7 +354,10 @@ export function parseNLCommand(input: string): ParseResult {
   }
 
   if (patches.length === 0 && !intent.productType) {
-    description.push("No recognized changes found. Try: 'use blue as primary', 'make it minimal', 'turn this into a cloud storage platform', 'make it futuristic'.");
+    description.push(
+      "No recognized changes found. Try: 'use blue', 'make it minimal', 'use Inter font', " +
+      "'make the logo white', 'round the corners', 'increase spacing', 'larger text'."
+    );
   }
 
   return { patches, description, productType: intent.productType, intent };

@@ -1009,16 +1009,34 @@ export default function ProjectPage() {
   }, [activeGenome, project?.font, project?.themeColor, project?.logoUrl, effectiveProductType]);
 
   const handleRegenerateStyle = useCallback(async () => {
-    if (!project?.seed) return;
+    if (!project?.id) return;
     setIsRegenerating(true);
-    const nextIteration = iteration + 1;
-    const newSeed = await deriveSeed(project.seed, nextIteration);
-    const newGenome = generateGenome(newSeed);
-    setActiveSeed(newSeed);
-    setActiveGenome(newGenome);
-    setIteration(nextIteration);
-    setIsRegenerating(false);
-  }, [project?.seed, iteration]);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/project/${project.id}/regenerate-style`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newGenome = data.genome ?? (data.project?.genomeJson ? JSON.parse(data.project.genomeJson) : null);
+        if (newGenome) {
+          setActiveGenome(newGenome);
+          setActiveSeed(data.styleSeed ?? data.project?.styleSeed ?? project.seed);
+          setIteration(prev => prev + 1);
+          queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+        }
+      }
+    } catch (err) {
+      console.error("Style regeneration failed:", err);
+    } finally {
+      setIsRegenerating(false);
+    }
+  }, [project?.id, params.id, getToken]);
 
   const handleRegenerateLayout = useCallback(async () => {
     if (!project?.seed || project.layoutLocked) return;
@@ -1026,11 +1044,11 @@ export default function ProjectPage() {
     const nextIteration = iteration + 1;
     const newSeed = await deriveSeed(project.seed, nextIteration);
     const newLayout = generateLayout(newSeed);
-    setActiveSeed(newSeed);
+    setActiveSeed(project.styleSeed ?? newSeed);
     setActiveLayout(newLayout);
     setIteration(nextIteration);
     setIsRegeneratingLayout(false);
-  }, [project?.seed, project?.layoutLocked, iteration]);
+  }, [project?.seed, project?.styleSeed, project?.layoutLocked, iteration]);
 
   const layoutLockMutation = useMutation({
     mutationFn: async (locked: boolean) => {

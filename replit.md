@@ -11,11 +11,24 @@ Key features:
 - Deterministic seed generation (SHA-256 hash) per project
 - Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
 - Dashboard for listing user projects (public, tagline shown for guests)
-- Project editor: two-panel layout with live GenomePreview + two separate regeneration controls: "Regenerate Style" (changes genome/colors only, keeps layout) and "Regenerate Layout" (changes layout structure, can be locked)
+- Project editor: two-panel layout with live GenomePreview + two separate regeneration controls: "Regenerate Style" (calls backend with randomUUID entropy → truly unique per click) and "Regenerate Layout" (uses layout seed + iteration counter)
 - Layout Lock: lock/unlock toggle per project — locked layout cannot be regenerated or overwritten by NL commands
-- NL Design Editor: intent-based natural language editor — understands product types ("make this a cloud storage platform"), styles ("futuristic"), and colors ("use blue as primary"); respects layoutLocked flag
+- Style vs Layout Separation: `styleSeed` column tracks evolving style seed; `seed` column tracks immutable layout seed; each regeneration path is fully independent
+- Style Regeneration History: last 5 genome signatures (hue-bucket + font) stored in `previousGenomesJson`; regeneration avoids repeating recent designs (up to 5 attempts)
+- Design Variation Engine: genome now generates `variation` object with `colorMode` (vibrant/muted/pastel/deep/neon), `spacingMode` (tight/balanced/spacious/airy), `surfaceStyle`, `buttonStyle` (rounded/pill/sharp/soft), `cardStyle`; 30 font pairs total
+- NL Design Editor — expanded command support:
+  - Logo color: "make the logo white", "change logo color to blue"
+  - Fonts: "use Inter font", "use serif", "use monospace", "use Poppins" (30+ font name mappings)
+  - Heading weight: "make headings bold"
+  - Letter spacing: "increase letter spacing"
+  - Text size: "larger text", "smaller text"
+  - Spacing: "reduce spacing", "increase spacing", "reduce padding"
+  - Border radius: "rounded corners", "sharp corners", "pill buttons"
+  - Background: "light background", "dark background"
+  - Gradients: "remove gradients", "no gradients"
+- Branding tokens: `genome.branding.logoColor/logoFont/logoWeight` — GenomeNavbar applies these to logo text and icon color
 - Design Source Priority: user's uploaded logo, selected font, selected primary color always override generator output via `mergeDesignSources()` in `shared/designMerger.ts`
-- Content Generator: category-specific headlines, subheadlines, CTA labels, and nav links from `shared/contentGenerator.ts` — 14 product types each with realistic copy
+- Content Generator: category-specific headlines, subheadlines, CTA labels, features, stats, testimonials, CTA copy, and footer taglines from `shared/contentGenerator.ts` — 14 product types each with realistic copy
 - No "AI-Generated Design" labels — preview looks like a real product website
 - Product Context Engine: 14 product types (cloud_storage, chat_app, analytics_dashboard, ecommerce, project_management, crm, social_media, saas_generic, developer_tool, video_platform, fintech, healthcare, education, calendar_scheduling) each with specific UI components
 - Context Library: `shared/contextLibrary.json` defines product types, keywords, and component sets — easily extensible

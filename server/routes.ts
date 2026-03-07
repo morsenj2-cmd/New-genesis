@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { clerkMiddleware, getAuth } from "@clerk/express";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import archiver from "archiver";
 import { storage } from "./storage";
 import { createProjectSchema } from "@shared/schema";
@@ -214,6 +214,88 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error applying NL command:", err);
       res.status(500).json({ message: "Failed to apply command" });
+    }
+  });
+
+  app.post("/api/project/:id/regenerate-style", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const previousGenomes: string[] = project.previousGenomesJson
+        ? JSON.parse(project.previousGenomesJson)
+        : [];
+
+      const currentStyleSeed = project.styleSeed ?? project.seed;
+      const currentGenomeJson = project.genomeJson;
+
+      let newStyleSeed = "";
+      let newGenome: Record<string, unknown> | null = null;
+      let attempts = 0;
+
+      while (attempts < 5) {
+        const entropy = `${randomUUID()}-${Date.now()}`;
+        newStyleSeed = createHash("sha256").update(`${currentStyleSeed}${entropy}`).digest("hex");
+        const candidate = generateGenome(newStyleSeed) as Record<string, unknown>;
+
+        const candidateHue = (candidate.colors as any)?.hues?.primary ?? 0;
+        const candidateFont = (candidate.typography as any)?.heading ?? "";
+        const candidateSig = `${Math.round(candidateHue / 30) * 30}-${candidateFont}`;
+
+        const isTooSimilar = previousGenomes.slice(-4).some(sig => sig === candidateSig);
+        if (!isTooSimilar) {
+          newGenome = candidate;
+          break;
+        }
+        attempts++;
+      }
+
+      if (!newGenome) {
+        const entropy = `${randomUUID()}-${Date.now()}-final`;
+        newStyleSeed = createHash("sha256").update(`${currentStyleSeed}${entropy}`).digest("hex");
+        newGenome = generateGenome(newStyleSeed) as Record<string, unknown>;
+      }
+
+      const currentSettings = parseSettings(project.settingsJson);
+      newGenome = maybeApplyIndustryConstraints(newGenome as any, currentSettings) as any;
+
+      const effectiveProductType = project.productType
+        ?? (parseSettings(project.settingsJson) as any).productType
+        ?? undefined;
+
+      newGenome = mergeDesignSources(newGenome as any, {
+        selectedFont: project.font,
+        selectedPrimaryColor: project.themeColor,
+        uploadedLogoUrl: project.logoUrl,
+        productType: effectiveProductType,
+      }) as any;
+
+      const genHue = (newGenome.colors as any)?.hues?.primary ?? 0;
+      const genFont = (newGenome.typography as any)?.heading ?? "";
+      const sig = `${Math.round(genHue / 30) * 30}-${genFont}`;
+      const updatedHistory = [...previousGenomes.slice(-4), sig];
+
+      if (currentGenomeJson) {
+        const prevHue = (JSON.parse(currentGenomeJson).colors as any)?.hues?.primary ?? 0;
+        const prevFont = (JSON.parse(currentGenomeJson).typography as any)?.heading ?? "";
+        const prevSig = `${Math.round(prevHue / 30) * 30}-${prevFont}`;
+        if (!updatedHistory.includes(prevSig)) {
+          updatedHistory.unshift(prevSig);
+        }
+      }
+
+      const updated = await storage.updateProject(project.id, userId!, {
+        genomeJson: JSON.stringify(newGenome),
+        styleSeed: newStyleSeed,
+        previousGenomesJson: JSON.stringify(updatedHistory.slice(-5)),
+      });
+
+      res.json({ project: updated, styleSeed: newStyleSeed, genome: newGenome });
+    } catch (err) {
+      console.error("Error regenerating style:", err);
+      res.status(500).json({ message: "Failed to regenerate style" });
     }
   });
 

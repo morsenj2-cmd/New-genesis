@@ -1,0 +1,258 @@
+Modify the existing project only. Do not recreate the application and do not touch Clerk authentication or the Neon database configuration.
+
+Goals
+
+1. Accept a wide range of natural language commands.
+2. Allow editing of any design token (logo color, font, spacing, etc.).
+3. Fix style regeneration so it produces truly new designs instead of cycling between a few.
+4. Ensure style changes never modify layout.
+
+------------------------------------------------
+1. EXPAND NATURAL LANGUAGE PARSER
+------------------------------------------------
+
+The current NL parser only detects a few hardcoded commands.
+
+Rewrite /lib/nlParser.ts.
+
+Instead of strict phrase matching, implement keyword extraction.
+
+Process
+
+1. Normalize text
+2. tokenize
+3. detect entities
+
+Entities to detect:
+
+colors
+fonts
+logo
+typography
+spacing
+layout
+animations
+icons
+sections
+
+Example commands that must work:
+
+"make the Morse logo white"
+"change the logo color to white"
+"make the headline font serif"
+"use inter font"
+"make the text larger"
+"reduce spacing"
+"make buttons rounded"
+"remove gradients"
+"use blue theme"
+"make background light"
+"make navbar sticky"
+"reduce padding"
+
+Parser output must return JSON patches.
+
+Example
+
+Input
+"make the Morse logo white"
+
+Output
+
+{
+op: "set",
+path: "branding.logoColor",
+value: "#ffffff"
+}
+
+------------------------------------------------
+2. LOGO STYLE CONTROL
+------------------------------------------------
+
+Add branding object to project.
+
+project.branding = {
+logoColor
+logoFont
+logoSize
+logoWeight
+}
+
+Update components
+
+/components/ui/Navbar.tsx
+/components/ui/Hero.tsx
+
+Render logic
+
+logo text color = branding.logoColor
+logo font = branding.logoFont
+
+Example command
+
+"make the Morse logo white"
+
+must update branding.logoColor.
+
+------------------------------------------------
+3. FONT CONTROL
+------------------------------------------------
+
+Add typography tokens.
+
+genome.typography = {
+fontFamily
+headingWeight
+bodyWeight
+letterSpacing
+}
+
+NL parser must support commands like:
+
+"use inter font"
+"use serif font"
+"make headings bold"
+"increase letter spacing"
+
+------------------------------------------------
+4. STYLE REGENERATION FIX
+------------------------------------------------
+
+The generator currently cycles between a few genomes.
+
+Cause:
+seed reuse.
+
+Fix:
+
+Each style regeneration must mutate the seed.
+
+Old
+
+seed = project.seed
+
+New
+
+seed = hash(project.seed + timestamp + randomEntropy)
+
+Add entropy source.
+
+Example
+
+crypto.randomUUID()
+
+Update file
+
+/lib/genomeGenerator.ts
+
+------------------------------------------------
+5. DESIGN VARIATION ENGINE
+------------------------------------------------
+
+Introduce variation dimension.
+
+Genome generation must vary:
+
+color system
+typography scale
+spacing rhythm
+border radius scale
+button styles
+card elevation
+background treatment
+
+Ensure variation space is large enough so designs do not repeat.
+
+Add variation object
+
+genome.variation = {
+colorMode
+spacingMode
+surfaceStyle
+buttonStyle
+cardStyle
+}
+
+------------------------------------------------
+6. STYLE REGENERATION HISTORY
+------------------------------------------------
+
+Prevent repeating designs.
+
+Store previous genomes.
+
+Database column
+
+previous_genomes JSON[]
+
+Before saving a new genome
+
+compare with last 5 genomes.
+
+If identical
+regenerate.
+
+------------------------------------------------
+7. STYLE VS LAYOUT SEPARATION
+------------------------------------------------
+
+Ensure regenerate style does not change layout.
+
+Files
+
+/lib/layoutEngine.ts
+/lib/genomeGenerator.ts
+
+Layout depends only on
+
+layout_seed
+
+Style depends on
+
+style_seed
+
+Add fields
+
+project.layout_seed
+project.style_seed
+
+------------------------------------------------
+8. PROMPT UNDERSTANDING IMPROVEMENT
+------------------------------------------------
+
+Update promptParser.
+
+Detect objects in prompt.
+
+Example
+
+"change the morse logo to white"
+
+entities
+
+object: logo
+property: color
+value: white
+
+Mapping rules
+
+logo + color -> branding.logoColor
+text + font -> typography.fontFamily
+background + color -> genome.colors.background
+button + shape -> genome.radius.button
+
+------------------------------------------------
+9. RESULT
+------------------------------------------------
+
+After this update
+
+the system must:
+
+accept many natural language commands
+allow logo styling
+allow font styling
+allow spacing changes
+generate genuinely new styles every regeneration
+avoid style loops
+preserve layout during style changes

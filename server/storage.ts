@@ -12,6 +12,8 @@ export interface IStorage {
     name: string;
     prompt: string;
     seed: string;
+    styleSeed?: string;
+    previousGenomesJson?: string;
     font?: string;
     fontUrl?: string;
     themeColor?: string;
@@ -28,6 +30,8 @@ export interface IStorage {
     settingsJson?: string;
     productType?: string;
     layoutLocked?: boolean;
+    styleSeed?: string;
+    previousGenomesJson?: string;
   }): Promise<Project | undefined>;
   deleteProject(id: string, userId: string): Promise<void>;
 }
@@ -61,6 +65,8 @@ export class DatabaseStorage implements IStorage {
     name: string;
     prompt: string;
     seed: string;
+    styleSeed?: string;
+    previousGenomesJson?: string;
     font?: string;
     fontUrl?: string;
     themeColor?: string;
@@ -84,6 +90,8 @@ export class DatabaseStorage implements IStorage {
       settingsJson?: string;
       productType?: string;
       layoutLocked?: boolean;
+      styleSeed?: string;
+      previousGenomesJson?: string;
     },
   ): Promise<Project | undefined> {
     const [updated] = await db

@@ -1,3 +1,18 @@
+export interface BrandingTokens {
+  logoColor?: string;
+  logoFont?: string;
+  logoSize?: string;
+  logoWeight?: number;
+}
+
+export interface VariationTokens {
+  colorMode: "vibrant" | "muted" | "pastel" | "deep" | "neon";
+  spacingMode: "tight" | "balanced" | "spacious" | "airy";
+  surfaceStyle: "flat" | "layered" | "glass" | "elevated";
+  buttonStyle: "rounded" | "pill" | "sharp" | "soft";
+  cardStyle: "bordered" | "filled" | "minimal" | "elevated";
+}
+
 export interface DesignGenome {
   colors: {
     primary: string;
@@ -21,6 +36,8 @@ export interface DesignGenome {
       "2xl": string;
       "3xl": string;
     };
+    headingWeight?: number;
+    letterSpacing?: string;
   };
   spacing: {
     xs: string;
@@ -54,6 +71,8 @@ export interface DesignGenome {
     easing: string;
     easingName: string;
   };
+  variation?: VariationTokens;
+  branding?: BrandingTokens;
 }
 
 const FONT_PAIRS: [string, string][] = [
@@ -67,6 +86,26 @@ const FONT_PAIRS: [string, string][] = [
   ["Space Grotesk", "IBM Plex Sans"],
   ["Plus Jakarta Sans", "Inter"],
   ["IBM Plex Sans", "Poppins"],
+  ["Outfit", "Outfit"],
+  ["DM Sans", "DM Sans"],
+  ["Manrope", "Manrope"],
+  ["Geist", "Geist"],
+  ["Syne", "Syne"],
+  ["Playfair Display", "Lora"],
+  ["Cormorant", "Raleway"],
+  ["Fraunces", "Source Sans 3"],
+  ["Libre Baskerville", "Libre Baskerville"],
+  ["Merriweather", "Open Sans"],
+  ["Space Mono", "Space Grotesk"],
+  ["JetBrains Mono", "Inter"],
+  ["Roboto Mono", "Roboto"],
+  ["Fira Code", "Fira Sans"],
+  ["Nunito", "Nunito"],
+  ["Quicksand", "Quicksand"],
+  ["Rubik", "Rubik"],
+  ["Work Sans", "Work Sans"],
+  ["Karla", "Karla"],
+  ["Cabin", "Cabin"],
 ];
 
 const MONO_FONTS = [
@@ -97,6 +136,12 @@ const EASING_CURVES = [
   { curve: "cubic-bezier(0.87, 0, 0.13, 1)", name: "Expo In-Out" },
 ];
 
+const COLOR_MODES: VariationTokens["colorMode"][] = ["vibrant", "muted", "pastel", "deep", "neon"];
+const SPACING_MODES: VariationTokens["spacingMode"][] = ["tight", "balanced", "spacious", "airy"];
+const SURFACE_STYLES: VariationTokens["surfaceStyle"][] = ["flat", "layered", "glass", "elevated"];
+const BUTTON_STYLES: VariationTokens["buttonStyle"][] = ["rounded", "pill", "sharp", "soft"];
+const CARD_STYLES: VariationTokens["cardStyle"][] = ["bordered", "filled", "minimal", "elevated"];
+
 function hsl(h: number, s: number, l: number): string {
   return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
 }
@@ -117,33 +162,48 @@ export function generateGenome(
 
   const s = seed.toLowerCase().padEnd(64, "0");
 
-  // Extract a number from a hex segment. Always deterministic.
   const n = (offset: number, len = 2): number =>
     parseInt(s.slice(offset, offset + len), 16);
+
+  // ── VARIATION DIMENSIONS ─────────────────────────────────────
+  const colorMode = COLOR_MODES[n(46) % COLOR_MODES.length];
+  const spacingMode = SPACING_MODES[n(48) % SPACING_MODES.length];
+  const surfaceStyle = SURFACE_STYLES[n(50) % SURFACE_STYLES.length];
+  const buttonStyle = BUTTON_STYLES[n(52) % BUTTON_STYLES.length];
+  const cardStyle = CARD_STYLES[n(54) % CARD_STYLES.length];
 
   // ── COLORS ────────────────────────────────────────────────────
   const primaryHue = n(0, 4) % 360;
   const secondaryHue = (primaryHue + HUE_OFFSETS[n(4) % HUE_OFFSETS.length]) % 360;
   const accentHue = (primaryHue + HUE_OFFSETS[n(6) % HUE_OFFSETS.length] + 60) % 360;
 
-  const primarySat = 55 + (n(8) % 35);    // 55–90
-  const primaryLight = 44 + (n(10) % 18); // 44–62
+  // Vary saturation/lightness by color mode
+  let satBoost = 0;
+  let lightShift = 0;
+  if (colorMode === "vibrant") { satBoost = 15; lightShift = 3; }
+  else if (colorMode === "muted") { satBoost = -15; lightShift = 0; }
+  else if (colorMode === "pastel") { satBoost = -20; lightShift = 15; }
+  else if (colorMode === "deep") { satBoost = 10; lightShift = -8; }
+  else if (colorMode === "neon") { satBoost = 25; lightShift = 5; }
 
-  const secondarySat = 45 + (n(12) % 35); // 45–80
-  const secondaryLight = 38 + (n(14) % 22); // 38–60
+  const primarySat = Math.max(30, Math.min(95, 55 + (n(8) % 35) + satBoost));
+  const primaryLight = Math.max(30, Math.min(75, 44 + (n(10) % 18) + lightShift));
 
-  const accentSat = 65 + (n(16) % 25);    // 65–90
-  const accentLight = 48 + (n(18) % 16);  // 48–64
+  const secondarySat = Math.max(25, Math.min(90, 45 + (n(12) % 35) + satBoost));
+  const secondaryLight = Math.max(25, Math.min(72, 38 + (n(14) % 22) + lightShift));
 
-  const bgLightness = 3 + (n(20) % 7);    // 3–10
-  const surfLightness = bgLightness + 4 + (n(22) % 5); // +4–9
+  const accentSat = Math.max(40, Math.min(100, 65 + (n(16) % 25) + satBoost));
+  const accentLight = Math.max(35, Math.min(78, 48 + (n(18) % 16) + lightShift));
+
+  const bgLightness = 3 + (n(20) % 7);
+  const surfLightness = bgLightness + 4 + (n(22) % 5);
 
   // ── TYPOGRAPHY ────────────────────────────────────────────────
-  const pair = FONT_PAIRS[n(24) % FONT_PAIRS.length];
+  const pair = FONT_PAIRS[n(24, 2) % FONT_PAIRS.length];
   const monoFont = MONO_FONTS[n(26) % MONO_FONTS.length];
   const scaleEntry = SCALE_RATIOS[n(28) % SCALE_RATIOS.length];
   const ratio = scaleEntry.ratio;
-  const baseSize = 16; // px
+  const baseSize = 16;
 
   const typeSizes = {
     xs: `${(baseSize * Math.pow(ratio, -2)).toFixed(2)}px`,
@@ -157,21 +217,30 @@ export function generateGenome(
 
   // ── SPACING ───────────────────────────────────────────────────
   const spacingBase = 4;
-  const spacingRatio = 1.2 + (n(30) % 20) / 100; // 1.20–1.39
+  let spacingRatioBase = 1.2 + (n(30) % 20) / 100;
+  // Vary by spacing mode
+  if (spacingMode === "tight") spacingRatioBase = Math.max(1.15, spacingRatioBase - 0.08);
+  else if (spacingMode === "spacious") spacingRatioBase = Math.min(1.5, spacingRatioBase + 0.1);
+  else if (spacingMode === "airy") spacingRatioBase = Math.min(1.6, spacingRatioBase + 0.2);
+  const spacingRatio = spacingRatioBase;
   const sp = (exp: number) => `${Math.round(spacingBase * Math.pow(spacingRatio, exp))}px`;
 
   // ── BORDER RADIUS ─────────────────────────────────────────────
-  const baseRadius = 4 + (n(32) % 17); // 4–20
+  let baseRadius = 4 + (n(32) % 17);
+  // Vary by button style
+  if (buttonStyle === "pill") baseRadius = Math.min(32, baseRadius + 12);
+  else if (buttonStyle === "sharp") baseRadius = Math.min(4, Math.max(1, baseRadius - 6));
+  else if (buttonStyle === "soft") baseRadius = Math.min(16, baseRadius + 4);
 
   // ── ICON STYLE ────────────────────────────────────────────────
   const strokeWidths = [1, 1.5, 2, 2.5];
   const strokeWidth = strokeWidths[n(34) % strokeWidths.length];
-  const cornerRoundness = n(36) % 101;                               // 0–100
+  const cornerRoundness = n(36) % 101;
   const geometryBias: "geometric" | "organic" = n(38) % 2 === 0 ? "geometric" : "organic";
   const variant: "outline" | "filled" = n(40) % 2 === 0 ? "outline" : "filled";
 
   // ── MOTION ───────────────────────────────────────────────────
-  const durationBase = 150 + (n(42) % 201); // 150–350 ms
+  const durationBase = 150 + (n(42) % 201);
   const easingEntry = EASING_CURVES[n(44) % EASING_CURVES.length];
 
   return {
@@ -201,7 +270,7 @@ export function generateGenome(
       ratio: Math.round(spacingRatio * 1000) / 1000,
     },
     radius: {
-      sm: `${Math.max(2, Math.round(baseRadius * 0.5))}px`,
+      sm: `${Math.max(1, Math.round(baseRadius * 0.5))}px`,
       md: `${baseRadius}px`,
       lg: `${Math.round(baseRadius * 1.5)}px`,
       xl: `${Math.round(baseRadius * 2)}px`,
@@ -221,6 +290,13 @@ export function generateGenome(
       },
       easing: easingEntry.curve,
       easingName: easingEntry.name,
+    },
+    variation: {
+      colorMode,
+      spacingMode,
+      surfaceStyle,
+      buttonStyle,
+      cardStyle,
     },
   };
 }
