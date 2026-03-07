@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useUser, useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import {
   SidebarProvider,
@@ -77,22 +77,65 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
-function EmptyState() {
+function GuestHero({ onCreateClick }: { onCreateClick: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
+      <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-8">
+        <Dna className="h-8 w-8 text-primary" />
+      </div>
+      <h2
+        className="text-3xl font-bold text-foreground mb-4 leading-tight max-w-md"
+        style={{ fontFamily: "'Arimo', sans-serif" }}
+        data-testid="text-hero-tagline"
+      >
+        Build unique website designs in minutes
+      </h2>
+      <p
+        className="text-lg text-muted-foreground mb-10"
+        style={{ fontFamily: "'Arimo', sans-serif" }}
+        data-testid="text-hero-sub"
+      >
+        No code needed!
+      </p>
+      <Button
+        onClick={onCreateClick}
+        size="lg"
+        className="gap-2 px-8"
+        data-testid="button-guest-create"
+      >
+        <Plus className="h-5 w-5" />
+        Create a project
+      </Button>
+    </div>
+  );
+}
+
+function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
       <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
         <Dna className="h-8 w-8 text-primary" />
       </div>
-      <h3 className="text-xl font-semibold text-foreground mb-2">No projects yet</h3>
-      <p className="text-muted-foreground text-sm max-w-sm mb-8 leading-relaxed">
-        Create your first project to get started. You'll set up your brand and describe what you want to build.
+      <h2
+        className="text-3xl font-bold text-foreground mb-4 leading-tight max-w-md"
+        style={{ fontFamily: "'Arimo', sans-serif" }}
+        data-testid="text-hero-tagline-auth"
+      >
+        Build unique website designs in minutes
+      </h2>
+      <p
+        className="text-lg text-muted-foreground mb-8"
+        style={{ fontFamily: "'Arimo', sans-serif" }}
+      >
+        No code needed!
       </p>
-      <Link href="/new">
-        <Button data-testid="button-new-project-empty" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Start a project
-        </Button>
-      </Link>
+      <p className="text-muted-foreground text-sm max-w-sm mb-8 leading-relaxed">
+        Create your first project to get started. Set up your brand and describe what you want to build.
+      </p>
+      <Button onClick={onCreateClick} data-testid="button-new-project-empty" className="gap-2">
+        <Plus className="h-4 w-4" />
+        Start a project
+      </Button>
     </div>
   );
 }
@@ -123,10 +166,11 @@ function ProjectGridSkeleton() {
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
-  const { getToken } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
+  const [, navigate] = useLocation();
 
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !user || !isSignedIn) return;
     const email = user.primaryEmailAddress?.emailAddress;
     if (!email) return;
     getToken().then((token) => {
@@ -140,11 +184,22 @@ export default function DashboardPage() {
         credentials: "include",
       }).catch(console.error);
     });
-  }, [isLoaded, user]);
+  }, [isLoaded, user, isSignedIn]);
 
   const { data: projects, isLoading } = useQuery<Project[]>({
     queryKey: ["/api/project/list"],
+    enabled: !!isSignedIn,
   });
+
+  const handleCreateClick = () => {
+    if (isSignedIn) {
+      navigate("/new");
+    } else {
+      navigate("/sign-in?redirect=%2Fnew");
+    }
+  };
+
+  const projectCount = projects?.length ?? 0;
 
   return (
     <SidebarProvider>
@@ -156,24 +211,30 @@ export default function DashboardPage() {
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div>
                 <h1 className="text-lg font-semibold text-foreground">Projects</h1>
-                <p className="text-xs text-muted-foreground">
-                  {isLoading ? "Loading..." : `${projects?.length ?? 0} project${(projects?.length ?? 0) !== 1 ? "s" : ""}`}
-                </p>
+                {isSignedIn && (
+                  <p className="text-xs text-muted-foreground">
+                    {isLoading ? "Loading..." : `${projectCount} project${projectCount !== 1 ? "s" : ""}`}
+                  </p>
+                )}
               </div>
             </div>
-            <Link href="/new">
-              <Button data-testid="button-new-project" className="gap-2">
-                <Plus className="h-4 w-4" />
-                New Project
-              </Button>
-            </Link>
+            <Button
+              onClick={handleCreateClick}
+              data-testid="button-new-project"
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
           </header>
 
           <main className="flex-1 overflow-y-auto p-6">
-            {isLoading ? (
+            {!isSignedIn && isLoaded ? (
+              <GuestHero onCreateClick={handleCreateClick} />
+            ) : isLoading ? (
               <ProjectGridSkeleton />
             ) : !projects || projects.length === 0 ? (
-              <EmptyState />
+              <EmptyState onCreateClick={handleCreateClick} />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projects.map((project) => (

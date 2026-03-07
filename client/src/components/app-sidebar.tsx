@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { UserButton } from "@clerk/react";
+import { useAuth, UserButton } from "@clerk/react";
 import {
   Sidebar,
   SidebarContent,
@@ -11,7 +11,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LayoutDashboard, Plus, LogIn } from "lucide-react";
 import logoPath from "@assets/--._1772868829725.png";
 
 const navItems = [
@@ -20,7 +21,15 @@ const navItems = [
 ];
 
 export function AppSidebar() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const { isSignedIn, isLoaded } = useAuth();
+
+  const handleNewProject = (e: React.MouseEvent) => {
+    if (!isSignedIn) {
+      e.preventDefault();
+      navigate("/sign-in?redirect=%2Fnew");
+    }
+  };
 
   return (
     <Sidebar>
@@ -48,7 +57,11 @@ export function AppSidebar() {
                       data-active={isActive}
                       className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
                     >
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(" ", "-")}`}>
+                      <Link
+                        href={item.url}
+                        data-testid={`nav-${item.title.toLowerCase().replace(" ", "-")}`}
+                        onClick={item.url === "/new" ? handleNewProject : undefined}
+                      >
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </Link>
@@ -62,16 +75,29 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <UserButton
-            afterSignOutUrl="/sign-in"
-            appearance={{ elements: { avatarBox: "h-8 w-8" } }}
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-sidebar-foreground truncate">Account</p>
-            <p className="text-xs text-muted-foreground">Manage profile</p>
+        {isLoaded && isSignedIn ? (
+          <div className="flex items-center gap-3">
+            <UserButton
+              afterSignOutUrl="/dashboard"
+              appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-sidebar-foreground truncate">Account</p>
+              <p className="text-xs text-muted-foreground">Manage profile</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2"
+            onClick={() => navigate("/sign-in")}
+            data-testid="button-sidebar-signin"
+          >
+            <LogIn className="h-4 w-4" />
+            Sign in
+          </Button>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

@@ -39,14 +39,14 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   return <Component />;
 }
 
-function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+function AuthRedirect({ component: Component }: { component: React.ComponentType }) {
   const { isLoaded, isSignedIn } = useAuth();
   const [, navigate] = useLocation();
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       const params = new URLSearchParams(window.location.search);
-      navigate(params.get("redirect") || "/dashboard");
+      navigate(params.get("redirect") || "/dashboard", { replace: true });
     }
   }, [isLoaded, isSignedIn]);
 
@@ -56,14 +56,10 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
 }
 
 function RootRedirect() {
-  const { isLoaded, isSignedIn } = useAuth();
   const [, navigate] = useLocation();
-
   useEffect(() => {
-    if (!isLoaded) return;
-    navigate(isSignedIn ? "/dashboard" : "/sign-in", { replace: true });
-  }, [isLoaded, isSignedIn]);
-
+    navigate("/dashboard", { replace: true });
+  }, []);
   return <LoadingScreen />;
 }
 
@@ -71,9 +67,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={RootRedirect} />
-      <Route path="/sign-in" component={() => <PublicRoute component={SignInPage} />} />
-      <Route path="/sign-up" component={() => <PublicRoute component={SignUpPage} />} />
-      <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
+      <Route path="/sign-in" component={() => <AuthRedirect component={SignInPage} />} />
+      <Route path="/sign-up" component={() => <AuthRedirect component={SignUpPage} />} />
+      <Route path="/dashboard" component={DashboardPage} />
       <Route path="/new" component={() => <ProtectedRoute component={NewProjectPage} />} />
       <Route path="/project/:id" component={() => <ProtectedRoute component={ProjectPage} />} />
       <Route component={NotFound} />
