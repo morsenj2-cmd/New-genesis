@@ -33,11 +33,18 @@ import {
   AlignCenter,
   AlignRight,
   Columns,
+  RefreshCw,
+  Layers,
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import type { Project } from "@shared/schema";
 import type { DesignGenome } from "@shared/genomeGenerator";
+import { generateGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
+import { generateLayout } from "@shared/layoutEngine";
 import {
   renderIconSvgContent,
   GROUP_ICONS,
@@ -627,6 +634,242 @@ function ProjectSkeleton() {
   );
 }
 
+async function deriveSeed(baseSeed: string, iteration: number): Promise<string> {
+  const text = `${baseSeed}:${iteration}`;
+  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const SECTION_LABELS: Record<string, string> = {
+  hero: "Hero",
+  featureGrid: "Feature Grid",
+  cardList: "Card List",
+  stats: "Stats",
+  testimonial: "Testimonials",
+  cta: "Call to Action",
+  footer: "Footer",
+};
+
+const SECTION_COLORS: Record<string, string> = {
+  hero: "#6366f1",
+  featureGrid: "#8b5cf6",
+  cardList: "#a78bfa",
+  stats: "#f59e0b",
+  testimonial: "#10b981",
+  cta: "#ef4444",
+  footer: "#6b7280",
+};
+
+function LeftPanel({
+  project,
+  activeGenome,
+  activeLayout,
+  activeSeed,
+  iteration,
+  isRegenerating,
+  fontFamily,
+  onRegenerate,
+}: {
+  project: Project;
+  activeGenome: DesignGenome | null;
+  activeLayout: LayoutGraph | null;
+  activeSeed: string;
+  iteration: number;
+  isRegenerating: boolean;
+  fontFamily: string | undefined;
+  onRegenerate: () => void;
+}) {
+  const [showTokens, setShowTokens] = useState(false);
+
+  return (
+    <div className="w-72 border-r border-border flex flex-col overflow-hidden bg-background">
+      <div className="p-4 border-b border-border space-y-3">
+        <Button
+          className="w-full gap-2 font-medium"
+          onClick={onRegenerate}
+          disabled={isRegenerating}
+          data-testid="button-regenerate-design"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`} />
+          {isRegenerating ? "Generating…" : "Regenerate Design"}
+        </Button>
+        {iteration > 0 && (
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-xs text-muted-foreground">
+              Variation <strong className="text-foreground">{iteration}</strong>
+            </span>
+            <Badge variant="outline" className="text-xs ml-auto px-1.5 py-0">
+              +{iteration}
+            </Badge>
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+            <Dna className="h-3 w-3" /> Active Seed
+          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-xs text-muted-foreground bg-muted rounded px-2 py-1 truncate flex-1" data-testid="text-active-seed">
+              {activeSeed.slice(0, 20)}…
+            </span>
+            <CopyButton text={activeSeed} />
+          </div>
+          {iteration === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">Original seed</p>
+          )}
+        </div>
+
+        {activeLayout && (
+          <>
+            <Separator />
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Layers className="h-3 w-3" /> Layout · {activeLayout.sections.length} sections
+              </p>
+              <div className="space-y-1.5">
+                {activeLayout.sections.map((section, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+                    style={{ backgroundColor: `${SECTION_COLORS[section.type] || "#6b7280"}18` }}
+                    data-testid={`section-item-${section.type}-${i}`}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: SECTION_COLORS[section.type] || "#6b7280" }}
+                    />
+                    <span className="text-foreground font-medium flex-1">
+                      {SECTION_LABELS[section.type] || section.type}
+                    </span>
+                    {section.columns && (
+                      <span className="text-muted-foreground tabular-nums">{section.columns}col</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeGenome && (
+          <>
+            <Separator />
+            <div>
+              <button
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
+                onClick={() => setShowTokens(!showTokens)}
+                data-testid="button-toggle-tokens"
+              >
+                <Palette className="h-3 w-3" /> Design Tokens
+                {showTokens ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
+              </button>
+              {showTokens && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">Colors</p>
+                    <div className="flex gap-1.5">
+                      {Object.entries(activeGenome.colors)
+                        .filter(([k]) => k !== "hues")
+                        .map(([key, val]) => (
+                          <div
+                            key={key}
+                            className="h-6 flex-1 rounded"
+                            style={{ backgroundColor: val as string }}
+                            title={`${key}: ${val}`}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Heading</p>
+                      <p className="text-foreground truncate font-medium">{activeGenome.typography.heading}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Body</p>
+                      <p className="text-foreground truncate font-medium">{activeGenome.typography.body}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Radius</p>
+                      <p className="text-foreground font-medium">{activeGenome.radius.md}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Spacing</p>
+                      <p className="text-foreground font-medium">×{activeGenome.spacing.ratio}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Motion</p>
+                      <p className="text-foreground font-medium truncate">{activeGenome.motion.easingName}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Icons</p>
+                      <p className="text-foreground font-medium capitalize">{activeGenome.iconStyle.geometryBias}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <FileText className="h-3 w-3" /> Project
+              </p>
+              {project.logoUrl && (
+                <div className="flex items-center gap-2">
+                  <img
+                    src={project.logoUrl}
+                    alt="Logo"
+                    className="h-8 w-8 rounded object-contain border border-border"
+                    data-testid="img-sidebar-logo"
+                  />
+                  <span className="text-xs text-muted-foreground">Custom logo</span>
+                </div>
+              )}
+              {project.font && (
+                <div className="flex items-center gap-2">
+                  <Type className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <Badge variant="secondary" className="text-xs" style={fontFamily ? { fontFamily } : {}}>
+                    {project.font}
+                  </Badge>
+                </div>
+              )}
+              {project.themeColor && (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-4 w-4 rounded-full border border-border shrink-0"
+                    style={{ backgroundColor: project.themeColor }}
+                  />
+                  <span className="text-xs font-mono text-muted-foreground">{project.themeColor}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                <span data-testid="text-project-created">
+                  {format(new Date(project.createdAt), "MMM d, yyyy")}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+
+        <Separator />
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+            <Hash className="h-3 w-3" /> Original Seed
+          </p>
+          <SeedVisualization seed={project.seed} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -664,45 +907,80 @@ export default function ProjectPage() {
     ? `'ProjectFont-${project.id}', sans-serif`
     : project?.font ? `'${project.font}', sans-serif` : undefined;
 
-  const genome: DesignGenome | null = (() => {
-    if (!project?.genomeJson) return null;
-    try { return JSON.parse(project.genomeJson); } catch { return null; }
-  })();
+  const baseGenome = useMemo<DesignGenome | null>(() => {
+    if (!project?.seed) return null;
+    if (project.genomeJson) {
+      try { return JSON.parse(project.genomeJson); } catch {}
+    }
+    return generateGenome(project.seed);
+  }, [project?.seed, project?.genomeJson]);
 
-  const layout: LayoutGraph | null = (() => {
-    if (!project?.layoutJson) return null;
-    try { return JSON.parse(project.layoutJson); } catch { return null; }
-  })();
+  const baseLayout = useMemo<LayoutGraph | null>(() => {
+    if (!project?.seed) return null;
+    if (project.layoutJson) {
+      try { return JSON.parse(project.layoutJson); } catch {}
+    }
+    return generateLayout(project.seed);
+  }, [project?.seed, project?.layoutJson]);
+
+  const [activeSeed, setActiveSeed] = useState<string>("");
+  const [activeGenome, setActiveGenome] = useState<DesignGenome | null>(null);
+  const [activeLayout, setActiveLayout] = useState<LayoutGraph | null>(null);
+  const [iteration, setIteration] = useState(0);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  useEffect(() => {
+    if (project?.seed && baseGenome && baseLayout) {
+      setActiveSeed(project.seed);
+      setActiveGenome(baseGenome);
+      setActiveLayout(baseLayout);
+      setIteration(0);
+    }
+  }, [project?.seed, baseGenome, baseLayout]);
+
+  const handleRegenerate = useCallback(async () => {
+    if (!project?.seed) return;
+    setIsRegenerating(true);
+    const nextIteration = iteration + 1;
+    const newSeed = await deriveSeed(project.seed, nextIteration);
+    const newGenome = generateGenome(newSeed);
+    const newLayout = generateLayout(newSeed);
+    setActiveSeed(newSeed);
+    setActiveGenome(newGenome);
+    setActiveLayout(newLayout);
+    setIteration(nextIteration);
+    setIsRegenerating(false);
+  }, [project?.seed, iteration]);
 
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background">
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center gap-3 px-6 py-4 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
+          <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm z-10 shrink-0">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate("/dashboard")}
               data-testid="button-back"
-              className="h-8 w-8"
+              className="h-8 w-8 shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
             {isLoading ? (
-              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-5 w-40" />
             ) : project ? (
-              <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
                 {project.logoUrl && (
                   <img
                     src={project.logoUrl}
                     alt="Logo"
-                    className="h-7 w-7 rounded-md object-contain border border-border shrink-0"
+                    className="h-6 w-6 rounded object-contain border border-border shrink-0"
                   />
                 )}
                 <h1
-                  className="text-lg font-semibold text-foreground truncate"
+                  className="text-sm font-semibold text-foreground truncate"
                   style={fontFamily ? { fontFamily } : {}}
                   data-testid="header-project-name"
                 >
@@ -710,20 +988,25 @@ export default function ProjectPage() {
                 </h1>
                 {project.themeColor && (
                   <div
-                    className="h-4 w-4 rounded-full shrink-0"
+                    className="h-3.5 w-3.5 rounded-full shrink-0 border border-border/50"
                     style={{ backgroundColor: project.themeColor }}
-                    title="Theme color"
                   />
                 )}
+                <Badge variant="outline" className="text-xs gap-1 shrink-0 ml-1">
+                  <Hash className="h-2.5 w-2.5" />
+                  SHA-256
+                </Badge>
               </div>
             ) : null}
           </header>
 
-          <main className="flex-1 overflow-y-auto p-6">
-            {isLoading ? (
+          {isLoading ? (
+            <main className="flex-1 overflow-y-auto p-6">
               <ProjectSkeleton />
-            ) : error ? (
-              <div className="flex flex-col items-center justify-center h-full min-h-64 text-center">
+            </main>
+          ) : error ? (
+            <main className="flex-1 flex items-center justify-center p-6">
+              <div className="flex flex-col items-center text-center max-w-sm">
                 <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
                   <AlertCircle className="h-6 w-6 text-destructive" />
                 </div>
@@ -735,214 +1018,41 @@ export default function ProjectPage() {
                   Back to Projects
                 </Button>
               </div>
-            ) : project ? (
-              <div className="max-w-5xl mx-auto space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-1 space-y-4">
-                    <Card data-testid="card-project-details">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5" />
-                          Details
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Name</p>
-                          <p
-                            className="text-sm font-medium text-foreground"
-                            style={fontFamily ? { fontFamily } : {}}
-                            data-testid="text-project-name"
-                          >
-                            {project.name}
-                          </p>
-                        </div>
-                        <Separator />
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Created</p>
-                          <div className="flex items-center gap-1.5 text-sm text-foreground">
-                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span data-testid="text-project-created">
-                              {format(new Date(project.createdAt), "MMM d, yyyy")}
-                            </span>
-                          </div>
-                        </div>
-                        <Separator />
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">Project ID</p>
-                          <p className="text-xs font-mono text-muted-foreground break-all">
-                            {project.id}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
+            </main>
+          ) : project ? (
+            <div className="flex flex-1 overflow-hidden" data-testid="editor-layout">
+              <LeftPanel
+                project={project}
+                activeGenome={activeGenome}
+                activeLayout={activeLayout}
+                activeSeed={activeSeed || project.seed}
+                iteration={iteration}
+                isRegenerating={isRegenerating}
+                fontFamily={fontFamily}
+                onRegenerate={handleRegenerate}
+              />
 
-                    {(project.logoUrl || project.font || project.themeColor) && (
-                      <Card>
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                            <Palette className="h-3.5 w-3.5" />
-                            Brand
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          {project.logoUrl && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                                <ImageIcon className="h-3 w-3" /> Logo
-                              </p>
-                              <img
-                                src={project.logoUrl}
-                                alt="Project logo"
-                                className="h-14 w-14 rounded-lg object-contain border border-border"
-                                data-testid="img-project-logo"
-                              />
-                            </div>
-                          )}
-                          {project.font && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                                <Type className="h-3 w-3" /> Font
-                              </p>
-                              <Badge
-                                variant="secondary"
-                                className="text-xs"
-                                style={fontFamily ? { fontFamily } : {}}
-                                data-testid="badge-project-font"
-                              >
-                                {project.font}{project.fontUrl ? " (custom)" : ""}
-                              </Badge>
-                            </div>
-                          )}
-                          {project.themeColor && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                                <Palette className="h-3 w-3" /> Theme Color
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="h-6 w-6 rounded-full border border-border shrink-0"
-                                  style={{ backgroundColor: project.themeColor }}
-                                  data-testid="swatch-project-color"
-                                />
-                                <span className="text-xs font-mono text-muted-foreground">
-                                  {project.themeColor}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5" />
-                          Prompt
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-foreground leading-relaxed" data-testid="text-project-prompt">
-                          {project.prompt}
-                        </p>
-                      </CardContent>
-                    </Card>
+              <main className="flex-1 overflow-y-auto bg-muted/10" data-testid="section-website-preview">
+                {activeGenome && activeLayout ? (
+                  <div className="min-h-full">
+                    <GenomePreview
+                      genome={activeGenome}
+                      layout={activeLayout}
+                      projectName={project.name}
+                      projectPrompt={project.prompt}
+                    />
                   </div>
-
-                  <div className="lg:col-span-2 space-y-4">
-                    <Card>
-                      <CardHeader>
-                        <div className="flex items-center justify-between gap-2">
-                          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                            <Dna className="h-3.5 w-3.5" />
-                            Genome Seed
-                          </CardTitle>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs gap-1">
-                              <Hash className="h-2.5 w-2.5" />
-                              SHA-256
-                            </Badge>
-                            <CopyButton text={project.seed} />
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div
-                          className="bg-muted rounded-lg p-4 font-mono text-xs text-muted-foreground break-all select-all"
-                          data-testid="text-project-seed"
-                        >
-                          {project.seed}
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-3">Visualization</p>
-                          <SeedVisualization seed={project.seed} />
-                        </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          This deterministic seed is a SHA-256 hash generated from your account and project data at creation time. It produces the same output every time it&apos;s used.
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    {genome ? (
-                      <>
-                        <GenomePanel genome={genome} />
-                        <IconFamilyPanel
-                          iconStyle={genome.iconStyle}
-                          primaryColor={genome.colors.primary}
-                        />
-                      </>
-                    ) : (
-                      <Card className="border-dashed">
-                        <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                          <Dna className="h-8 w-8 text-muted-foreground mb-3" />
-                          <p className="text-sm text-muted-foreground">
-                            No genome data — this project was created before genome generation was added.
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {layout ? (
-                      <LayoutPanel layout={layout} />
-                    ) : (
-                      <Card className="border-dashed">
-                        <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                          <LayoutTemplate className="h-8 w-8 text-muted-foreground mb-3" />
-                          <p className="text-sm text-muted-foreground">
-                            No layout data — this project was created before layout generation was added.
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                </div>
-
-                {genome && layout && (
-                  <div data-testid="section-website-preview">
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                          <LayoutTemplate className="h-3.5 w-3.5" />
-                          Website Preview
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-3">
-                        <div className="overflow-y-auto max-h-[640px] rounded-lg">
-                          <GenomePreview
-                            genome={genome}
-                            layout={layout}
-                            projectName={project.name}
-                            projectPrompt={project.prompt}
-                          />
-                        </div>
-                      </CardContent>
-                    </Card>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full min-h-64 p-8 text-center">
+                    <Dna className="h-10 w-10 text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      Preview loading…
+                    </p>
                   </div>
                 )}
-              </div>
-            ) : null}
-          </main>
+              </main>
+            </div>
+          ) : null}
         </div>
       </div>
     </SidebarProvider>

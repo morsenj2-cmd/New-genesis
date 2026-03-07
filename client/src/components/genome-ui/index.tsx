@@ -739,7 +739,7 @@ export function GenomeFooter({ tokens }: { tokens: GenomeTokens }) {
   );
 }
 
-const SECTION_RENDERERS: Partial<Record<SectionType, (tokens: GenomeTokens, section: LayoutSection) => React.JSX.Element>> = {
+const SECTION_RENDERERS: Partial<Record<SectionType, (tokens: GenomeTokens, section: LayoutSection) => JSX.Element>> = {
   hero: (t, s) => <GenomeHero tokens={t} section={s} />,
   featureGrid: (t, s) => <GenomeFeatureGrid tokens={t} section={s} />,
   cardList: (t, s) => <GenomeCardList tokens={t} section={s} />,
@@ -749,19 +749,17 @@ const SECTION_RENDERERS: Partial<Record<SectionType, (tokens: GenomeTokens, sect
   footer: (t) => <GenomeFooter tokens={t} />,
 };
 
-export function GenomePreview({
-  genome,
-  layout,
-  projectName,
-  projectPrompt,
-}: {
-  genome: DesignGenome;
-  layout: LayoutGraph;
-  projectName: string;
-  projectPrompt: string;
-}) {
-  const tokens: GenomeTokens = { genome, projectName, projectPrompt };
+export function renderSection(
+  type: SectionType,
+  tokens: GenomeTokens,
+  section: LayoutSection
+): JSX.Element | null {
+  const renderer = SECTION_RENDERERS[type];
+  if (!renderer) return null;
+  return renderer(tokens, section);
+}
 
+function useGenomeFonts(genome: DesignGenome) {
   useEffect(() => {
     const fonts = [genome.typography.heading, genome.typography.body].filter(Boolean);
     const id = "genome-font-import";
@@ -775,23 +773,37 @@ export function GenomePreview({
     document.head.appendChild(style);
     return () => { style.remove(); };
   }, [genome.typography.heading, genome.typography.body]);
+}
+
+export function GenomePreview({
+  genome,
+  layout,
+  projectName,
+  projectPrompt,
+}: {
+  genome: DesignGenome;
+  layout: LayoutGraph;
+  projectName: string;
+  projectPrompt: string;
+}) {
+  const tokens: GenomeTokens = { genome, projectName, projectPrompt };
+  useGenomeFonts(genome);
 
   return (
     <div
       data-testid="genome-preview"
       style={{
         backgroundColor: genome.colors.background,
-        borderRadius: "12px",
         overflow: "hidden",
-        border: `1px solid ${genome.colors.primary}25`,
+        minHeight: "100%",
       }}
     >
       <GenomeNavbar tokens={tokens} />
-      {layout.sections.map((section, i) => {
-        const render = SECTION_RENDERERS[section.type];
-        if (!render) return null;
-        return <div key={i}>{render(tokens, section)}</div>;
-      })}
+      {layout.sections.map((section, i) => (
+        <div key={`${section.type}-${i}`}>
+          {renderSection(section.type, tokens, section)}
+        </div>
+      ))}
     </div>
   );
 }
