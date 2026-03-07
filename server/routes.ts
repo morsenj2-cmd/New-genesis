@@ -17,6 +17,8 @@ import { generateContextContent } from "@shared/contextGraph";
 import { mergeDesignSources } from "@shared/designMerger";
 import { interpretSemantic } from "@shared/semanticInterpreter";
 import { generatePatches } from "@shared/patchGenerator";
+import { applyLayoutConstraints, simplifyIfNeeded } from "@shared/layoutConstraints";
+import { buildGenomeSig, serializeGenomeSig, isGenomeTooSimilar, hasSufficientMutation, legacySigToNew } from "@shared/layoutSignature";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -109,9 +111,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       genome = mergeDesignSources(genome, { selectedFont: font, selectedPrimaryColor: themeColor, uploadedLogoUrl: logoUrl, productType: intent.productType });
       const genomeJson = JSON.stringify(genome);
 
-      const layout = productContext
+      // Landing page prompts always use the landing page layout engine (never dashboard/product context layouts)
+      const resolvedPageType = intent.pageType as any ?? undefined;
+      const isLandingPage = resolvedPageType === "landing_page" || resolvedPageType === "marketing_site";
+      let layout = (productContext && !isLandingPage)
         ? generateContextualLayout(seed, productContext)
-        : generateLayout(seed, { name, prompt, font, themeColor, pageType: intent.pageType as any ?? undefined });
+        : generateLayout(seed, { name, prompt, font, themeColor, pageType: resolvedPageType });
+
+      // Apply density and page-type constraints, then simplify if too complex
+      layout = applyLayoutConstraints(layout, resolvedPageType);
+      layout = simplifyIfNeeded(layout, resolvedPageType);
       const layoutJson = JSON.stringify(layout);
       const settingsJson = JSON.stringify(initialSettings);
 
@@ -295,17 +304,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let newGenome: Record<string, unknown> | null = null;
       let attempts = 0;
 
-      while (attempts < 5) {
+      // Normalize any legacy 2-part signatures to the new 6-part format
+      const normalizedHistory = previousGenomes.map(s => s.includes("|") ? s : legacySigToNew(s));
+
+      // Get current genome signature to check sufficient mutation
+      const currentGenomeParsed = project.genomeJson ? JSON.parse(project.genomeJson) : null;
+      const currentSig = currentGenomeParsed
+        ? serializeGenomeSig(buildGenomeSig(currentGenomeParsed))
+        : null;
+
+      while (attempts < 8) {
         const entropy = `${randomUUID()}-${Date.now()}`;
         newStyleSeed = createHash("sha256").update(`${currentStyleSeed}${entropy}`).digest("hex");
         const candidate = generateGenome(newStyleSeed) as Record<string, unknown>;
 
-        const candidateHue = (candidate.colors as any)?.hues?.primary ?? 0;
-        const candidateFont = (candidate.typography as any)?.heading ?? "";
-        const candidateSig = `${Math.round(candidateHue / 30) * 30}-${candidateFont}`;
+        const candidateSig = serializeGenomeSig(buildGenomeSig(candidate as any));
 
-        const isTooSimilar = previousGenomes.slice(-4).some(sig => sig === candidateSig);
-        if (!isTooSimilar) {
+        // Reject if too similar to any of the last 5 designs (match on 4+ of 6 dimensions)
+        const tooSimilar = isGenomeTooSimilar(candidateSig, normalizedHistory.slice(-5), 4);
+        // Also require at least 2 dimensions changed from current design
+        const sufficientChange = !currentSig || hasSufficientMutation(candidateSig, currentSig, 2);
+
+        if (!tooSimilar && sufficientChange) {
           newGenome = candidate;
           break;
         }
@@ -332,18 +352,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: effectiveProductType,
       }) as any;
 
-      const genHue = (newGenome.colors as any)?.hues?.primary ?? 0;
-      const genFont = (newGenome.typography as any)?.heading ?? "";
-      const sig = `${Math.round(genHue / 30) * 30}-${genFont}`;
-      const updatedHistory = [...previousGenomes.slice(-4), sig];
+      const sig = serializeGenomeSig(buildGenomeSig(newGenome as any));
+      const updatedHistory = [...normalizedHistory.slice(-4), sig];
 
-      if (currentGenomeJson) {
-        const prevHue = (JSON.parse(currentGenomeJson).colors as any)?.hues?.primary ?? 0;
-        const prevFont = (JSON.parse(currentGenomeJson).typography as any)?.heading ?? "";
-        const prevSig = `${Math.round(prevHue / 30) * 30}-${prevFont}`;
-        if (!updatedHistory.includes(prevSig)) {
-          updatedHistory.unshift(prevSig);
-        }
+      if (currentGenomeJson && currentSig && !updatedHistory.includes(currentSig)) {
+        updatedHistory.unshift(currentSig);
       }
 
       const updated = await storage.updateProject(project.id, userId!, {

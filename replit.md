@@ -47,7 +47,17 @@ Key features:
     - Decomposition functions in `shared/elementCanvas.ts`: decomposeHero, decomposeFeatureGrid, decomposeCardList, decomposeStats, decomposeCta, decomposeTestimonial — all generate initial element positions on a 1200px reference canvas
     - ContentOverrides type extended with `ctaHeadline`, `ctaBody` optional fields
 - Multi-page navigation: GenomePreview manages `activePage` state, navbar links navigate between home/features/pricing/about/blog/contact; full page components for each: GenomeFeaturesPage, GenomePricingPage (3-tier with FAQs), GenomeAboutPage (mission+stats+testimonials), GenomeBlogPage, GenomeContactPage; footer links also navigate
-- Context-driven layout generation: `shared/layoutEngine.ts` has `SITE_TYPE_POOLS` per page type (landing_page, web_app, dashboard, blog, portfolio, social_platform, ecommerce_store); `generateLayout` uses the correct section pool when `pageType` is provided in design context; `server/routes.ts` passes `intent.pageType` to `generateLayout`
+- Context-driven layout generation: `shared/layoutEngine.ts` has `SITE_TYPE_POOLS` per page type (landing_page, marketing_site, web_app, dashboard, blog, portfolio, social_platform, ecommerce_store); `generateLayout` uses the correct section pool when `pageType` is provided in design context; `server/routes.ts` passes `intent.pageType` to `generateLayout`
+- **Generation Refactor (v2)**:
+  - **Strict page type enforcement**: `landing_page` prompts always use `generateLayout` (never `generateContextualLayout`) — dashboard/analytics components are fully blocked from landing pages
+  - **Landing page pool**: `featureGrid, cardList, testimonial, cta` only — no stats, no dashboard-only components
+  - **Max sections**: landing_page=6, dashboard=5, web_app=6, enforced by `MAX_MIDDLE_SECTIONS` and `applyLayoutConstraints()`
+  - **Max columns**: 3 for landing_page/marketing_site (was up to 4)
+  - **Max card count**: 4 for landing pages (was up to 5 random)
+  - **`shared/layoutConstraints.ts`**: Page layout rules registry, `applyLayoutConstraints()`, `simplifyIfNeeded()` (complexity score ≤ 60), `scoreComplexity()`
+  - **`shared/layoutSignature.ts`**: 6-dimension genome signature (hueBucket | font | colorMode | buttonStyle | spacingMode | surfaceStyle); `isGenomeTooSimilar()` (4/6 dimensions = too similar), `hasSufficientMutation()` (needs ≥2 dimensions changed), `legacySigToNew()` for backward compat
+  - **Style regeneration**: Up to 8 attempts (was 5); checks 6-dimension similarity against last 5 designs AND requires ≥2 dimensions to change from current design; history stored in 6-part `|`-delimited format (legacy 2-part `hue-font` format auto-normalized)
+  - **Page type detection fix**: `detectPageType()` now finds the longest matching signal (most specific wins) — "analytics dashboard" now correctly detects `dashboard` even when "saas" is also present
 - Analytics/dashboard component filtering: `shared/productContextEngine.ts` strips `metric_cards`, `analytics_chart`, `data_table`, `filters`, `storage_usage_bar` component types from non-dashboard product types (only shown for analytics_dashboard, crm, project_management, fintech)
 - pageType detection in intent interpreter: `shared/intentInterpreter.ts` detects "landing_page", "web_app", "dashboard", "blog", "ecommerce_store", "social_platform", "portfolio" from free-form prompts
 - Semantic Interpreter NL layer: `shared/semanticInterpreter.ts` (Jaro-Winkler fuzzy matching, 10 RENAME_PATTERNS for brand name extraction including "call it X", "name it X", "let's call it X", "rename to X", "the product name is X"), `shared/semanticDictionary.ts` (synonym maps), `shared/patchGenerator.ts` (generates genomePatch + settingsPatch + contentPatch per intent)

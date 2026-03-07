@@ -33,6 +33,7 @@ export interface LayoutGraph {
 
 export type SitePageType =
   | "landing_page"
+  | "marketing_site"
   | "web_app"
   | "dashboard"
   | "blog"
@@ -49,14 +50,26 @@ export interface LayoutDesignContext {
 }
 
 // Sections allowed per site type (middle sections only — hero and footer are always added)
+// Landing pages MUST NOT contain dashboard/analytics components — featureGrid, cardList, testimonial, cta only
 const SITE_TYPE_POOLS: Record<SitePageType, SectionType[]> = {
-  landing_page:    ["featureGrid", "testimonial", "cta"],
-  web_app:         ["featureGrid", "cardList", "cta"],
+  landing_page:    ["featureGrid", "cardList", "testimonial", "cta"],
+  marketing_site:  ["featureGrid", "cardList", "testimonial", "cta"],
+  web_app:         ["featureGrid", "cardList", "stats", "cta"],
   dashboard:       ["stats", "featureGrid", "cardList"],
   blog:            ["cardList", "featureGrid"],
   portfolio:       ["featureGrid", "cardList", "cta"],
   social_platform: ["cardList", "featureGrid", "stats"],
   ecommerce_store: ["featureGrid", "cardList", "stats", "cta"],
+};
+
+// Maximum section count per page type (excluding hero + footer = 2 always present)
+const MAX_MIDDLE_SECTIONS: Partial<Record<SitePageType, number>> = {
+  landing_page:   4,
+  marketing_site: 4,
+  dashboard:      3,
+  web_app:        4,
+  blog:           3,
+  portfolio:      4,
 };
 
 function seedByte(seed: string, offset: number): number {
@@ -83,11 +96,13 @@ export function generateLayout(
   seed: string,
   designContext?: LayoutDesignContext
 ): LayoutGraph {
-  const totalSections = 3 + (seedByte(seed, 0) % 4);
+  const pageType = designContext?.pageType;
+  const maxMiddle = (pageType && MAX_MIDDLE_SECTIONS[pageType]) ?? 4;
+  const rawTotal = 3 + (seedByte(seed, 0) % 4);
+  const totalSections = Math.min(rawTotal, maxMiddle + 2);
   const middleCount = totalSections - 2;
 
   // Use site-type-specific pool when pageType is known
-  const pageType = designContext?.pageType;
   const pool = [...(pageType && SITE_TYPE_POOLS[pageType] ? SITE_TYPE_POOLS[pageType] : MIDDLE_POOL)];
   const middleSections: SectionType[] = [];
   for (let i = 0; i < middleCount; i++) {
@@ -128,20 +143,22 @@ export function generateLayout(
         ? "none"
         : pick(["none", "none", "left", "right"] as ImagePlacement[], imgSeed);
 
+    const maxCols = pageType === "landing_page" || pageType === "marketing_site" ? 3 : 4;
+
     let columns: number | undefined;
     if (type === "featureGrid" || type === "cardList") {
-      columns = 2 + (seedByte(seed, base + 10) % 3);
+      columns = Math.min(maxCols, 2 + (seedByte(seed, base + 10) % 3));
       if (seedByte(seed, base + 11) % 5 === 0) {
         columns = Math.max(1, columns - 1);
       }
     }
     if (type === "stats") {
-      columns = 2 + (seedByte(seed, base + 10) % 3);
+      columns = Math.min(maxCols, 2 + (seedByte(seed, base + 10) % 3));
     }
 
     let cardCount: number | undefined;
     if (type === "cardList" || type === "testimonial") {
-      cardCount = 2 + (seedByte(seed, base + 12) % 4);
+      cardCount = 2 + (seedByte(seed, base + 12) % 3);
     }
 
     const flipSeed = seedByte(seed, base + 13);

@@ -1,0 +1,270 @@
+Refactor the website generation engine so it solves these problems:
+
+1 wrong page type generation
+2 cluttered layouts
+3 duplicate designs between projects
+4 regenerate style cycling between similar designs
+5 landing page prompts sometimes producing dashboards
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+Only modify the generation pipeline and layout system.
+
+------------------------------------------------
+1. PROMPT INTENT DETECTION
+------------------------------------------------
+
+Create strict prompt intent detection.
+
+File:
+/lib/promptIntent.ts
+
+The interpreter must extract:
+
+pageType
+industry
+product
+audience
+tone
+
+Supported page types:
+
+landing_page
+marketing_site
+dashboard
+web_app
+portfolio
+blog
+documentation
+
+Example
+
+Prompt:
+"landing page for a fintech startup that manages payroll"
+
+Parsed result:
+
+pageType: landing_page
+industry: fintech
+product: payroll management
+audience: startups and companies
+
+Rule:
+
+If prompt contains "landing page" or "marketing site"
+the generator MUST ONLY produce landing page layouts.
+
+Dashboard components such as:
+
+analytics charts
+revenue cards
+admin tables
+metrics panels
+
+must be disabled unless pageType = dashboard.
+
+------------------------------------------------
+2. LANDING PAGE LAYOUT SYSTEM
+------------------------------------------------
+
+Landing pages must follow this structure:
+
+Hero
+Problem / Value Proposition
+Feature Grid
+How It Works
+Social Proof
+Call To Action
+Footer
+
+Maximum sections allowed: 6
+
+Landing pages must never include:
+
+analytics dashboards
+tables
+financial metrics
+admin UI components
+
+------------------------------------------------
+3. DASHBOARD LAYOUT SYSTEM
+------------------------------------------------
+
+Dashboards must also be minimal.
+
+Allowed sections:
+
+summary cards
+analytics charts
+tables
+activity feed
+
+Rules for dashboards:
+
+max charts per view = 3
+max summary cards = 4
+max columns = 3
+
+Dashboards must never contain:
+
+marketing hero banners
+large promotional copy
+landing page CTA sections
+
+------------------------------------------------
+4. GLOBAL MINIMALISM ENFORCEMENT
+------------------------------------------------
+
+Create a layout density validator.
+
+File:
+/lib/layoutDensity.ts
+
+Rules for ALL designs (landing pages AND dashboards)
+
+max elements per section = 6
+max columns = 3
+max font families = 2
+max colors = 3 primary + neutrals
+max CTA buttons in hero = 2
+max text lines in hero = 3
+
+If these limits are exceeded
+automatically simplify the layout.
+
+Goal:
+
+clean minimal landing pages  
+clean minimal dashboards
+
+------------------------------------------------
+5. UNIQUENESS ENGINE
+------------------------------------------------
+
+The generator must guarantee that every project layout is unique.
+
+Create a layout signature.
+
+File:
+/lib/layoutSignature.ts
+
+layoutSignature = SHA256(
+projectSeed +
+pageType +
+gridStructure +
+spacingScale +
+heroLayout +
+componentShapes +
+colorHarmony
+)
+
+Before finalizing a layout
+
+check database for existing layoutSignature
+
+if signature exists
+mutate layout and regenerate.
+
+------------------------------------------------
+6. DESIGN MUTATION ENGINE
+------------------------------------------------
+
+Replace current style regeneration logic.
+
+File:
+/lib/designMutation.ts
+
+Mutatable parameters:
+
+hero alignment
+grid system
+component geometry
+border radius scale
+shadow depth
+typography scale
+spacing ratios
+color palette
+section order
+
+Each regenerate style action must mutate at least 30% of parameters.
+
+This prevents style looping.
+
+------------------------------------------------
+7. CLUTTER PREVENTION SYSTEM
+------------------------------------------------
+
+Create a UI complexity scoring system.
+
+File:
+/lib/uiComplexity.ts
+
+Score factors:
+
+component count
+nested containers
+text density
+visual element count
+
+Maximum complexity score:
+
+60
+
+If exceeded:
+
+remove elements
+simplify layout
+reduce grids
+
+------------------------------------------------
+8. CONTEXTUAL CONTENT GENERATION
+------------------------------------------------
+
+All generated content must derive from the prompt context.
+
+Example
+
+Prompt:
+"landing page for a fintech startup that manages payroll"
+
+Allowed hero text:
+
+"Payroll infrastructure for modern companies"
+"Automated payroll for growing teams"
+"Payroll compliance and payments made simple"
+
+Forbidden text:
+
+generic SaaS slogans
+irrelevant industry terms
+analytics dashboards
+
+------------------------------------------------
+9. PRE-RENDER VALIDATION PIPELINE
+------------------------------------------------
+
+Before rendering a design run these checks:
+
+promptIntentValidator
+layoutDensityValidator
+uniquenessValidator
+contextValidator
+uiComplexityValidator
+
+If any check fails regenerate automatically.
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After this refactor:
+
+landing page prompts always produce landing pages
+
+dashboard prompts always produce dashboards
+
+both landing pages and dashboards remain minimal and uncluttered
+
+designs are unique across projects
+
+regenerate style produces genuinely new designs instead of cycling

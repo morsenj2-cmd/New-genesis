@@ -1,6 +1,6 @@
 import contextLibrary from "./contextLibrary.json";
 
-export type PageType = "landing_page" | "web_app" | "dashboard" | "blog" | "ecommerce_store" | "social_platform" | "portfolio";
+export type PageType = "landing_page" | "marketing_site" | "web_app" | "dashboard" | "blog" | "ecommerce_store" | "social_platform" | "portfolio";
 
 export interface InterpretedIntent {
   industry: string | null;
@@ -20,23 +20,29 @@ export interface InterpretedIntent {
 }
 
 const PAGE_TYPE_SIGNALS: Record<PageType, string[]> = {
-  landing_page: ["landing page", "landing", "marketing page", "homepage", "home page", "promotional page", "product page", "waitlist", "coming soon"],
-  web_app: ["web app", "webapp", "application", "platform", "tool", "saas", "software"],
-  dashboard: ["dashboard", "admin panel", "admin dashboard", "analytics dashboard", "control panel", "management console"],
-  blog: ["blog", "articles", "posts", "content site", "magazine", "news site", "publication"],
+  landing_page:   ["landing page", "landing", "homepage", "home page", "promotional page", "product page", "waitlist", "coming soon"],
+  marketing_site: ["marketing page", "marketing site", "marketing website"],
+  web_app:        ["web app", "webapp", "application", "platform", "tool", "saas", "software"],
+  dashboard:      ["dashboard", "admin panel", "admin dashboard", "analytics dashboard", "control panel", "management console"],
+  blog:           ["blog", "articles", "posts", "content site", "magazine", "news site", "publication"],
   ecommerce_store: ["store", "shop", "e-commerce", "ecommerce", "marketplace", "online store", "shopping"],
   social_platform: ["social network", "social platform", "community", "forum", "social media", "creator platform", "network"],
-  portfolio: ["portfolio", "personal site", "cv site", "showcase", "resume site"],
+  portfolio:      ["portfolio", "personal site", "cv site", "showcase", "resume site"],
 };
 
 function detectPageType(text: string): PageType | null {
   const lower = text.toLowerCase();
+  let bestMatch: PageType | null = null;
+  let bestLen = 0;
   for (const [pageType, signals] of Object.entries(PAGE_TYPE_SIGNALS)) {
-    if (signals.some(s => lower.includes(s))) {
-      return pageType as PageType;
+    for (const signal of signals) {
+      if (lower.includes(signal) && signal.length > bestLen) {
+        bestMatch = pageType as PageType;
+        bestLen = signal.length;
+      }
     }
   }
-  return null;
+  return bestMatch;
 }
 
 const STYLE_MAP: Record<string, string> = {
