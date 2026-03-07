@@ -1,0 +1,243 @@
+Refactor the natural language editor so prompts entered in the editor are interpreted using the same semantic pipeline used during initial design generation.
+
+Currently the editor behaves like a keyword matcher and often returns "no recognized changes".
+
+The editor must use the same semantic interpreter and context system used by the design generator.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+------------------------------------------------
+1. UNIFIED PROMPT INTERPRETER
+------------------------------------------------
+
+The system currently has two separate prompt systems:
+
+1 design generation interpreter
+2 editor keyword parser
+
+Delete the editor keyword parser.
+
+Both systems must use a single interpreter.
+
+File:
+/lib/semanticInterpreter.ts
+
+All prompts must go through this interpreter.
+
+Used by:
+
+design creation
+regenerate style
+natural language editor
+
+------------------------------------------------
+2. EDITOR PROMPT PIPELINE
+------------------------------------------------
+
+Create a full prompt processing pipeline for the editor.
+
+File:
+/lib/editorInterpreter.ts
+
+Process:
+
+input prompt
+→ semantic interpretation
+→ change intent extraction
+→ patch generator
+→ apply changes to layout
+
+------------------------------------------------
+3. CHANGE INTENT EXTRACTION
+------------------------------------------------
+
+The editor must extract change intents.
+
+Example prompts:
+
+"use blue as primary color"
+
+intent:
+
+change_color_palette
+
+------------------------------------------------
+
+"make the layout minimal"
+
+intent:
+
+reduce_layout_density
+
+------------------------------------------------
+
+"change the logo text to white"
+
+intent:
+
+modify_element_style
+
+------------------------------------------------
+
+"rename Human Label to Morse"
+
+intent:
+
+update_text_content
+
+------------------------------------------------
+
+"move hero headline to center"
+
+intent:
+
+modify_layout_position
+
+------------------------------------------------
+4. PATCH GENERATION SYSTEM
+------------------------------------------------
+
+Create a patch engine.
+
+File:
+/lib/editorPatch.ts
+
+Each prompt produces a set of UI patches.
+
+Example
+
+Prompt:
+
+"use blue as primary"
+
+Patch:
+
+updateDesignTokens({
+primaryColor:"#2563eb"
+})
+
+------------------------------------------------
+
+Prompt:
+
+"make layout minimal"
+
+Patch:
+
+reduceSections()
+increaseWhitespace()
+limitGridColumns(2)
+
+------------------------------------------------
+5. ELEMENT TARGETING
+------------------------------------------------
+
+The editor must detect which UI elements the user is referring to.
+
+File:
+/lib/elementResolver.ts
+
+Example
+
+Prompt:
+
+"make the hero text larger"
+
+Target:
+
+hero.heading
+
+------------------------------------------------
+
+Prompt:
+
+"change logo color to white"
+
+Target:
+
+navbar.logo
+
+------------------------------------------------
+
+Prompt:
+
+"rename brand"
+
+Target:
+
+site.brandName
+
+------------------------------------------------
+6. CONTEXT MEMORY
+------------------------------------------------
+
+The editor must use the same project context used during design generation.
+
+File:
+/lib/projectContext.ts
+
+Editor prompts must reference:
+
+industry
+product
+brand
+page type
+layout structure
+
+This prevents unrelated edits.
+
+------------------------------------------------
+7. REMOVE "NO RECOGNIZED CHANGES"
+------------------------------------------------
+
+The editor must never return "no recognized changes".
+
+Instead:
+
+interpret prompt semantically
+generate closest matching intent
+apply patch.
+
+------------------------------------------------
+8. EDIT VALIDATION
+------------------------------------------------
+
+After patches are applied run validation.
+
+Check:
+
+layout integrity
+design tokens
+spacing system
+responsive layout
+
+------------------------------------------------
+9. EDITOR CAPABILITIES
+------------------------------------------------
+
+The editor must support:
+
+changing colors
+changing fonts
+renaming text
+moving elements
+adjusting spacing
+simplifying layout
+modifying components
+changing hero text
+reordering sections
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After this refactor:
+
+prompts in the editor modify the design reliably
+
+the editor understands prompts the same way the generator understands prompts
+
+users can change text, layout, and styles using natural language
+
+the editor behaves like a semantic design assistant rather than a keyword command parser.

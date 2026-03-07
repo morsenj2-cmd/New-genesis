@@ -73,7 +73,7 @@ export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
         <Wand2 className="h-3 w-3" /> Edit with natural language
       </p>
       <Textarea
-        placeholder='Try: "use blue as primary" or "make it minimal"'
+        placeholder='Try: "use blue and make it minimal" or "round the corners and increase spacing"'
         value={command}
         onChange={(e) => setCommand(e.target.value)}
         className="text-xs resize-none min-h-[72px]"

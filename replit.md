@@ -16,16 +16,25 @@ Key features:
 - Style vs Layout Separation: `styleSeed` column tracks evolving style seed; `seed` column tracks immutable layout seed; each regeneration path is fully independent
 - Style Regeneration History: last 5 genome signatures (hue-bucket + font) stored in `previousGenomesJson`; regeneration avoids repeating recent designs (up to 5 attempts)
 - Design Variation Engine: genome now generates `variation` object with `colorMode` (vibrant/muted/pastel/deep/neon), `spacingMode` (tight/balanced/spacious/airy), `surfaceStyle`, `buttonStyle` (rounded/pill/sharp/soft), `cardStyle`; 30 font pairs total
-- NL Design Editor — expanded command support:
+- NL Design Editor — unified semantic interpreter (`interpretSemanticMulti`):
+  - Multi-intent: compound commands ("use blue and make it minimal", "round corners and increase spacing")
+  - Brand rename: "call it X", "change brand name to X" (with NON_NAME_TARGETS guard)
   - Logo color: "make the logo white", "change logo color to blue"
-  - Fonts: "use Inter font", "use serif", "use monospace", "use Poppins" (30+ font name mappings)
-  - Heading weight: "make headings bold"
-  - Letter spacing: "increase letter spacing"
+  - Primary color: "use blue", "change the theme color to teal"
+  - Style presets: "make it minimal", "make it elegant", "bold style" (9 presets)
+  - Fonts: "use Inter font", "use serif", "use monospace" (30+ font name mappings)
+  - Heading weight: "make headings bold", "light headings"
+  - Letter spacing: "increase letter spacing", "tighter letters"
   - Text size: "larger text", "smaller text"
-  - Spacing: "reduce spacing", "increase spacing", "reduce padding"
+  - Spacing: "reduce spacing", "increase spacing", "airy", "compact"
   - Border radius: "rounded corners", "sharp corners", "pill buttons"
   - Background: "light background", "dark background"
-  - Gradients: "remove gradients", "no gradients"
+  - Gradients: "remove gradients", "add gradients"
+  - Animations: "no animation", "enable animation"
+  - Icons: "standard icons", "plain icons"
+  - Accessibility: "more readable", "accessible"
+  - Content: "change headline to X", "set CTA to Y"
+  - Smart fallback: context-aware suggestions when nothing matches
 - Branding tokens: `genome.branding.logoColor/logoFont/logoWeight` — GenomeNavbar applies these to logo text and icon color
 - Design Source Priority: user's uploaded logo, selected font, selected primary color always override generator output via `mergeDesignSources()` in `shared/designMerger.ts`
 - Content Generator: category-specific headlines, subheadlines, CTA labels, features, stats, testimonials, CTA copy, and footer taglines from `shared/contentGenerator.ts` — 14 product types each with realistic copy, each with a distinct `brandName` (Vault, Relay, Lens, Shopbase, Sprint, Pipeline, Pulse, Flowbase, Devkit, Streamly, Clair, Medi, Coursify, Tempo)
@@ -60,9 +69,9 @@ Key features:
   - **Page type detection fix**: `detectPageType()` now finds the longest matching signal (most specific wins) — "analytics dashboard" now correctly detects `dashboard` even when "saas" is also present
 - Analytics/dashboard component filtering: `shared/productContextEngine.ts` strips `metric_cards`, `analytics_chart`, `data_table`, `filters`, `storage_usage_bar` component types from non-dashboard product types (only shown for analytics_dashboard, crm, project_management, fintech)
 - pageType detection in intent interpreter: `shared/intentInterpreter.ts` detects "landing_page", "web_app", "dashboard", "blog", "ecommerce_store", "social_platform", "portfolio" from free-form prompts
-- Semantic Interpreter NL layer: `shared/semanticInterpreter.ts` (Jaro-Winkler fuzzy matching, 10 RENAME_PATTERNS for brand name extraction including "call it X", "name it X", "let's call it X", "rename to X", "the product name is X"), `shared/semanticDictionary.ts` (synonym maps), `shared/patchGenerator.ts` (generates genomePatch + settingsPatch + contentPatch per intent)
-- NL brand rename fully wired: `/apply-nl` runs semantic interpreter first → if `change_name` detected, saves `brandName` to `settingsJson`, returns `contentPatch` in response → client updates `contentOverrides.brandName` immediately (live preview) → on page reload, `useEffect` in project.tsx reads `settingsJson.brandName` and restores it to `contentOverrides` (persistence)
-- NL pipeline: semantic interpreter pre-processes all NL commands; only skips legacy `parseNLCommand` when intent is `change_name` with ≥0.9 confidence; all other commands (style, color, font, radius, spacing) still pass through the legacy parser
+- Unified NL pipeline: `shared/semanticInterpreter.ts` (Jaro-Winkler fuzzy matching, multi-intent detection via `interpretSemanticMulti()`, compound command splitting on "and"/","), `shared/semanticDictionary.ts` (synonym maps), `shared/patchGenerator.ts` (`generateMultiPatches()` — iterates all intents, generates combined genomePatch + settingsPatch + contentPatch)
+- NL brand rename fully wired: `/apply-nl` runs unified interpreter → if `change_name` detected, saves `brandName` to `settingsJson`, returns `contentPatch` in response → client updates `contentOverrides.brandName` immediately
+- NL pipeline architecture: single-pass semantic interpreter replaces the legacy dual-pass system; `interpretSemanticMulti()` detects all intents from a single command; `generateMultiPatches()` combines patches; route applies once; legacy `parseNLCommand` in `nlParser.ts` retained but no longer called from routes (only `applyPatchesToGenome` is used)
 - No "AI-Generated Design" labels — preview looks like a real product website
 - Product Context Engine: 14 product types (cloud_storage, chat_app, analytics_dashboard, ecommerce, project_management, crm, social_media, saas_generic, developer_tool, video_platform, fintech, healthcare, education, calendar_scheduling) each with specific UI components
 - **Semantic Content Generation Pipeline**: `shared/domainVocabulary.ts` (18-industry vocabulary clusters — core terms, actions, objects, qualities, roles), `shared/genericPhraseFilter.ts` (banned marketing clichés — `containsBannedPhrase()`, `isGenericHeadline()`), `shared/relevanceScoring.ts` (domain-vocabulary + prompt-keyword scoring with `scoreRelevance()`, `pickMostRelevant()`, `extractPromptKeywords()`); `generateContextContent` in `contextGraph.ts` uses semantic headline builder (prompt service extraction → "[Capability] for [audience]" pattern), relevance-ranked content selection, generic phrase filtering; `SemanticContext` stored per project in `settingsJson.semanticContext` and preserved during style regeneration
