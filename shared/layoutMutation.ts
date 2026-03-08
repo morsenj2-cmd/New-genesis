@@ -209,10 +209,9 @@ function mutateHeroAlignment(sections: LayoutSection[], seed: string): LayoutSec
   return sections.map(s => {
     if (s.type === "hero") {
       const newAlignment = pickFrom(ALIGNMENTS, seed, 400);
-      const newImagePlacement = pickFrom(
-        ["left", "right", "top"] as ImagePlacement[],
-        seed, 401,
-      );
+      const newImagePlacement: ImagePlacement = s.imagePlacement === "none"
+        ? "none"
+        : pickFrom(["left", "right", "top"] as ImagePlacement[], seed, 401);
       return { ...s, alignment: newAlignment, imagePlacement: newImagePlacement };
     }
     return s;

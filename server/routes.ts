@@ -25,6 +25,7 @@ import { isCorrectionPrompt, applyContextCorrection } from "@shared/contextOverr
 import { isLayoutTooSimilar, buildLayoutSigComponents } from "@shared/layoutSignature";
 import { needsMutation, mutateLayout } from "@shared/layoutMutation";
 import { validateContent, needsRegeneration } from "@shared/contextValidator";
+import { detectMediaIntent, stripMediaPlacements } from "@shared/mediaIntentDetector";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -107,6 +108,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const promptContent = generateContextContent(prompt, effectiveProductType ?? null, resolvedBrandName, universalCtx);
       const semanticContext = buildSemanticContext(prompt, effectiveProductType ?? null);
 
+      const mediaAllowed = detectMediaIntent(fullText);
+
       const initialSettings: Record<string, unknown> = {
         uniqueIcons: effectiveIndustry !== "saas",
         forceStandardGenome: effectiveIndustry === "saas",
@@ -116,6 +119,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ...(resolvedBrandName ? { brandName: resolvedBrandName } : {}),
         promptContent,
         semanticContext,
+        mediaAllowed,
       };
 
       const contextLock = createContextLock(universalCtx);
@@ -144,6 +148,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           layout = applyLayoutConstraints(layout, resolvedPageType);
           layout = simplifyIfNeeded(layout, resolvedPageType);
         }
+      }
+
+      if (!mediaAllowed) {
+        layout = stripMediaPlacements(layout) as typeof layout;
       }
 
       const contentValidation = validateContent(promptContent, universalCtx);
@@ -255,6 +263,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           currentLayout = generateContextualLayout(project.seed, productContext);
           allDescriptions.push(`Layout switched to ${productContext.label}`);
         }
+      }
+
+      const nlMediaRequest = detectMediaIntent(commands);
+      const existingMediaAllowed = (currentSettings as any).mediaAllowed === true;
+      const effectiveMediaAllowed = existingMediaAllowed || nlMediaRequest;
+      if (!effectiveMediaAllowed) {
+        currentLayout = stripMediaPlacements(currentLayout) as typeof currentLayout;
+      }
+      if (nlMediaRequest && !existingMediaAllowed) {
+        (currentSettings as any).mediaAllowed = true;
       }
 
       currentGenome = maybeApplyIndustryConstraints(currentGenome, currentSettings);

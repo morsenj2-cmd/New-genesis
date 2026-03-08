@@ -1,0 +1,131 @@
+Refactor the design generation engine so it never inserts placeholder images or media containers unless the user explicitly requests visual media.
+
+Currently the generator creates empty image blocks (grey/black rectangles) that represent placeholder media.
+
+These must be completely disabled.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+------------------------------------------------
+1. REMOVE PLACEHOLDER MEDIA COMPONENTS
+------------------------------------------------
+
+Search for and remove any components that render placeholder media.
+
+Examples:
+
+HeroImage
+MediaBlock
+ImagePlaceholder
+IllustrationBlock
+PreviewFrame
+
+Delete placeholder render logic from:
+
+/components
+/lib/layoutGenerator.ts
+/lib/componentFactory.ts
+
+------------------------------------------------
+2. MEDIA GENERATION RULE
+------------------------------------------------
+
+Media components may only be generated if the prompt explicitly contains media intent.
+
+Examples of allowed triggers:
+
+"add a hero image"
+"include product screenshots"
+"show illustrations"
+"add photos"
+"display dashboard preview"
+
+If media intent is NOT present in the prompt:
+
+do not render any image containers.
+
+------------------------------------------------
+3. MEDIA INTENT DETECTION
+------------------------------------------------
+
+Create a media intent detector.
+
+File:
+/lib/mediaIntent.ts
+
+Input:
+user prompt
+
+Output:
+mediaRequired = true | false
+
+Rules:
+
+If mediaRequired = false
+
+block all image components.
+
+------------------------------------------------
+4. REMOVE EMPTY IMAGE BOXES
+------------------------------------------------
+
+Even when media is requested, never render empty containers.
+
+If no image asset exists:
+
+do not render the component.
+
+------------------------------------------------
+5. COMPONENT VALIDATION
+------------------------------------------------
+
+Before rendering any component check:
+
+component.type === "media"
+
+If true and mediaRequired === false
+
+remove component.
+
+------------------------------------------------
+6. SECTION CLEANUP
+------------------------------------------------
+
+When removing media components automatically rebalance layout.
+
+Example:
+
+Hero section originally:
+
+headline
+subheadline
+image
+
+After media removal:
+
+center headline and text
+adjust spacing
+remove empty grid columns.
+
+------------------------------------------------
+7. REGENERATION RULE
+------------------------------------------------
+
+Regenerate style must NOT introduce media placeholders.
+
+Media components can only appear if they were originally requested.
+
+------------------------------------------------
+8. RESULT
+------------------------------------------------
+
+After this change:
+
+no black or grey image boxes appear
+
+no placeholder images are inserted
+
+layouts contain only text and UI elements unless the prompt explicitly asks for images
+
+designs remain clean and minimal.
