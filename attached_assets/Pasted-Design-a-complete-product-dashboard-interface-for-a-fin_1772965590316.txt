@@ -1,0 +1,135 @@
+Design a complete product dashboard interface for a fintech platform that manages payroll and payments for small and medium-sized businesses.
+
+Before designing anything, read the entire prompt and derive the full context of the product, users, and workflows. Do not rely on isolated keywords. Determine what a payroll and payments platform dashboard should contain. After understanding the context, research modern fintech SaaS dashboards and payroll platforms to understand common UI structures, information hierarchy, and financial data presentation patterns. Use that research to guide layout, components, and interactions.
+
+The product:
+A fintech platform used by small businesses to run payroll, pay employees and contractors, track payouts, and manage financial payment records.
+
+Target users:
+Small business owners, founders, and operations managers who need a simple interface to manage payroll and payments without complex accounting software.
+
+Design a fully functional dashboard UI that includes the following structure:
+
+Global Layout
+• Left sidebar navigation
+• Top navigation bar
+• Main content workspace
+• Clean fintech UI with strong hierarchy and clear data visibility
+
+Sidebar Navigation
+Include navigation items such as:
+• Overview
+• Payroll
+• Employees
+• Contractors
+• Payments
+• Transactions
+• Reports
+• Integrations
+• Settings
+
+Top Navigation Bar
+• Search
+• Notifications
+• Help/support
+• User profile menu
+
+Overview Dashboard (Main Screen)
+Provide high-level financial visibility.
+
+Include:
+• Total payroll this month
+• Upcoming payroll date
+• Total payments sent
+• Pending payouts
+• Active employees and contractors
+
+Visual Components
+• Payment volume chart
+• Payroll distribution chart
+• Recent transactions list
+• Upcoming payroll schedule
+
+Payroll Management Page
+Interface to run payroll.
+
+Include:
+• Payroll schedule calendar
+• Employee payroll table
+• Salary / hourly breakdown
+• Tax deductions preview
+• “Run Payroll” action button
+
+Employees Page
+Table-based employee management system.
+
+Columns should include:
+• Employee name
+• Role
+• Payment type (salary/hourly)
+• Monthly payroll amount
+• Status
+• Actions (view, edit)
+
+Contractors Page
+Similar to employees but with contractor-specific payments.
+
+Include:
+• Contractor name
+• Payment schedule
+• Last payment
+• Total paid
+
+Payments Page
+Interface to send and schedule payments.
+
+Include:
+• Send payment button
+• Payment recipient selector
+• Payment amount field
+• Payment method selection
+• Scheduled payments list
+
+Transactions Page
+Financial ledger.
+
+Include:
+• Full transaction history table
+• Filters (date, employee, payment type)
+• Status indicators (completed, pending, failed)
+
+Reports Page
+Financial analytics.
+
+Include:
+• Payroll spending trends
+• Payment distribution charts
+• Exportable financial reports
+
+Integrations Page
+Show integrations with accounting and finance tools.
+
+Examples:
+• Accounting software
+• Banking APIs
+• Tax tools
+
+Settings Page
+Administrative configuration.
+
+Include:
+• Business information
+• Payroll settings
+• Payment methods
+• User permissions
+• Compliance settings
+
+Design requirements:
+• Professional fintech SaaS dashboard aesthetic
+• Clean, data-focused interface
+• Consistent card components for metrics
+• Clear charts and financial tables
+• Soft shadows, rounded corners, modern typography
+• Responsive layout that adapts to smaller screens
+
+The result should look like a real financial product dashboard used to operate payroll and payments, not a simple admin panel.
