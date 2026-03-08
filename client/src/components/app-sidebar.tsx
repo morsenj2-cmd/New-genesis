@@ -12,12 +12,14 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Plus, LogIn } from "lucide-react";
+import { LayoutDashboard, Plus, LogIn, BookOpen, Info } from "lucide-react";
 import logoPath from "@assets/--._1772868829725.png";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "New Project", url: "/new", icon: Plus },
+  { title: "Blog", url: "/blog", icon: BookOpen },
+  { title: "About Us", url: "/about", icon: Info },
 ];
 
 export function AppSidebar({ onNewProject }: { onNewProject?: () => void } = {}) {

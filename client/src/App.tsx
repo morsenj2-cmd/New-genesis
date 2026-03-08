@@ -11,6 +11,8 @@ import SignUpPage from "@/pages/sign-up";
 import DashboardPage from "@/pages/dashboard";
 import ProjectPage from "@/pages/project";
 import NewProjectPage from "@/pages/new-project";
+import BlogPage from "@/pages/blog";
+import AboutPage from "@/pages/about";
 import { Loader2 } from "lucide-react";
 
 function LoadingScreen() {
@@ -72,6 +74,8 @@ function Router() {
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/new" component={() => <ProtectedRoute component={NewProjectPage} />} />
       <Route path="/project/:id" component={() => <ProtectedRoute component={ProjectPage} />} />
+      <Route path="/blog" component={BlogPage} />
+      <Route path="/about" component={AboutPage} />
       <Route component={NotFound} />
     </Switch>
   );

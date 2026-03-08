@@ -4,7 +4,7 @@ import { clerkMiddleware, getAuth } from "@clerk/express";
 import { createHash, randomUUID } from "crypto";
 import archiver from "archiver";
 import { storage } from "./storage";
-import { createProjectSchema } from "@shared/schema";
+import { createProjectSchema, insertBlogPostSchema } from "@shared/schema";
 import { generateGenome } from "@shared/genomeGenerator";
 import { generateLayout } from "@shared/layoutEngine";
 import { uploadBase64Image, uploadBase64Font } from "./cloudinary";
@@ -992,6 +992,69 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     } catch (err) {
       res.status(500).json({ message: "Failed to lookup contexts" });
+    }
+  });
+
+  const ADMIN_EMAIL = "morsenj2@gmail.com";
+
+  function isAdmin(user: { email: string } | undefined): boolean {
+    return !!user && user.email === ADMIN_EMAIL;
+  }
+
+  app.get("/api/blog/list", async (_req, res) => {
+    try {
+      const posts = await storage.getBlogPosts();
+      res.json(posts);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch blog posts" });
+    }
+  });
+
+  app.get("/api/blog/admin-status", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      if (!userId) return res.json({ isAdmin: false });
+      const user = await storage.getUser(userId);
+      res.json({ isAdmin: isAdmin(user) });
+    } catch (err) {
+      res.json({ isAdmin: false });
+    }
+  });
+
+  app.post("/api/blog/create", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const user = await storage.getUser(userId);
+      if (!isAdmin(user)) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const parsed = insertBlogPostSchema.safeParse({
+        ...req.body,
+        authorEmail: user!.email,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.flatten() });
+      }
+      const post = await storage.createBlogPost(parsed.data);
+      res.json(post);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to create blog post" });
+    }
+  });
+
+  app.delete("/api/blog/:id", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const user = await storage.getUser(userId);
+      if (!isAdmin(user)) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      await storage.deleteBlogPost(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to delete blog post" });
     }
   });
 

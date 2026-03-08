@@ -1,6 +1,6 @@
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
-import { users, projects, promptLogs, contextKnowledge, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge } from "@shared/schema";
+import { users, projects, promptLogs, contextKnowledge, blogPosts, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -13,6 +13,9 @@ export interface IStorage {
   getUntrainedPromptLogs(limit?: number): Promise<PromptLog[]>;
   markLogsAsTrained(ids: string[]): Promise<void>;
   updatePromptFeedback(id: string, signal: string, correctedIntent?: string): Promise<void>;
+  getBlogPosts(): Promise<BlogPost[]>;
+  createBlogPost(data: InsertBlogPost): Promise<BlogPost>;
+  deleteBlogPost(id: string): Promise<void>;
   createProject(data: {
     userId: string;
     name: string;
@@ -164,6 +167,19 @@ export class DatabaseStorage implements IStorage {
 
   async incrementContextUsage(id: string): Promise<void> {
     await db.update(contextKnowledge).set({ usageCount: sql`${contextKnowledge.usageCount} + 1` }).where(eq(contextKnowledge.id, id));
+  }
+
+  async getBlogPosts(): Promise<BlogPost[]> {
+    return db.select().from(blogPosts).orderBy(desc(blogPosts.createdAt));
+  }
+
+  async createBlogPost(data: InsertBlogPost): Promise<BlogPost> {
+    const [post] = await db.insert(blogPosts).values(data).returning();
+    return post;
+  }
+
+  async deleteBlogPost(id: string): Promise<void> {
+    await db.delete(blogPosts).where(eq(blogPosts.id, id));
   }
 }
 

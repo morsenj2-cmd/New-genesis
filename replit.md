@@ -113,6 +113,9 @@ Key features:
 - Intent Interpreter: keyword-based parser extracts productType, industry, style, features, and colorHint from free-form prompts
 - Export project as a downloadable zip — complete Vite + React project with genome baked in, runs with `npm install && npm run dev`; includes universal navigation system (`lib/navigation.js`) with dynamic nav links derived from layout sections, smooth scroll to section IDs, global link interceptor, auto section registration, and hash fallback; no hardcoded routes
 - Delete project with confirmation dialog
+- **Blog page** (`/blog`): Public page listing blog posts; admin user (morsenj2@gmail.com) can create and delete posts via server-side role check (`GET /api/blog/admin-status`); Zod-validated creation route
+- **About Us page** (`/about`): Public static page with company mission content; liquid glass card styling
+- Both Blog and About pages use spiral background image and liquid glass sidebar; accessible from sidebar nav (visible to all users)
 - Dark theme (pure black background)
 - Hero section shows category-specific copy (e.g. "Secure cloud storage built for modern teams" for cloud_storage, "Your money. Smarter." for fintech)
 
@@ -167,6 +170,7 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 | `users` | `id` (Clerk user ID, PK), `email`, `created_at` |
 | `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `settings_json`, `product_type`, `layout_locked` (bool), `created_at` |
 | `prompt_logs` | `id` (UUID, PK), `user_id` (FK), `project_id` (FK), `prompt_text`, `sanitized_prompt`, `intent_type`, `confidence` (real), `intent_json`, `patches_json`, `project_context_json`, `feedback_signal`, `corrected_intent_json`, `pattern_id`, `used_for_training` (bool), `created_at` |
+| `blog_posts` | `id` (UUID, PK), `title`, `content`, `author_email`, `created_at` |
 
 - `seed`: SHA-256 hash generated server-side
 - `logo_url`: Cloudinary HTTPS URL (uploaded from base64; resized to 256×256 server-side)
