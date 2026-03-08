@@ -85,7 +85,7 @@ Key features:
 - **Universal Content Generation**: when no matching INDUSTRY_LIBRARY template exists OR industry confidence is ≤ 0.3 (semantic fallback), `generateUniversalContent()` in `contextGraph.ts` builds headlines/features/stats from extracted vocabulary. Features use domain terms with management/services suffixes; headlines use best multi-word activity + brand name
 - Context Library: `shared/contextLibrary.json` defines product types, keywords, and component sets — easily extensible
 - Intent Interpreter: keyword-based parser extracts productType, industry, style, features, and colorHint from free-form prompts
-- Export project as a downloadable zip — complete Vite + React project with genome baked in, runs with `npm install && npm run dev`
+- Export project as a downloadable zip — complete Vite + React project with genome baked in, runs with `npm install && npm run dev`; includes universal navigation system (`lib/navigation.js`) with dynamic nav links derived from layout sections, smooth scroll to section IDs, global link interceptor, auto section registration, and hash fallback; no hardcoded routes
 - Delete project with confirmation dialog
 - Dark theme (pure black background)
 - Hero section shows category-specific copy (e.g. "Secure cloud storage built for modern teams" for cloud_storage, "Your money. Smarter." for fintech)

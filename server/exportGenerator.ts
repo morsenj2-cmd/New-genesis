@@ -136,6 +136,10 @@ function genGlobalsCss(genome: DesignGenome): string {
   --easing: ${genome.motion.easing};
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -185,21 +189,122 @@ function genMainJsx(genome: DesignGenome): string {
 import ReactDOM from 'react-dom/client'
 import '../styles/globals.css'
 import Home from '../pages/index.jsx'
+import { initLinkInterceptor, registerSections } from '../lib/navigation.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <Home />
   </React.StrictMode>
 )
+
+window.addEventListener('DOMContentLoaded', () => {
+  registerSections()
+  initLinkInterceptor()
+})
+
+if (document.readyState !== 'loading') {
+  registerSections()
+  initLinkInterceptor()
+}
+`;
+}
+
+function genNavigationJs(): string {
+  return `const registeredSections = new Set()
+
+export function registerSections() {
+  registeredSections.clear()
+  document.querySelectorAll('section[id], footer[id]').forEach(el => {
+    registeredSections.add(el.id)
+  })
+}
+
+export function scrollToSection(sectionId) {
+  const el = document.getElementById(sectionId)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return true
+  }
+  return false
+}
+
+export function handleNavClick(e, sectionId) {
+  e.preventDefault()
+  if (!scrollToSection(sectionId)) {
+    window.location.hash = '#' + sectionId
+  }
+}
+
+export function isExternalLink(href) {
+  if (!href) return false
+  return href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//')
+}
+
+export function resolveTarget(href) {
+  if (!href || href === '#') return null
+  if (isExternalLink(href)) return { type: 'external', href }
+  if (href.startsWith('#')) {
+    const id = href.slice(1)
+    return { type: 'section', id }
+  }
+  return { type: 'route', href }
+}
+
+export function initLinkInterceptor() {
+  document.addEventListener('click', function(e) {
+    const anchor = e.target.closest('a')
+    if (!anchor) return
+
+    const href = anchor.getAttribute('href')
+    const target = resolveTarget(href)
+    if (!target) return
+
+    if (target.type === 'external') return
+
+    if (target.type === 'section') {
+      e.preventDefault()
+      scrollToSection(target.id)
+      return
+    }
+
+    if (target.type === 'route') {
+      return
+    }
+  })
+}
+
+export function getSectionId(type, index) {
+  return type + '-' + index
+}
+
+export function getSectionLabel(type) {
+  const labels = {
+    hero: 'Home',
+    featureGrid: 'Features',
+    cardList: 'Plans',
+    stats: 'Stats',
+    testimonial: 'Testimonials',
+    cta: 'Get Started',
+    footer: 'Contact',
+  }
+  return labels[type] || type.charAt(0).toUpperCase() + type.slice(1)
+}
+
+export function buildNavLinks(sections) {
+  const skip = new Set(['hero', 'footer'])
+  return sections
+    .map((s, i) => ({ id: getSectionId(s.type, i), label: getSectionLabel(s.type), type: s.type }))
+    .filter(l => !skip.has(l.type))
+}
 `;
 }
 
 function genNavbarJsx(): string {
   return `import React from 'react'
+import { handleNavClick } from '../lib/navigation.js'
 
-export default function GenomeNavbar({ genome, projectName }) {
+export default function GenomeNavbar({ genome, projectName, navLinks = [], ctaSectionId }) {
   const { colors, typography, radius, spacing } = genome
-  const pad = \`\${parseInt(spacing.md)} \${parseInt(spacing['2xl']) * 4}px\`
 
   return (
     <nav style={{
@@ -238,29 +343,37 @@ export default function GenomeNavbar({ genome, projectName }) {
         }}>{projectName}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xl }}>
-        {['Features', 'Pricing', 'About'].map(link => (
-          <a key={link} href="#" style={{
-            fontFamily: typography.body,
-            fontSize: 14,
-            color: 'rgba(255,255,255,0.7)',
-            textDecoration: 'none',
-            transition: 'color 0.2s',
-          }}
+        {navLinks.map(link => (
+          <a key={link.id} href={'#' + link.id}
+            onClick={e => handleNavClick(e, link.id)}
+            style={{
+              fontFamily: typography.body,
+              fontSize: 14,
+              color: 'rgba(255,255,255,0.7)',
+              textDecoration: 'none',
+              transition: 'color 0.2s',
+              cursor: 'pointer',
+            }}
             onMouseEnter={e => e.target.style.color = '#fff'}
             onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}
-          >{link}</a>
+          >{link.label}</a>
         ))}
-        <a href="#" style={{
-          fontFamily: typography.body,
-          fontSize: 14,
-          fontWeight: 600,
-          color: '#fff',
-          backgroundColor: colors.primary,
-          padding: \`\${spacing.sm} \${spacing.xl}\`,
-          borderRadius: radius.full,
-          textDecoration: 'none',
-          display: 'inline-block',
-        }}>Get Started</a>
+        {ctaSectionId && (
+          <a href={'#' + ctaSectionId}
+            onClick={e => handleNavClick(e, ctaSectionId)}
+            style={{
+              fontFamily: typography.body,
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#fff',
+              backgroundColor: colors.primary,
+              padding: \`\${spacing.sm} \${spacing.xl}\`,
+              borderRadius: radius.full,
+              textDecoration: 'none',
+              display: 'inline-block',
+              cursor: 'pointer',
+            }}>Get Started</a>
+        )}
       </div>
     </nav>
   )
@@ -270,8 +383,9 @@ export default function GenomeNavbar({ genome, projectName }) {
 
 function genHeroJsx(): string {
   return `import React from 'react'
+import { handleNavClick } from '../lib/navigation.js'
 
-export default function GenomeHero({ genome, section, projectName, projectPrompt }) {
+export default function GenomeHero({ genome, section, projectName, projectPrompt, sectionId, ctaSectionId }) {
   const { colors, typography, spacing, radius } = genome
   const textAlign = section.alignment === 'center' ? 'center' : section.alignment === 'right' ? 'right' : 'left'
   const words = projectName.split(' ')
@@ -280,7 +394,7 @@ export default function GenomeHero({ genome, section, projectName, projectPrompt
   const second = words.slice(mid).join(' ')
 
   return (
-    <section style={{
+    <section id={sectionId} style={{
       backgroundColor: colors.background,
       padding: \`\${parseInt(spacing.xl) * 8}px \${parseInt(spacing['2xl']) * 4}px\`,
       textAlign,
@@ -324,29 +438,35 @@ export default function GenomeHero({ genome, section, projectName, projectPrompt
           maxWidth: 520,
         }}>{projectPrompt.slice(0, 160)}{projectPrompt.length > 160 ? '…' : ''}</p>
         <div style={{ display: 'flex', gap: spacing.lg, flexWrap: 'wrap', justifyContent: textAlign === 'center' ? 'center' : 'flex-start' }}>
-          <a href="#" style={{
-            fontFamily: typography.body,
-            fontWeight: 600,
-            fontSize: 15,
-            color: '#fff',
-            backgroundColor: colors.primary,
-            padding: \`14px \${parseInt(spacing['2xl']) * 2}px\`,
-            borderRadius: radius.md,
-            textDecoration: 'none',
-            display: 'inline-block',
-          }}>Get Started Free</a>
-          <a href="#" style={{
-            fontFamily: typography.body,
-            fontWeight: 600,
-            fontSize: 15,
-            color: colors.primary,
-            backgroundColor: 'transparent',
-            padding: \`14px \${parseInt(spacing['2xl']) * 2}px\`,
-            borderRadius: radius.md,
-            textDecoration: 'none',
-            border: \`1px solid \${colors.primary}40\`,
-            display: 'inline-block',
-          }}>Learn More →</a>
+          <a href={ctaSectionId ? '#' + ctaSectionId : '#'}
+            onClick={ctaSectionId ? e => handleNavClick(e, ctaSectionId) : undefined}
+            style={{
+              fontFamily: typography.body,
+              fontWeight: 600,
+              fontSize: 15,
+              color: '#fff',
+              backgroundColor: colors.primary,
+              padding: \`14px \${parseInt(spacing['2xl']) * 2}px\`,
+              borderRadius: radius.md,
+              textDecoration: 'none',
+              display: 'inline-block',
+              cursor: 'pointer',
+            }}>Get Started Free</a>
+          <a href={ctaSectionId ? '#' + ctaSectionId : '#'}
+            onClick={ctaSectionId ? e => handleNavClick(e, ctaSectionId) : undefined}
+            style={{
+              fontFamily: typography.body,
+              fontWeight: 600,
+              fontSize: 15,
+              color: colors.primary,
+              backgroundColor: 'transparent',
+              padding: \`14px \${parseInt(spacing['2xl']) * 2}px\`,
+              borderRadius: radius.md,
+              textDecoration: 'none',
+              border: \`1px solid \${colors.primary}40\`,
+              display: 'inline-block',
+              cursor: 'pointer',
+            }}>Learn More →</a>
         </div>
       </div>
       {section.imagePlacement !== 'none' && (
@@ -385,12 +505,12 @@ const FEATURES = [
   { title: 'API First', desc: 'Comprehensive REST and GraphQL APIs for every feature.' },
 ]
 
-export default function GenomeFeatureGrid({ genome, section, projectName }) {
+export default function GenomeFeatureGrid({ genome, section, projectName, sectionId }) {
   const { colors, typography, spacing, radius } = genome
   const cols = section.columns || 3
 
   return (
-    <section style={{
+    <section id={sectionId} style={{
       backgroundColor: colors.surface,
       padding: \`\${parseInt(spacing.xl) * 6}px \${parseInt(spacing['2xl']) * 4}px\`,
     }}>
@@ -471,13 +591,13 @@ const CARDS = [
   { title: 'Developer', desc: 'Full API access with generous rate limits for builders.', badge: 'API' },
 ]
 
-export default function GenomeCardList({ genome, section }) {
+export default function GenomeCardList({ genome, section, sectionId }) {
   const { colors, typography, spacing, radius } = genome
   const cols = section.columns || 2
   const count = section.cardCount || 3
 
   return (
-    <section style={{
+    <section id={sectionId} style={{
       backgroundColor: colors.background,
       padding: \`\${parseInt(spacing.xl) * 6}px \${parseInt(spacing['2xl']) * 4}px\`,
     }}>
@@ -565,12 +685,12 @@ const STATS = [
   { value: '180+', label: 'Countries' },
 ]
 
-export default function GenomeStats({ genome, section }) {
+export default function GenomeStats({ genome, section, sectionId }) {
   const { colors, typography, spacing, radius } = genome
   const cols = section.columns || 4
 
   return (
-    <section style={{
+    <section id={sectionId} style={{
       backgroundColor: colors.surface,
       padding: \`\${parseInt(spacing.xl) * 5}px \${parseInt(spacing['2xl']) * 4}px\`,
       borderTop: \`1px solid \${colors.primary}18\`,
@@ -619,12 +739,12 @@ const TESTIMONIALS = [
   { quote: 'Exceptional quality and support. Our productivity has increased by over 40% since switching.', author: 'James R.', role: 'Director, InnovateCo' },
 ]
 
-export default function GenomeTestimonial({ genome, section }) {
+export default function GenomeTestimonial({ genome, section, sectionId }) {
   const { colors, typography, spacing, radius } = genome
   const count = section.cardCount || 3
 
   return (
-    <section style={{
+    <section id={sectionId} style={{
       backgroundColor: colors.background,
       padding: \`\${parseInt(spacing.xl) * 6}px \${parseInt(spacing['2xl']) * 4}px\`,
     }}>
@@ -690,12 +810,12 @@ export default function GenomeTestimonial({ genome, section }) {
 function genCTAJsx(): string {
   return `import React from 'react'
 
-export default function GenomeCTA({ genome, section, projectName }) {
+export default function GenomeCTA({ genome, section, projectName, sectionId }) {
   const { colors, typography, spacing, radius } = genome
   const textAlign = section.alignment === 'center' ? 'center' : 'left'
 
   return (
-    <section style={{
+    <section id={sectionId} style={{
       background: \`linear-gradient(135deg, \${colors.primary}25 0%, \${colors.accent}20 100%)\`,
       borderTop: \`1px solid \${colors.primary}30\`,
       borderBottom: \`1px solid \${colors.primary}30\`,
@@ -752,18 +872,19 @@ export default function GenomeCTA({ genome, section, projectName }) {
 
 function genFooterJsx(): string {
   return `import React from 'react'
+import { handleNavClick } from '../lib/navigation.js'
 
-export default function GenomeFooter({ genome, projectName }) {
+export default function GenomeFooter({ genome, projectName, navLinks = [], sectionId }) {
   const { colors, typography, spacing, radius } = genome
 
   return (
-    <footer style={{
+    <footer id={sectionId} style={{
       backgroundColor: colors.surface,
       borderTop: \`1px solid \${colors.primary}18\`,
       padding: \`\${parseInt(spacing.xl) * 5}px \${parseInt(spacing['2xl']) * 4}px \${parseInt(spacing.xl) * 3}px\`,
     }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: spacing.xl, marginBottom: \`\${parseInt(spacing['2xl']) * 3}px\` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: navLinks.length > 0 ? '2fr 1fr 1fr' : '1fr', gap: spacing.xl, marginBottom: \`\${parseInt(spacing['2xl']) * 3}px\` }}>
           <div>
             <div style={{
               fontFamily: typography.heading,
@@ -781,12 +902,8 @@ export default function GenomeFooter({ genome, projectName }) {
               maxWidth: 220,
             }}>Built with Morse — deterministic design for generative AI.</p>
           </div>
-          {[
-            { title: 'Product', links: ['Features', 'Pricing', 'Changelog', 'Roadmap'] },
-            { title: 'Company', links: ['About', 'Blog', 'Careers', 'Press'] },
-            { title: 'Legal', links: ['Privacy', 'Terms', 'Security', 'Cookies'] },
-          ].map(col => (
-            <div key={col.title}>
+          {navLinks.length > 0 && (
+            <div>
               <div style={{
                 fontFamily: typography.heading,
                 fontWeight: 600,
@@ -795,23 +912,51 @@ export default function GenomeFooter({ genome, projectName }) {
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 marginBottom: spacing.lg,
-              }}>{col.title}</div>
-              {col.links.map(link => (
-                <a key={link} href="#" style={{
-                  display: 'block',
-                  fontFamily: typography.body,
-                  fontSize: 14,
-                  color: 'rgba(255,255,255,0.5)',
-                  textDecoration: 'none',
-                  marginBottom: spacing.sm,
-                  transition: 'color 0.2s',
-                }}
+              }}>Sections</div>
+              {navLinks.map(link => (
+                <a key={link.id} href={'#' + link.id}
+                  onClick={e => handleNavClick(e, link.id)}
+                  style={{
+                    display: 'block',
+                    fontFamily: typography.body,
+                    fontSize: 14,
+                    color: 'rgba(255,255,255,0.5)',
+                    textDecoration: 'none',
+                    marginBottom: spacing.sm,
+                    transition: 'color 0.2s',
+                    cursor: 'pointer',
+                  }}
                   onMouseEnter={e => e.target.style.color = '#fff'}
                   onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.5)'}
-                >{link}</a>
+                >{link.label}</a>
               ))}
             </div>
-          ))}
+          )}
+          <div>
+            <div style={{
+              fontFamily: typography.heading,
+              fontWeight: 600,
+              fontSize: 13,
+              color: 'rgba(255,255,255,0.6)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              marginBottom: spacing.lg,
+            }}>Legal</div>
+            {['Privacy', 'Terms', 'Security'].map(link => (
+              <a key={link} href="#" style={{
+                display: 'block',
+                fontFamily: typography.body,
+                fontSize: 14,
+                color: 'rgba(255,255,255,0.5)',
+                textDecoration: 'none',
+                marginBottom: spacing.sm,
+                transition: 'color 0.2s',
+              }}
+                onMouseEnter={e => e.target.style.color = '#fff'}
+                onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.5)'}
+              >{link}</a>
+            ))}
+          </div>
         </div>
         <div style={{
           borderTop: \`1px solid \${colors.primary}18\`,
@@ -849,18 +994,13 @@ import GenomeStats from '../components/GenomeStats.jsx'
 import GenomeTestimonial from '../components/GenomeTestimonial.jsx'
 import GenomeCTA from '../components/GenomeCTA.jsx'
 import GenomeFooter from '../components/GenomeFooter.jsx'
+import { buildNavLinks, getSectionId } from '../lib/navigation.js'
 
-// ─── Design Genome ────────────────────────────────────────────────────────────
-// Generated deterministically from seed: ${project.seed.slice(0, 16)}…
 const genome = ${genomeStr}
-
-// ─── Layout Graph ─────────────────────────────────────────────────────────────
 const layout = ${layoutStr}
-
 const projectName = ${nameStr}
 const projectPrompt = ${promptStr}
 
-// ─── Section → Component mapping ─────────────────────────────────────────────
 const SECTION_COMPONENTS = {
   hero: GenomeHero,
   featureGrid: GenomeFeatureGrid,
@@ -871,13 +1011,19 @@ const SECTION_COMPONENTS = {
   footer: GenomeFooter,
 }
 
+const navLinks = buildNavLinks(layout.sections)
+const ctaSectionId = layout.sections
+  .map((s, i) => ({ type: s.type, id: getSectionId(s.type, i) }))
+  .find(s => s.type === 'cta')?.id || navLinks[navLinks.length - 1]?.id || null
+
 export default function Home() {
   return (
     <div style={{ backgroundColor: genome.colors.background, minHeight: '100vh' }}>
-      <GenomeNavbar genome={genome} projectName={projectName} />
+      <GenomeNavbar genome={genome} projectName={projectName} navLinks={navLinks} ctaSectionId={ctaSectionId} />
       {layout.sections.map((section, i) => {
         const Component = SECTION_COMPONENTS[section.type]
         if (!Component) return null
+        const sectionId = getSectionId(section.type, i)
         return (
           <Component
             key={i}
@@ -885,6 +1031,9 @@ export default function Home() {
             section={section}
             projectName={projectName}
             projectPrompt={projectPrompt}
+            sectionId={sectionId}
+            ctaSectionId={ctaSectionId}
+            navLinks={navLinks}
           />
         )
       })}
@@ -921,15 +1070,17 @@ npm run preview
 ├── pages/
 │   └── index.jsx         # Main page with genome + layout constants
 ├── components/
-│   ├── GenomeNavbar.jsx  # Navigation bar
+│   ├── GenomeNavbar.jsx  # Navigation bar (dynamic links)
 │   ├── GenomeHero.jsx    # Hero section
 │   ├── GenomeFeatureGrid.jsx
 │   ├── GenomeCardList.jsx
 │   ├── GenomeStats.jsx
 │   ├── GenomeTestimonial.jsx
 │   ├── GenomeCTA.jsx
-│   ├── GenomeFooter.jsx
+│   ├── GenomeFooter.jsx  # Footer (dynamic section links)
 │   └── icons.jsx         # Genome-styled SVG icons
+├── lib/
+│   └── navigation.js     # Universal navigation handler
 ├── styles/
 │   └── globals.css       # Tailwind + CSS variables from genome
 ├── src/
@@ -963,6 +1114,7 @@ export function generateExportFiles(
     { path: "index.html", content: genIndexHtml(project) },
     { path: "src/main.jsx", content: genMainJsx(genome) },
     { path: "styles/globals.css", content: genGlobalsCss(genome) },
+    { path: "lib/navigation.js", content: genNavigationJs() },
     { path: "components/icons.jsx", content: genIconsSvg(genome) },
     { path: "components/GenomeNavbar.jsx", content: genNavbarJsx() },
     { path: "components/GenomeHero.jsx", content: genHeroJsx() },

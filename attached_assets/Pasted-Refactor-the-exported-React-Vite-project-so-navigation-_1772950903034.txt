@@ -1,0 +1,141 @@
+Refactor the exported React + Vite project so navigation works correctly in Replit regardless of how many pages or sections exist.
+
+The current implementation hard-codes specific routes and breaks when the project structure changes.
+
+Do NOT hardcode routes such as /features or /pricing.
+
+The navigation system must automatically adapt to whatever pages or sections exist in the project.
+
+Do NOT modify authentication.
+Do NOT modify database configuration.
+
+------------------------------------------------
+1. UNIVERSAL NAVIGATION HANDLER
+------------------------------------------------
+
+Create a navigation system that dynamically detects links.
+
+File:
+/src/lib/navigationHandler.ts
+
+Responsibilities:
+
+detect if link target is
+- a page route
+- a section id
+- an external link
+
+Then handle navigation accordingly.
+
+------------------------------------------------
+2. AUTO SECTION SCROLLING
+------------------------------------------------
+
+If the target element exists in the current page:
+
+scroll to it.
+
+Example logic:
+
+const element = document.querySelector(target)
+
+if element exists:
+  element.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  })
+
+------------------------------------------------
+3. AUTO ROUTE NAVIGATION
+------------------------------------------------
+
+If the target does NOT exist on the current page:
+
+perform route navigation instead.
+
+Example logic:
+
+if (!document.querySelector(target)) {
+  router.navigate(target)
+}
+
+------------------------------------------------
+4. REMOVE HARDCODED ROUTES
+------------------------------------------------
+
+Delete any navigation logic containing explicit page names.
+
+Example patterns to remove:
+
+/features
+/pricing
+/blog
+/about
+
+Navigation must be dynamic.
+
+------------------------------------------------
+5. LINK INTERCEPTION
+------------------------------------------------
+
+Intercept clicks on navigation links globally.
+
+File:
+/src/lib/linkInterceptor.ts
+
+Add a click listener:
+
+document.addEventListener("click", handler)
+
+If the clicked element is an anchor link:
+
+prevent default behavior
+pass the link target to navigationHandler.
+
+------------------------------------------------
+6. SUPPORT ANY PROJECT STRUCTURE
+------------------------------------------------
+
+The system must work regardless of:
+
+number of pages
+number of sections
+component hierarchy
+
+Navigation must work automatically without configuration.
+
+------------------------------------------------
+7. AUTO SECTION REGISTRATION
+------------------------------------------------
+
+During page load scan for sections.
+
+Example:
+
+document.querySelectorAll("section[id]")
+
+Register them as valid navigation targets.
+
+------------------------------------------------
+8. PREVENT PAGE RELOADS
+------------------------------------------------
+
+All internal navigation must remain client-side.
+
+Links should not cause full page reloads.
+
+------------------------------------------------
+9. RESULT
+------------------------------------------------
+
+After this change:
+
+navigation links work for any generated project
+
+buttons correctly scroll to sections
+
+buttons navigate to pages when sections are not present
+
+no hardcoded page names are required
+
+designs exported from the generator behave exactly the same after deployment in Replit.
