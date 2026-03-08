@@ -1,0 +1,213 @@
+Extend the locally built prompt-interpretation LLM so it can continuously improve as users interact with the platform.
+
+The LLM must remain fully self-hosted inside the project.
+
+It must not rely on third-party AI APIs.
+
+The model is used only for prompt interpretation and intent extraction.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+------------------------------------------------
+1. PROMPT LEARNING PIPELINE
+------------------------------------------------
+
+Create a system that records every prompt submitted by users.
+
+Directory:
+
+/ai/learning/
+
+Files:
+
+promptLogger.ts
+learningDataset.ts
+trainingQueue.ts
+
+Every prompt must be stored with:
+
+{
+ promptText
+ interpretedIntent
+ appliedPatches
+ userCorrections
+ timestamp
+ projectContext
+}
+
+------------------------------------------------
+2. PROMPT DATABASE
+------------------------------------------------
+
+Create a prompt knowledge database.
+
+Directory:
+
+/ai/learning/database/
+
+The database must accumulate prompt examples over time.
+
+Stored data must include:
+
+prompt
+intent structure
+actions generated
+result success status
+
+This becomes the model training dataset.
+
+------------------------------------------------
+3. FEEDBACK SIGNALS
+------------------------------------------------
+
+Detect whether the model interpreted prompts correctly.
+
+Possible signals:
+
+user re-prompts
+manual corrections
+undo actions
+editor modifications
+
+If a prompt leads to corrections, mark it as:
+
+needs improvement
+
+Store corrected result as new training data.
+
+------------------------------------------------
+4. CONTINUOUS DATASET EXPANSION
+------------------------------------------------
+
+The system must automatically expand the dataset.
+
+File:
+
+/ai/learning/learningDataset.ts
+
+Responsibilities:
+
+append new prompt samples
+store corrected outputs
+organize examples by prompt type
+
+Examples:
+
+design creation prompts
+layout modification prompts
+style modification prompts
+context correction prompts
+component editing prompts
+
+------------------------------------------------
+5. PERIODIC MODEL RETRAINING
+------------------------------------------------
+
+Create a background training process.
+
+File:
+
+/ai/model/retraining.ts
+
+Process:
+
+collect new prompt dataset
+fine-tune the LLM on accumulated prompts
+update model weights
+
+Retraining should occur periodically, for example:
+
+after a threshold number of new prompts
+or at scheduled intervals.
+
+------------------------------------------------
+6. MODEL VERSIONING
+------------------------------------------------
+
+Store model versions.
+
+Directory:
+
+/ai/model/versions/
+
+Each trained model must include:
+
+model weights
+training dataset snapshot
+version identifier
+training timestamp
+
+Allow the system to rollback to previous versions if needed.
+
+------------------------------------------------
+7. ONLINE LEARNING ADAPTER
+------------------------------------------------
+
+Create a lightweight adaptation layer.
+
+File:
+
+/ai/model/adaptation.ts
+
+Purpose:
+
+improve prompt interpretation using the latest prompt dataset without full retraining.
+
+Techniques:
+
+embedding similarity
+prompt clustering
+intent pattern detection
+
+This allows the model to improve quickly between training cycles.
+
+------------------------------------------------
+8. PROMPT PATTERN DISCOVERY
+------------------------------------------------
+
+Detect recurring prompt structures.
+
+File:
+
+/ai/learning/patternDiscovery.ts
+
+Example patterns:
+
+style changes
+layout simplification
+context corrections
+component edits
+
+Store patterns to improve interpretation accuracy.
+
+------------------------------------------------
+9. PRIVACY AND SAFETY
+------------------------------------------------
+
+Ensure stored prompts do not include sensitive data.
+
+Before storing prompts:
+
+remove tokens that resemble:
+
+emails
+passwords
+API keys
+authentication tokens
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After implementing this system:
+
+the LLM continues learning as users interact with the platform
+
+prompt understanding improves automatically
+
+the training dataset grows with real user prompts
+
+model accuracy increases over time
+
+no external AI services are required

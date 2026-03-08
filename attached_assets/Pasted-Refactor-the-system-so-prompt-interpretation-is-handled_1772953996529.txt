@@ -1,0 +1,240 @@
+Refactor the system so prompt interpretation is handled by a custom LLM built and hosted inside this project.
+
+The model must run locally inside the application environment and must not call external AI APIs.
+
+The model will be used strictly for prompt understanding and intent extraction.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+------------------------------------------------
+1. BUILD A LOCAL PROMPT INTERPRETATION LLM
+------------------------------------------------
+
+Create a lightweight transformer-based LLM dedicated to prompt interpretation.
+
+Directory:
+
+/ai/model/
+
+Files:
+
+model.ts
+tokenizer.ts
+inference.ts
+training.ts
+promptSchema.ts
+
+The model must be capable of:
+
+semantic prompt understanding
+intent extraction
+instruction structuring
+
+The model must output structured intent.
+
+Example output format:
+
+{
+ intentType
+ pageType
+ industry
+ actions
+ targets
+ layoutChanges
+ styleChanges
+ contentChanges
+ contextOverrides
+}
+
+------------------------------------------------
+2. MODEL ARCHITECTURE
+------------------------------------------------
+
+Implement a small transformer architecture suitable for prompt understanding.
+
+Components required:
+
+tokenizer
+embedding layer
+attention blocks
+transformer layers
+output head for intent prediction
+
+Model responsibilities:
+
+understand prompt meaning
+map prompt to structured instructions
+
+The model must not generate long text responses.
+
+------------------------------------------------
+3. PROMPT TRAINING DATA
+------------------------------------------------
+
+Create training data for prompt interpretation.
+
+Directory:
+
+/ai/training/
+
+Dataset format:
+
+{
+ prompt: "...",
+ output: structured_intent
+}
+
+Examples include:
+
+design generation prompts
+style change prompts
+layout modification prompts
+context correction prompts
+text update prompts
+component edits
+
+------------------------------------------------
+4. MODEL TRAINING PIPELINE
+------------------------------------------------
+
+Create training scripts.
+
+File:
+
+/ai/model/training.ts
+
+Responsibilities:
+
+load dataset
+train transformer model
+export trained weights
+
+Weights saved to:
+
+/ai/model/weights/
+
+------------------------------------------------
+5. MODEL INFERENCE ENGINE
+------------------------------------------------
+
+Create inference pipeline.
+
+File:
+
+/ai/model/inference.ts
+
+Flow:
+
+user prompt
+→ tokenize
+→ run transformer inference
+→ produce structured intent
+→ return intent JSON
+
+------------------------------------------------
+6. UNIVERSAL PROMPT ROUTER
+------------------------------------------------
+
+All prompts must be processed by the LLM.
+
+Create:
+
+/ai/promptRouter.ts
+
+Prompts coming from:
+
+design creation
+editor prompt input
+regenerate style
+regenerate layout
+context correction
+
+must all pass through the LLM.
+
+------------------------------------------------
+7. EDITOR INTEGRATION
+------------------------------------------------
+
+Connect the LLM interpreter to the editor prompt box.
+
+File:
+
+/components/editor/promptEditor.tsx
+
+Process:
+
+user enters prompt
+→ send prompt to local LLM
+→ receive structured intent
+→ convert intent into UI patches
+→ apply changes to design
+
+------------------------------------------------
+8. CONTEXT MEMORY
+------------------------------------------------
+
+Provide project context to the model.
+
+File:
+
+/ai/context/projectContext.ts
+
+Context must include:
+
+industry
+page type
+brand
+layout structure
+design tokens
+sections present
+
+This context must be passed into the LLM prompt during inference.
+
+------------------------------------------------
+9. PATCH ENGINE
+------------------------------------------------
+
+Convert model output into UI changes.
+
+Create:
+
+/ai/patch/patchEngine.ts
+
+Supported actions:
+
+update text
+rename brand
+change color palette
+modify layout density
+move components
+add/remove sections
+update typography
+
+------------------------------------------------
+10. MODEL ROLE
+------------------------------------------------
+
+The LLM is responsible only for:
+
+prompt interpretation
+intent extraction
+context reasoning
+
+The design generator remains responsible for producing layouts and content.
+
+------------------------------------------------
+11. RESULT
+------------------------------------------------
+
+After this change:
+
+the system uses a locally built LLM
+
+no third party AI services are required
+
+prompt understanding becomes semantic rather than rule-based
+
+editor prompts behave the same as generation prompts
+
+the system can interpret complex instructions reliably.

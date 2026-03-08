@@ -26,6 +26,8 @@ import { isLayoutTooSimilar, buildLayoutSigComponents } from "@shared/layoutSign
 import { needsMutation, mutateLayout } from "@shared/layoutMutation";
 import { validateContent, needsRegeneration } from "@shared/contextValidator";
 import { detectMediaIntent, stripMediaPlacements } from "@shared/mediaIntentDetector";
+import { routePrompt, interpretDesignPrompt } from "../ai/promptRouter";
+import { extractProjectContext } from "../ai/context/projectContext";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -54,6 +56,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error syncing user:", err);
       res.status(500).json({ message: "Failed to sync user" });
+    }
+  });
+
+  app.post("/api/ai/interpret", requireAuth, async (req, res) => {
+    try {
+      const { prompt, projectId } = req.body;
+      if (!prompt || typeof prompt !== "string") {
+        return res.status(400).json({ message: "prompt string required" });
+      }
+      let project: any = undefined;
+      if (projectId) {
+        project = await storage.getProject(projectId) ?? undefined;
+      }
+      const result = routePrompt({ prompt, project: project ?? undefined });
+      res.json({
+        intent: result.intent,
+        patchSet: result.patchSet,
+        shouldRegenerateLayout: result.shouldRegenerateLayout,
+        shouldRegenerateStyle: result.shouldRegenerateStyle,
+        shouldCorrectContext: result.shouldCorrectContext,
+        brandRename: result.brandRename,
+        description: result.description,
+      });
+    } catch (err) {
+      console.error("AI interpret error:", err);
+      res.status(500).json({ message: "Interpretation failed" });
     }
   });
 
@@ -230,6 +258,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let contentPatch: Record<string, string> = {};
       const nlContextLock = extractContextLock(project.settingsJson);
 
+      const aiResult = routePrompt({ prompt: commands, project });
+
       const intents = interpretSemanticMulti(commands);
       const patchSet = generateMultiPatches(intents);
 
@@ -237,7 +267,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         currentGenome = applyPatchesToGenome(currentGenome, patchSet.genomePatch);
       }
 
-      for (const [key, value] of Object.entries(patchSet.settingsPatch)) {
+      for (const aiPatch of aiResult.patchSet.genomePatch) {
+        if (!patchSet.genomePatch.find(p => p.path === aiPatch.path)) {
+          currentGenome = applyPatchesToGenome(currentGenome, [aiPatch]);
+        }
+      }
+
+      const mergedSettingsPatch = { ...patchSet.settingsPatch, ...aiResult.patchSet.settingsPatch };
+      for (const [key, value] of Object.entries(mergedSettingsPatch)) {
         if (nlContextLock.locked && (key === "industry" || key === "productType" || key === "coreActivities" || key === "pageType")) {
           continue;
         }
@@ -247,10 +284,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      contentPatch = { ...patchSet.contentPatch };
+      contentPatch = { ...patchSet.contentPatch, ...aiResult.patchSet.contentPatch };
 
-      if (patchSet.description) {
-        for (const d of patchSet.description.split("; ")) {
+      if (aiResult.brandRename) {
+        contentPatch.brandName = aiResult.brandRename;
+        (currentSettings as any).brandName = aiResult.brandRename;
+      }
+
+      const descriptionSource = aiResult.description || patchSet.description || "";
+      if (descriptionSource) {
+        for (const d of descriptionSource.split("; ")) {
           if (d && !allDescriptions.includes(d)) allDescriptions.push(d);
         }
       }
