@@ -1,4 +1,5 @@
 import { useParams, useLocation } from "wouter";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import { format } from "date-fns";
@@ -933,6 +934,7 @@ function SidebarAutoCollapse({ canvasMode }: { canvasMode: boolean }) {
 }
 
 export default function ProjectPage() {
+  usePageTitle("Project");
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { getToken } = useAuth();

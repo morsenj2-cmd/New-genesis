@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/react";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -15,6 +16,7 @@ import type { BlogPost } from "@shared/schema";
 import spiralBg from "@assets/image_1772970592054.png";
 
 export default function BlogPage() {
+  usePageTitle("Blog");
   const { isSignedIn } = useAuth();
 
   const { data: adminStatus } = useQuery<{ isAdmin: boolean }>({

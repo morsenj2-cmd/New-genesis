@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Hash, Clock, ChevronRight, X, Info } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 import type { Project } from "@shared/schema";
 import spiralBg from "@assets/image_1772970592054.png";
 
@@ -152,6 +153,7 @@ function ProjectGridSkeleton() {
 }
 
 export default function DashboardPage() {
+  usePageTitle("Dashboard");
   const { user, isLoaded } = useUser();
   const { isSignedIn, getToken } = useAuth();
   const [, navigate] = useLocation();

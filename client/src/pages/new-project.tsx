@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -77,6 +78,7 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 export default function NewProjectPage() {
+  usePageTitle("New Project");
   const [, navigate] = useLocation();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
