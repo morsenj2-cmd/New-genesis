@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, varchar, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, varchar, boolean, integer, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -28,6 +28,31 @@ export const projects = pgTable("projects", {
   layoutLocked: boolean("layout_locked").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const promptLogs = pgTable("prompt_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => users.id),
+  projectId: varchar("project_id").references(() => projects.id),
+  promptText: text("prompt_text").notNull(),
+  sanitizedPrompt: text("sanitized_prompt").notNull(),
+  intentType: text("intent_type").notNull(),
+  confidence: real("confidence").notNull(),
+  intentJson: text("intent_json").notNull(),
+  patchesJson: text("patches_json"),
+  projectContextJson: text("project_context_json"),
+  feedbackSignal: text("feedback_signal").default("none"),
+  correctedIntentJson: text("corrected_intent_json"),
+  patternId: text("pattern_id"),
+  usedForTraining: boolean("used_for_training").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPromptLogSchema = createInsertSchema(promptLogs).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertPromptLog = z.infer<typeof insertPromptLogSchema>;
+export type PromptLog = typeof promptLogs.$inferSelect;
 
 export const insertUserSchema = createInsertSchema(users);
 export const insertProjectSchema = createInsertSchema(projects).omit({

@@ -28,6 +28,14 @@ import { validateContent, needsRegeneration } from "@shared/contextValidator";
 import { detectMediaIntent, stripMediaPlacements } from "@shared/mediaIntentDetector";
 import { routePrompt, interpretDesignPrompt } from "../ai/promptRouter";
 import { extractProjectContext } from "../ai/context/projectContext";
+import { buildLogEntry, detectFeedbackSignal, sanitizePrompt } from "../ai/learning/promptLogger";
+import { appendExample } from "../ai/learning/learningDataset";
+import { recordPrompt, triggerRetrainIfNeeded, getQueueStatus, getTrainingHistory } from "../ai/learning/trainingQueue";
+import { recordPattern, getPatternStats, getTopPatterns } from "../ai/learning/patternDiscovery";
+import { recordAdaptation, getAdaptationStats } from "../ai/model/adaptation";
+import { retrain as retrainModel, getVersionHistory, getCurrentVersion } from "../ai/model/retraining";
+import { onRetrain } from "../ai/learning/trainingQueue";
+import { loadFromDatabase } from "../ai/learning/learningDataset";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -40,6 +48,28 @@ function isBase64DataUrl(str: string): boolean {
 }
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  onRetrain(async () => {
+    console.log("[Learning] Auto-retraining model with accumulated data...");
+    retrainModel();
+    console.log("[Learning] Retraining complete.");
+  });
+
+  try {
+    const storedLogs = await storage.getRecentPromptLogs(500);
+    if (storedLogs.length > 0) {
+      loadFromDatabase(storedLogs.map(l => ({
+        sanitizedPrompt: l.sanitizedPrompt,
+        intentType: l.intentType,
+        confidence: l.confidence,
+        feedbackSignal: l.feedbackSignal,
+        createdAt: l.createdAt,
+      })));
+      console.log(`[Learning] Loaded ${storedLogs.length} prompt logs from database`);
+    }
+  } catch (err) {
+    console.error("[Learning] Failed to load stored logs (non-fatal):", err);
+  }
+
   app.get("/api/config", (_req, res) => {
     res.json({ publishableKey: process.env.CLERK_PUBLISHABLE_KEY });
   });
@@ -79,6 +109,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         brandRename: result.brandRename,
         description: result.description,
       });
+
+      try {
+        const { userId } = getAuth(req);
+        if (userId && result.intent) {
+          const logEntry = buildLogEntry(userId, prompt, result.intent, result.patchSet, projectId);
+          const patternId = recordPattern(logEntry.sanitizedPrompt, result.intent.intentType as any);
+          logEntry.patternId = patternId;
+          await storage.logPrompt(logEntry as any);
+          appendExample({
+            prompt: logEntry.sanitizedPrompt,
+            intentType: result.intent.intentType as any,
+            confidence: result.intent.confidence,
+            feedbackSignal: "none",
+            timestamp: Date.now(),
+          });
+          recordAdaptation(logEntry.sanitizedPrompt, result.intent.intentType as any);
+          recordPrompt();
+        }
+      } catch (logErr) {
+        console.error("Error logging interpret prompt (non-fatal):", logErr);
+      }
     } catch (err) {
       console.error("AI interpret error:", err);
       res.status(500).json({ message: "Interpretation failed" });
@@ -345,6 +396,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         intents,
         contentPatch,
       });
+
+      try {
+        if (intents.length > 0) {
+          const primaryIntent = intents[0];
+          const logEntry = buildLogEntry(userId!, prompt, primaryIntent, patchSet, project.id, projectContext);
+          const patternId = recordPattern(logEntry.sanitizedPrompt, primaryIntent.intentType as any);
+          logEntry.patternId = patternId;
+          await storage.logPrompt(logEntry as any);
+          appendExample({
+            prompt: logEntry.sanitizedPrompt,
+            intentType: primaryIntent.intentType as any,
+            confidence: primaryIntent.confidence,
+            feedbackSignal: "none",
+            timestamp: Date.now(),
+          });
+          recordAdaptation(logEntry.sanitizedPrompt, primaryIntent.intentType as any);
+          recordPrompt();
+          triggerRetrainIfNeeded().catch(() => {});
+        }
+      } catch (logErr) {
+        console.error("Error logging prompt (non-fatal):", logErr);
+      }
     } catch (err) {
       console.error("Error applying NL command:", err);
       res.status(500).json({ message: "Failed to apply command" });
@@ -569,6 +642,83 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error exporting project:", err);
       if (!res.headersSent) res.status(500).json({ message: "Export failed" });
+    }
+  });
+
+  app.get("/api/ai/learning/stats", requireAuth, async (_req, res) => {
+    try {
+      const queue = getQueueStatus();
+      const patterns = getPatternStats();
+      const adaptation = getAdaptationStats();
+      const version = getCurrentVersion();
+      res.json({
+        queue,
+        patterns,
+        adaptation,
+        modelVersion: version ? { id: version.id, trainingSize: version.trainingSize, timestamp: version.timestamp } : null,
+        versionHistory: getVersionHistory(),
+        trainingHistory: getTrainingHistory(),
+      });
+    } catch (err) {
+      console.error("Error fetching learning stats:", err);
+      res.status(500).json({ message: "Failed to fetch learning stats" });
+    }
+  });
+
+  app.get("/api/ai/learning/patterns", requireAuth, async (_req, res) => {
+    try {
+      const top = getTopPatterns(50);
+      res.json({ patterns: top });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch patterns" });
+    }
+  });
+
+  app.post("/api/ai/learning/feedback", requireAuth, async (req, res) => {
+    try {
+      const { logId, signal, correctedIntent } = req.body;
+      if (!logId || !signal) return res.status(400).json({ message: "logId and signal required" });
+      await storage.updatePromptFeedback(logId, signal, correctedIntent ? JSON.stringify(correctedIntent) : undefined);
+
+      if (correctedIntent && correctedIntent.intentType) {
+        appendExample({
+          prompt: correctedIntent.prompt ?? "",
+          intentType: correctedIntent.intentType,
+          confidence: 1.0,
+          feedbackSignal: signal,
+          timestamp: Date.now(),
+        });
+        recordAdaptation(correctedIntent.prompt ?? "", correctedIntent.intentType, signal === "positive" ? 1.2 : 0.5);
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error updating feedback:", err);
+      res.status(500).json({ message: "Failed to update feedback" });
+    }
+  });
+
+  app.post("/api/ai/learning/retrain", requireAuth, async (_req, res) => {
+    try {
+      const weights = retrainModel();
+      const version = getCurrentVersion();
+      res.json({
+        success: true,
+        version: version ? { id: version.id, trainingSize: version.trainingSize } : null,
+      });
+    } catch (err) {
+      console.error("Error retraining model:", err);
+      res.status(500).json({ message: "Failed to retrain model" });
+    }
+  });
+
+  app.get("/api/ai/learning/logs", requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const logs = await storage.getRecentPromptLogs(limit);
+      res.json({ logs });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch logs" });
     }
   });
 

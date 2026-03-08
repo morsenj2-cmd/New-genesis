@@ -1,6 +1,8 @@
 import { tokenize, extractQuotedValues, extractNamedValues } from "./tokenizer";
 import { embedToken, meanPool, classifyIntent, getConceptScores, EMBEDDING_DIM } from "./model";
 import { getOrTrainWeights } from "./training";
+import { getAdaptedPrototypes } from "./adaptation";
+import { getCurrentVersion } from "./retraining";
 import type {
   StructuredIntent, IntentType, LayoutChange, StyleChange,
   ContentChange, ContextOverride, Action, Target, PageType, ModelWeights,
@@ -234,7 +236,12 @@ export function infer(prompt: string, context?: ProjectContext): StructuredInten
   );
   const conceptScores = getConceptScores(representationVec);
 
-  let intentRankings = classifyIntent(representationVec, weights.intentPrototypes);
+  const retrainedVersion = getCurrentVersion();
+  const adaptedPrototypes = getAdaptedPrototypes();
+  const activePrototypes = retrainedVersion
+    ? { ...retrainedVersion.weights.intentPrototypes, ...adaptedPrototypes }
+    : { ...weights.intentPrototypes, ...adaptedPrototypes };
+  let intentRankings = classifyIntent(representationVec, activePrototypes as Record<IntentType, number[]>);
   if (context) {
     intentRankings = intentRankings.map(r => ({
       ...r,

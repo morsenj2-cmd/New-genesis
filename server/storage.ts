@@ -1,12 +1,18 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
-import { users, projects, type User, type InsertUser, type Project } from "@shared/schema";
+import { users, projects, promptLogs, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: InsertUser): Promise<User>;
   getProject(id: string): Promise<Project | undefined>;
   getProjectsByUser(userId: string): Promise<Project[]>;
+  logPrompt(data: InsertPromptLog): Promise<PromptLog>;
+  getRecentPromptLogs(limit?: number): Promise<PromptLog[]>;
+  getPromptLogsByProject(projectId: string): Promise<PromptLog[]>;
+  getUntrainedPromptLogs(limit?: number): Promise<PromptLog[]>;
+  markLogsAsTrained(ids: string[]): Promise<void>;
+  updatePromptFeedback(id: string, signal: string, correctedIntent?: string): Promise<void>;
   createProject(data: {
     userId: string;
     name: string;
@@ -106,6 +112,36 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(projects)
       .where(and(eq(projects.id, id), eq(projects.userId, userId)));
+  }
+
+  async logPrompt(data: InsertPromptLog): Promise<PromptLog> {
+    const [log] = await db.insert(promptLogs).values(data).returning();
+    return log;
+  }
+
+  async getRecentPromptLogs(limit: number = 100): Promise<PromptLog[]> {
+    return db.select().from(promptLogs).orderBy(desc(promptLogs.createdAt)).limit(limit);
+  }
+
+  async getPromptLogsByProject(projectId: string): Promise<PromptLog[]> {
+    return db.select().from(promptLogs).where(eq(promptLogs.projectId, projectId)).orderBy(desc(promptLogs.createdAt));
+  }
+
+  async getUntrainedPromptLogs(limit: number = 500): Promise<PromptLog[]> {
+    return db.select().from(promptLogs).where(eq(promptLogs.usedForTraining, false)).orderBy(desc(promptLogs.createdAt)).limit(limit);
+  }
+
+  async markLogsAsTrained(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      await db.update(promptLogs).set({ usedForTraining: true }).where(eq(promptLogs.id, id));
+    }
+  }
+
+  async updatePromptFeedback(id: string, signal: string, correctedIntent?: string): Promise<void> {
+    const data: Partial<PromptLog> = { feedbackSignal: signal };
+    if (correctedIntent) data.correctedIntentJson = correctedIntent;
+    await db.update(promptLogs).set(data).where(eq(promptLogs.id, id));
   }
 }
 

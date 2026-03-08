@@ -140,6 +140,7 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 |---|---|
 | `users` | `id` (Clerk user ID, PK), `email`, `created_at` |
 | `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `settings_json`, `product_type`, `layout_locked` (bool), `created_at` |
+| `prompt_logs` | `id` (UUID, PK), `user_id` (FK), `project_id` (FK), `prompt_text`, `sanitized_prompt`, `intent_type`, `confidence` (real), `intent_json`, `patches_json`, `project_context_json`, `feedback_signal`, `corrected_intent_json`, `pattern_id`, `used_for_training` (bool), `created_at` |
 
 - `seed`: SHA-256 hash generated server-side
 - `logo_url`: Cloudinary HTTPS URL (uploaded from base64; resized to 256×256 server-side)
@@ -233,3 +234,36 @@ Logos and custom fonts are uploaded to Cloudinary on project creation. The serve
 | `date-fns` | Date formatting |
 | `lucide-react` | Icon library |
 | `drizzle-zod` | Zod schemas from Drizzle tables |
+
+### AI System — Local Prototype Network
+
+Morse includes a locally-run AI model for prompt interpretation — no external API calls needed.
+
+**Architecture:**
+- `ai/model/tokenizer.ts` — Tokenizer with stemming, normalization, stopword removal
+- `ai/model/model.ts` — 64-dim embedding layer, cosine similarity, mean pooling
+- `ai/model/training.ts` — Prototype network training, lazy weight initialization via `getOrTrainWeights()`
+- `ai/model/inference.ts` — Full pipeline: tokenize → embed → classify → extract → structure
+- `ai/model/promptSchema.ts` — TypeScript interfaces for intents, model config, structured results
+- `ai/promptRouter.ts` — Universal router (`routePrompt`, `interpretDesignPrompt`, `interpretWithProject`)
+- `ai/patch/patchEngine.ts` — Intent → patch conversion (`intentToPatchSet`, `applyGenomePatch`)
+- `ai/context/projectContext.ts` — Project context extraction for context-aware routing
+- `ai/training/dataset.ts` — 150+ curated training examples across 10 intent types
+
+**Continuous Learning System:**
+- `ai/learning/promptLogger.ts` — Privacy sanitization (emails, keys, tokens redacted) + log entry builder + feedback signal detection
+- `ai/learning/learningDataset.ts` — In-memory dataset expansion from logs, intent bucketing, weighted export for retraining
+- `ai/learning/trainingQueue.ts` — Auto-retraining queue (triggers after 50 prompts, 30min cooldown), training job history
+- `ai/learning/patternDiscovery.ts` — Recurring pattern detection via token normalization + FNV hashing, top-N pattern retrieval
+- `ai/model/adaptation.ts` — Online learning adapter: weighted prototype shifting between full retrains (max 30% adaptation strength)
+- `ai/model/retraining.ts` — Full retraining from base + learned data, model versioning (up to 10 versions), rollback support
+
+**DB Table:** `prompt_logs` — stores every prompt with sanitized text, intent classification, confidence, patches summary, feedback signal, pattern ID, training flag
+
+**API Endpoints:**
+- `POST /api/ai/interpret` — Classify a prompt and get structured intent
+- `GET /api/ai/learning/stats` — Learning system stats (queue, patterns, adaptation, model version)
+- `GET /api/ai/learning/patterns` — Top recurring prompt patterns
+- `GET /api/ai/learning/logs` — Recent prompt logs
+- `POST /api/ai/learning/feedback` — Submit feedback on a prompt log
+- `POST /api/ai/learning/retrain` — Manually trigger model retraining
