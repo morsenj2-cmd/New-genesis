@@ -20,14 +20,18 @@ const navItems = [
   { title: "New Project", url: "/new", icon: Plus },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ onNewProject }: { onNewProject?: () => void } = {}) {
   const [location, navigate] = useLocation();
   const { isSignedIn, isLoaded } = useAuth();
 
   const handleNewProject = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (!isSignedIn) {
-      e.preventDefault();
       navigate("/sign-in?redirect=%2Fnew");
+    } else if (onNewProject) {
+      onNewProject();
+    } else {
+      navigate("/new");
     }
   };
 

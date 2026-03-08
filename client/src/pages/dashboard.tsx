@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useUser, useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Hash, Clock, ChevronRight } from "lucide-react";
+import { Plus, Hash, Clock, ChevronRight, X, Info } from "lucide-react";
 import type { Project } from "@shared/schema";
 import spiralBg from "@assets/image_1772970592054.png";
 
@@ -178,13 +178,20 @@ export default function DashboardPage() {
     enabled: !!isSignedIn,
   });
 
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+
   const handleCreateClick = () => {
     if (isSignedIn) {
-      navigate("/new");
+      setShowDisclaimer(true);
     } else {
       navigate("/sign-in?redirect=%2Fnew");
     }
   };
+
+  const handleDisclaimerClose = useCallback(() => {
+    setShowDisclaimer(false);
+    navigate("/new");
+  }, [navigate]);
 
   const projectCount = projects?.length ?? 0;
 
@@ -201,7 +208,58 @@ export default function DashboardPage() {
           backgroundRepeat: "no-repeat",
         }}
       >
-        <AppSidebar />
+        {showDisclaimer && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            data-testid="disclaimer-overlay"
+          >
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={handleDisclaimerClose}
+            />
+            <div
+              className="relative z-10 max-w-md w-full mx-4 rounded-2xl p-6 border border-white/[0.08]"
+              style={{
+                background: "rgba(12, 12, 12, 0.55)",
+                backdropFilter: "blur(24px) saturate(1.4)",
+                WebkitBackdropFilter: "blur(24px) saturate(1.4)",
+                boxShadow:
+                  "inset 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 16px 48px rgba(0, 0, 0, 0.5)",
+              }}
+              data-testid="disclaimer-modal"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                  <Info className="h-5 w-5 text-white/70" />
+                </div>
+                <button
+                  onClick={handleDisclaimerClose}
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition-all"
+                  data-testid="button-disclaimer-close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p
+                className="text-white/90 text-sm leading-relaxed mb-6"
+                style={{ fontFamily: "'Arimo', sans-serif" }}
+                data-testid="text-disclaimer"
+              >
+                Morse makes better landing page designs than complex application
+                interfaces such as dashboards. Work is underway to expand its
+                capabilities in these areas.
+              </p>
+              <Button
+                onClick={handleDisclaimerClose}
+                className="w-full"
+                data-testid="button-disclaimer-continue"
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        )}
+        <AppSidebar onNewProject={() => setShowDisclaimer(true)} />
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-transparent sticky top-0 z-10">
             <div className="flex items-center gap-3">
