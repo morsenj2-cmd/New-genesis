@@ -32,14 +32,16 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader className="p-4 border-b border-sidebar-border">
+    <Sidebar className="liquid-glass-sidebar">
+      <SidebarHeader className="p-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
-          <img
-            src={logoPath}
-            alt="Morse"
-            className="h-8 w-8 rounded-lg object-cover dark:invert-0 invert shrink-0"
-          />
+          <div className="h-8 w-8 rounded-lg bg-white/[0.08] backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/[0.06]">
+            <img
+              src={logoPath}
+              alt="Morse"
+              className="h-5 w-5 object-cover dark:invert-0 invert"
+            />
+          </div>
           <span className="text-sm font-semibold text-sidebar-foreground tracking-tight">Morse</span>
         </div>
       </SidebarHeader>
@@ -55,7 +57,11 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       data-active={isActive}
-                      className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
+                      className={
+                        isActive
+                          ? "bg-white/[0.08] text-sidebar-accent-foreground backdrop-blur-sm border border-white/[0.06] shadow-[0_0_12px_rgba(255,255,255,0.03)]"
+                          : "hover:bg-white/[0.05] border border-transparent transition-all duration-200"
+                      }
                     >
                       <Link
                         href={item.url}
@@ -74,9 +80,9 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-sidebar-border">
+      <SidebarFooter className="p-4 border-t border-white/[0.06]">
         {isLoaded && isSignedIn ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-1.5 bg-white/[0.04]">
             <UserButton
               afterSignOutUrl="/dashboard"
               appearance={{ elements: { avatarBox: "h-8 w-8" } }}
@@ -90,7 +96,7 @@ export function AppSidebar() {
           <Button
             variant="outline"
             size="sm"
-            className="w-full gap-2"
+            className="w-full gap-2 bg-white/[0.06] border-white/[0.08] hover:bg-white/[0.1] backdrop-blur-sm"
             onClick={() => navigate("/sign-in")}
             data-testid="button-sidebar-signin"
           >

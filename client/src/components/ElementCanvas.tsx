@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Lock, Unlock, Trash2, ChevronUp, ChevronDown, Minus, Plus } from "lucide-react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph } from "@shared/layoutEngine";
@@ -299,9 +299,25 @@ interface ElementCanvasProps {
   genome: DesignGenome;
   layout: LayoutGraph;
   contentOverrides?: ContentOverrides;
+  onStateChange?: (state: ElementCanvasState) => void;
 }
 
-export default function ElementCanvas({ genome, layout, contentOverrides }: ElementCanvasProps) {
+export interface ElementCanvasState {
+  selectedEl: ElementNode | null;
+  scale: number;
+  hasChanges: boolean;
+}
+
+export interface ElementCanvasHandle {
+  updateElement: (id: string, patch: Partial<ElementNode>) => void;
+  deleteElement: (id: string) => void;
+  nudgeZIndex: (id: string, dir: 1 | -1) => void;
+  setScale: (s: number) => void;
+  getChanges: () => { sectionCanvases: SectionCanvas[] };
+  resetChanges: () => void;
+}
+
+const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(function ElementCanvas({ genome, layout, contentOverrides, onStateChange }, ref) {
   // Build initial element content from contentOverrides
   const elemContent: ElementContent = {
     headline:          contentOverrides?.headline,
@@ -334,6 +350,7 @@ export default function ElementCanvas({ genome, layout, contentOverrides }: Elem
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [scale, setScale] = useState(0.65);
+  const [hasChanges, setHasChanges] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -358,6 +375,7 @@ export default function ElementCanvas({ genome, layout, contentOverrides }: Elem
       ...sc,
       elements: sc.elements.map(e => e.id === id ? { ...e, ...patch } : e),
     })));
+    setHasChanges(true);
   }, []);
 
   const deleteElement = useCallback((id: string) => {
@@ -366,6 +384,7 @@ export default function ElementCanvas({ genome, layout, contentOverrides }: Elem
       elements: sc.elements.filter(e => e.id !== id),
     })));
     setSelectedId(null);
+    setHasChanges(true);
   }, []);
 
   const selectedInfo = selectedId ? findElement(selectedId) : null;
@@ -419,133 +438,27 @@ export default function ElementCanvas({ genome, layout, contentOverrides }: Elem
     };
   }
 
-  // ── Sidebar helpers ───────────────────────────────────────────────────────
   function nudgeZIndex(id: string, dir: 1 | -1) {
     const info = findElement(id);
     if (!info) return;
     updateElement(id, { zIndex: Math.max(0, info.el.zIndex + dir) });
   }
 
+  useImperativeHandle(ref, () => ({
+    updateElement,
+    deleteElement,
+    nudgeZIndex,
+    setScale,
+    getChanges: () => ({ sectionCanvases }),
+    resetChanges: () => setHasChanges(false),
+  }), [updateElement, deleteElement, sectionCanvases]);
+
+  useEffect(() => {
+    onStateChange?.({ selectedEl, scale, hasChanges });
+  }, [selectedEl, scale, hasChanges, onStateChange]);
+
   return (
     <div style={{ display: "flex", height: "100%", background: "#0a0a0a", overflow: "hidden" }}>
-      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
-      <div style={{
-        width: 240, flexShrink: 0, background: "#111", borderRight: "1px solid #222",
-        overflowY: "auto", display: "flex", flexDirection: "column",
-      }}>
-        {/* Zoom control */}
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #222", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ color: "#888", fontSize: 11, flexShrink: 0 }}>Zoom</span>
-          <input
-            type="range" min={0.3} max={1.2} step={0.05} value={scale}
-            onChange={e => setScale(Number(e.target.value))}
-            style={{ flex: 1 }}
-          />
-          <span style={{ color: "#ccc", fontSize: 11, minWidth: 36 }}>{Math.round(scale * 100)}%</span>
-        </div>
-
-        {selectedEl ? (
-          <div style={{ padding: 16, flex: 1 }}>
-            {/* Type label */}
-            <div style={{ color: "#888", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
-              {ELEMENT_TYPE_LABELS[selectedEl.type]}
-            </div>
-
-            {/* Position / Size */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-              {[
-                { label: "X", key: "x" as const },
-                { label: "Y", key: "y" as const },
-                { label: "W", key: "width" as const },
-                { label: "H", key: "height" as const },
-              ].map(({ label, key }) => (
-                <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={{ color: "#666", fontSize: 10, textTransform: "uppercase" }}>{label}</span>
-                  <input
-                    type="number" value={selectedEl[key] as number} step={SNAP}
-                    onChange={e => updateElement(selectedEl.id, { [key]: snap(Number(e.target.value)) })}
-                    style={{
-                      background: "#1a1a1a", border: "1px solid #333", color: "#e0e0e0",
-                      borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%",
-                    }}
-                  />
-                </label>
-              ))}
-            </div>
-
-            {/* Content */}
-            {EDITABLE_TYPES.has(selectedEl.type) && (
-              <div style={{ marginBottom: 16 }}>
-                <span style={{ color: "#666", fontSize: 10, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Content</span>
-                <textarea
-                  value={selectedEl.content ?? ""}
-                  onChange={e => updateElement(selectedEl.id, { content: e.target.value })}
-                  rows={3}
-                  style={{
-                    width: "100%", background: "#1a1a1a", border: "1px solid #333",
-                    color: "#e0e0e0", borderRadius: 4, padding: "6px 8px", fontSize: 12,
-                    resize: "vertical", fontFamily: "inherit",
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Z-index */}
-            <div style={{ marginBottom: 16 }}>
-              <span style={{ color: "#666", fontSize: 10, textTransform: "uppercase", display: "block", marginBottom: 6 }}>Layer Order</span>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button
-                  onClick={() => nudgeZIndex(selectedEl.id, 1)}
-                  style={{ flex: 1, background: "#1a1a1a", border: "1px solid #333", color: "#ccc", borderRadius: 4, padding: "5px 0", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}
-                >
-                  <ChevronUp size={12} /> Forward
-                </button>
-                <button
-                  onClick={() => nudgeZIndex(selectedEl.id, -1)}
-                  style={{ flex: 1, background: "#1a1a1a", border: "1px solid #333", color: "#ccc", borderRadius: 4, padding: "5px 0", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}
-                >
-                  <ChevronDown size={12} /> Back
-                </button>
-              </div>
-            </div>
-
-            {/* Lock / Delete */}
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => updateElement(selectedEl.id, { locked: !selectedEl.locked })}
-                style={{
-                  flex: 1, background: selectedEl.locked ? `${genome.colors.primary}20` : "#1a1a1a",
-                  border: `1px solid ${selectedEl.locked ? genome.colors.primary : "#333"}`,
-                  color: selectedEl.locked ? genome.colors.primary : "#ccc",
-                  borderRadius: 4, padding: "6px 0", cursor: "pointer", fontSize: 11,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-                }}
-              >
-                {selectedEl.locked ? <Lock size={12} /> : <Unlock size={12} />}
-                {selectedEl.locked ? "Locked" : "Lock"}
-              </button>
-              <button
-                onClick={() => deleteElement(selectedEl.id)}
-                style={{
-                  flex: 1, background: "#1a1a1a", border: "1px solid #333",
-                  color: "#ef4444", borderRadius: 4, padding: "6px 0", cursor: "pointer",
-                  fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-                }}
-              >
-                <Trash2 size={12} /> Delete
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: 20, color: "#555", fontSize: 12, textAlign: "center", lineHeight: 1.6, marginTop: 24 }}>
-            Click any element on the canvas to select it.
-            <br /><br />
-            Double-click text to edit inline.
-          </div>
-        )}
-      </div>
-
-      {/* ── Canvas area ───────────────────────────────────────────────────── */}
       <div
         ref={canvasRef}
         style={{ flex: 1, overflowY: "auto", overflowX: "auto", padding: "24px 32px" }}
@@ -579,7 +492,9 @@ export default function ElementCanvas({ genome, layout, contentOverrides }: Elem
       </div>
     </div>
   );
-}
+});
+
+export default ElementCanvas;
 
 // ── Section layer ─────────────────────────────────────────────────────────
 

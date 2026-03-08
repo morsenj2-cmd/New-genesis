@@ -286,3 +286,13 @@
     inset: -1px;
   }
 }
+
+.liquid-glass-sidebar [data-sidebar="sidebar"] {
+  background: rgba(12, 12, 12, 0.65) !important;
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.4);
+}

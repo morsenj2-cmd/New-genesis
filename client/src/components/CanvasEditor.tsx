@@ -2,7 +2,8 @@ import { useState, useCallback, useRef } from "react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { GenomePreview } from "@/components/genome-ui";
-import ElementCanvas from "@/components/ElementCanvas";
+import ElementCanvas, { type ElementCanvasHandle, type ElementCanvasState } from "@/components/ElementCanvas";
+import { ELEMENT_TYPE_LABELS, EDITABLE_TYPES } from "@shared/elementCanvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +20,11 @@ import {
   AlignCenter,
   AlignRight,
   ChevronDown,
+  ChevronUp,
   MousePointer2,
+  Lock,
+  Unlock,
+  Save,
 } from "lucide-react";
 
 export interface ContentOverrides {
@@ -310,6 +315,9 @@ export function CanvasEditor({
   const [mode, setMode] = useState<EditorMode>("canvas");
   const [selectedSectionIdx, setSelectedSectionIdx] = useState<number | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const elementCanvasRef = useRef<ElementCanvasHandle>(null);
+  const [elementState, setElementState] = useState<ElementCanvasState>({ selectedEl: null, scale: 0.65, hasChanges: false });
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   // HTML5 drag-and-drop state
   const dragIdx = useRef<number | null>(null);
@@ -415,15 +423,157 @@ export function CanvasEditor({
         </div>
 
         {isElementsMode && (
-          <div className="p-4 text-center text-muted-foreground mt-2 space-y-2">
-            <MousePointer2 className="h-6 w-6 mx-auto opacity-20" />
-            <p className="text-xs leading-relaxed">
-              <strong className="text-foreground">Element editor active.</strong>
-              <br />
-              Click any element in the canvas to select it.
-              <br />
-              Drag to reposition. Double-click text to edit.
-            </p>
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="px-3 py-2 border-b border-border flex items-center gap-2 shrink-0">
+              <span className="text-muted-foreground text-xs shrink-0">Zoom</span>
+              <input
+                type="range" min={0.3} max={1.2} step={0.05}
+                value={elementState.scale}
+                onChange={e => elementCanvasRef.current?.setScale(Number(e.target.value))}
+                className="flex-1 accent-primary h-1"
+                data-testid="input-element-zoom"
+              />
+              <span className="text-xs text-foreground min-w-[36px] text-right">{Math.round(elementState.scale * 100)}%</span>
+            </div>
+
+            {elementState.selectedEl ? (() => {
+              const el = elementState.selectedEl!;
+              const SNAP = 8;
+              const snap = (n: number) => Math.round(n / SNAP) * SNAP;
+              return (
+                <div className="p-3 space-y-3 flex-1 overflow-y-auto" data-testid="element-properties-panel">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {ELEMENT_TYPE_LABELS[el.type]}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { label: "X", key: "x" as const },
+                      { label: "Y", key: "y" as const },
+                      { label: "W", key: "width" as const },
+                      { label: "H", key: "height" as const },
+                    ]).map(({ label, key }) => (
+                      <label key={key} className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase text-muted-foreground">{label}</span>
+                        <Input
+                          type="number"
+                          value={el[key] as number}
+                          step={SNAP}
+                          onChange={e => elementCanvasRef.current?.updateElement(el.id, { [key]: snap(Number(e.target.value)) })}
+                          className="h-7 text-xs"
+                          data-testid={`input-element-${key}`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  {EDITABLE_TYPES.has(el.type) && (
+                    <div>
+                      <span className="text-[10px] uppercase text-muted-foreground block mb-1">Content</span>
+                      <Textarea
+                        value={el.content ?? ""}
+                        onChange={e => elementCanvasRef.current?.updateElement(el.id, { content: e.target.value })}
+                        rows={3}
+                        className="text-xs resize-y"
+                        data-testid="input-element-content"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground block mb-1.5">Layer Order</span>
+                    <div className="flex gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7 text-xs gap-1"
+                        onClick={() => elementCanvasRef.current?.nudgeZIndex(el.id, 1)}
+                        data-testid="button-element-forward"
+                      >
+                        <ChevronUp className="h-3 w-3" /> Forward
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7 text-xs gap-1"
+                        onClick={() => elementCanvasRef.current?.nudgeZIndex(el.id, -1)}
+                        data-testid="button-element-back"
+                      >
+                        <ChevronDown className="h-3 w-3" /> Back
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant={el.locked ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1 h-7 text-xs gap-1"
+                      onClick={() => elementCanvasRef.current?.updateElement(el.id, { locked: !el.locked })}
+                      data-testid="button-element-lock"
+                    >
+                      {el.locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                      {el.locked ? "Locked" : "Lock"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-xs gap-1 text-destructive hover:text-destructive"
+                      onClick={() => elementCanvasRef.current?.deleteElement(el.id)}
+                      data-testid="button-element-delete"
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </Button>
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="p-4 text-center text-muted-foreground mt-2 space-y-2">
+                <MousePointer2 className="h-6 w-6 mx-auto opacity-20" />
+                <p className="text-xs leading-relaxed">
+                  <strong className="text-foreground">Element editor active.</strong>
+                  <br />
+                  Click any element in the canvas to select it.
+                  <br />
+                  Drag to reposition. Double-click text to edit.
+                </p>
+              </div>
+            )}
+
+            {elementState.hasChanges && (
+              <div className="p-3 border-t border-border shrink-0">
+                <Button
+                  size="sm"
+                  className="w-full gap-1.5 text-xs"
+                  onClick={() => {
+                    const changes = elementCanvasRef.current?.getChanges();
+                    if (changes) {
+                      const patch: Partial<ContentOverrides> = {};
+                      for (const sc of changes.sectionCanvases) {
+                        for (const el of sc.elements) {
+                          if (el.content == null) continue;
+                          if (el.type === "headline") patch.headline = el.content;
+                          else if (el.type === "subheadline") patch.subheadline = el.content;
+                          else if (el.type === "button_primary") patch.ctaLabel = el.content;
+                          else if (el.type === "section_title" && sc.sectionType === "featureGrid") patch.featureGridTitle = el.content;
+                          else if (el.type === "section_title" && sc.sectionType === "cardList") patch.cardListTitle = el.content;
+                          else if (el.type === "headline" && sc.sectionType === "cta") patch.ctaHeadline = el.content;
+                          else if (el.type === "paragraph" && sc.sectionType === "cta") patch.ctaBody = el.content;
+                        }
+                      }
+                      onContentChange({ ...contentOverrides, ...patch });
+                    }
+                    elementCanvasRef.current?.resetChanges();
+                    setSaveMessage("Changes saved");
+                    setTimeout(() => setSaveMessage(null), 2000);
+                  }}
+                  data-testid="button-save-element-changes"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {saveMessage || "Save Changes"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -519,7 +669,7 @@ export function CanvasEditor({
           </>
         )}
 
-        {!isCanvasMode && (
+        {!isCanvasMode && !isElementsMode && (
           <div className="p-4 text-center text-muted-foreground mt-4">
             <Layout className="h-7 w-7 mx-auto mb-2 opacity-20" />
             <p className="text-xs leading-relaxed">
@@ -537,9 +687,11 @@ export function CanvasEditor({
       >
         {isElementsMode ? (
           <ElementCanvas
+            ref={elementCanvasRef}
             genome={genome}
             layout={layout}
             contentOverrides={contentOverrides}
+            onStateChange={setElementState}
           />
         ) : (
           <div className="h-full overflow-y-auto">

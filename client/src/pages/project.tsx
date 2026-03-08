@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import {
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,7 @@ import {
   Wand2,
   PenLine,
 } from "lucide-react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -919,6 +920,18 @@ function LeftPanel({
   );
 }
 
+function SidebarAutoCollapse({ canvasMode }: { canvasMode: boolean }) {
+  const { setOpen } = useSidebar();
+  const prevCanvasRef = useRef(false);
+  useEffect(() => {
+    if (canvasMode && !prevCanvasRef.current) {
+      setOpen(false);
+    }
+    prevCanvasRef.current = canvasMode;
+  }, [canvasMode, setOpen]);
+  return null;
+}
+
 export default function ProjectPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -1171,6 +1184,7 @@ export default function ProjectPage() {
 
   return (
     <SidebarProvider>
+      <SidebarAutoCollapse canvasMode={canvasMode} />
       <div className="flex h-screen w-full bg-background">
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">

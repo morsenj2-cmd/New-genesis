@@ -42,7 +42,7 @@ Key features:
 - Canvas Editor: rebuilt with 3-tab mode toggle (Auto | Canvas | Elements):
   - **Auto Design mode**: AI-managed layout, read-only GenomePreview
   - **Canvas mode**: drag-and-drop section reordering (HTML5 drag API), section selection with visual highlight overlay (colored border + label badge), delete section, add section dropdown (Feature Grid, Card List, Stats Bar, Testimonials, CTA), column count selector, inline content editing for hero/featureGrid/cardList/CTA; clicking sections in preview selects them
-  - **Elements mode** (new Figma-like editor, `client/src/components/ElementCanvas.tsx`):
+  - **Elements mode** (Figma-like editor, `client/src/components/ElementCanvas.tsx`):
     - Renders each section as a relative container with absolutely positioned element nodes
     - Virtual 1200px canvas scaled to fit container (zoom slider 30%-120%)
     - Element types: badge, headline, subheadline, paragraph, button_primary, button_secondary, section_title, card_icon, card_title, card_description, stat_value, stat_label, testimonial_text, testimonial_author
@@ -50,11 +50,15 @@ Key features:
     - Pointer-based drag to reposition (8px grid snap), drag via pointer capture on element
     - 8-handle resize system: each handle direction (nw/n/ne/e/se/s/sw/w) adjusts x/y/width/height
     - Double-click text element to edit inline (textarea overlay replaces element)
-    - Sidebar shows: element type label, X/Y/W/H number inputs (snap 8px), content textarea, Forward/Back layer order buttons, Lock toggle, Delete button
+    - **Controls in CanvasEditor sidebar**: Zoom slider, element type label, X/Y/W/H inputs, content textarea, Forward/Back layer buttons, Lock/Delete — all shown in the CanvasEditor left panel when an element is selected (ElementCanvas sidebar removed, controls lifted to parent)
+    - **Save Changes button**: Appears when element edits are made; extracts content changes (headline, subheadline, CTA, section titles, CTA copy) from element canvases and persists them to `contentOverrides`; resets dirty state after save
+    - ElementCanvas uses `forwardRef` + `useImperativeHandle` to expose `updateElement`, `deleteElement`, `nudgeZIndex`, `setScale`, `getChanges`, `resetChanges` methods; reports state changes via `onStateChange` callback
     - Locked elements show a lock icon badge; cannot be moved/resized
     - Section backgrounds match genome tokens: hero=radial gradient, featureGrid/cardList=surface, stats=background with borders, cta=linear gradient
     - Decomposition functions in `shared/elementCanvas.ts`: decomposeHero, decomposeFeatureGrid, decomposeCardList, decomposeStats, decomposeCta, decomposeTestimonial — all generate initial element positions on a 1200px reference canvas
     - ContentOverrides type extended with `ctaHeadline`, `ctaBody` optional fields
+- **Sidebar auto-collapse**: When entering canvas mode, the navigation sidebar automatically collapses via `SidebarAutoCollapse` component (uses `useSidebar` hook inside `SidebarProvider`); sidebar remains toggleable via the sidebar trigger button
+- **Liquid glass sidebar**: Navigation sidebar (`AppSidebar`) uses frosted glass design — semi-transparent background (`rgba(12,12,12,0.65)`), `backdrop-filter: blur(20px) saturate(1.4)`, subtle inner glow border, active items have glassmorphic highlight; CSS class `.liquid-glass-sidebar` applied to `<Sidebar>` wrapper
 - Multi-page navigation: GenomePreview manages `activePage` state, navbar links navigate between home/features/pricing/about/blog/contact; full page components for each: GenomeFeaturesPage, GenomePricingPage (3-tier with FAQs), GenomeAboutPage (mission+stats+testimonials), GenomeBlogPage, GenomeContactPage; footer links also navigate
 - Context-driven layout generation: `shared/layoutEngine.ts` has `SITE_TYPE_POOLS` per page type (landing_page, marketing_site, web_app, dashboard, blog, portfolio, social_platform, ecommerce_store); `generateLayout` uses the correct section pool when `pageType` is provided in design context; `server/routes.ts` passes `intent.pageType` to `generateLayout`
 - **Generation Refactor (v2)**:
