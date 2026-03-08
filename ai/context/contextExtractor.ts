@@ -1,5 +1,6 @@
 import { reasonContext, type ReasonedContext } from "./contextReasoner";
 import type { InternetContext } from "../retrieval/internetContext";
+import { scaledCap } from "./promptScale";
 
 export interface ExtractedContext {
   domain: string;
@@ -85,20 +86,24 @@ function extractDataObjects(entities: string[], internetEntities: string[]): str
       objects.add(lower);
     }
   }
-  return [...objects].slice(0, 20);
+  return [...objects];
 }
 
-function inferUserGoals(actions: string[], entities: string[], domain: string): string[] {
+function inferUserGoals(actions: string[], entities: string[], domain: string, promptLen = 0): string[] {
   const goals: string[] = [];
 
+  const aCap = scaledCap(5, promptLen);
+  const eCap = scaledCap(3, promptLen);
+  const pairCap = scaledCap(8, promptLen);
+
   const actionEntityPairs: Array<[string, string]> = [];
-  for (const action of actions.slice(0, 5)) {
-    for (const entity of entities.slice(0, 3)) {
+  for (const action of actions.slice(0, aCap)) {
+    for (const entity of entities.slice(0, eCap)) {
       actionEntityPairs.push([action, entity]);
     }
   }
 
-  for (const [action, entity] of actionEntityPairs.slice(0, 8)) {
+  for (const [action, entity] of actionEntityPairs.slice(0, pairCap)) {
     goals.push(`${action} ${entity}`);
   }
 
@@ -115,7 +120,7 @@ function inferUserGoals(actions: string[], entities: string[], domain: string): 
   const domainSpecific = domainGoals[domain] ?? [];
   goals.push(...domainSpecific);
 
-  return [...new Set(goals)].slice(0, 12);
+  return [...new Set(goals)].slice(0, scaledCap(12, promptLen));
 }
 
 function deriveWorkflows(
@@ -123,6 +128,7 @@ function deriveWorkflows(
   operations: string[],
   dataObjects: string[],
   domain: string,
+  promptLen = 0,
 ): WorkflowDescriptor[] {
   const workflows: WorkflowDescriptor[] = [];
 
@@ -157,10 +163,11 @@ function deriveWorkflows(
     }
   }
 
-  return workflows.slice(0, 5);
+  return workflows.slice(0, scaledCap(5, promptLen));
 }
 
 export function extractContext(prompt: string, internetContext: InternetContext): ExtractedContext {
+  const pLen = prompt.length;
   const reasonedCtx = reasonContext(prompt);
 
   const mergedEntities = [...new Set([
@@ -182,7 +189,7 @@ export function extractContext(prompt: string, internetContext: InternetContext)
   const actors = extractActors(promptLower, mergedEntities, internetContext.entities);
   const operations = extractOperations(mergedActions, internetContext.userTasks);
   const dataObjects = extractDataObjects(mergedEntities, internetContext.entities);
-  const userGoals = inferUserGoals(mergedActions, mergedEntities, internetContext.domain || reasonedCtx.domain);
+  const userGoals = inferUserGoals(mergedActions, mergedEntities, internetContext.domain || reasonedCtx.domain, pLen);
 
   const domain = internetContext.domain !== "general"
     ? internetContext.domain
@@ -190,7 +197,7 @@ export function extractContext(prompt: string, internetContext: InternetContext)
 
   const industry = internetContext.industry || domain;
 
-  const workflows = deriveWorkflows(actors, operations, dataObjects, domain);
+  const workflows = deriveWorkflows(actors, operations, dataObjects, domain, pLen);
 
   const promptWeight = reasonedCtx.confidence;
   const internetWeight = internetContext.confidence;
@@ -204,10 +211,10 @@ export function extractContext(prompt: string, internetContext: InternetContext)
     domain,
     industry,
     systemType: reasonedCtx.systemType,
-    entities: mergedEntities.slice(0, 20),
-    userActions: mergedActions.slice(0, 15),
+    entities: mergedEntities.slice(0, scaledCap(20, pLen)),
+    userActions: mergedActions.slice(0, scaledCap(15, pLen)),
     workflows,
-    interfaceRequirements: mergedRequirements.slice(0, 20),
+    interfaceRequirements: mergedRequirements.slice(0, scaledCap(20, pLen)),
     actors,
     operations,
     dataObjects,

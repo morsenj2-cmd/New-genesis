@@ -4,6 +4,7 @@ import { extractContext, type ExtractedContext } from "../context/contextExtract
 import { lookupContext, enrichFromStoredContext, lookupContextFromMemory } from "../knowledge/contextDatabase";
 import type { PromptInterpretation } from "../context/promptInterpreter";
 import type { ReasonedContext } from "../context/contextReasoner";
+import { scaledCap } from "../context/promptScale";
 
 export interface RetrievedContext {
   internetContext: InternetContext | undefined;
@@ -138,29 +139,30 @@ export function mergeRetrievedIntoContext(
   baseContext: ReasonedContext,
   retrieved: RetrievedContext,
   interpretation: PromptInterpretation,
+  promptLength = 0,
 ): ReasonedContext {
   let merged = { ...baseContext };
 
   if (retrieved.extractedContext) {
     merged = {
       ...merged,
-      entities: [...new Set([...merged.entities, ...(retrieved.extractedContext.entities || [])])].slice(0, 20),
-      userActions: [...new Set([...merged.userActions, ...(retrieved.extractedContext.actions || [])])].slice(0, 15),
-      operationalConcepts: [...new Set([...merged.operationalConcepts, ...(retrieved.extractedContext.concepts || [])])].slice(0, 15),
+      entities: [...new Set([...merged.entities, ...(retrieved.extractedContext.entities || [])])].slice(0, scaledCap(20, promptLength)),
+      userActions: [...new Set([...merged.userActions, ...(retrieved.extractedContext.actions || [])])].slice(0, scaledCap(15, promptLength)),
+      operationalConcepts: [...new Set([...merged.operationalConcepts, ...(retrieved.extractedContext.concepts || [])])].slice(0, scaledCap(15, promptLength)),
     };
   }
 
   if (retrieved.domainKnowledge.entities.length > 0) {
     merged = {
       ...merged,
-      entities: [...new Set([...merged.entities, ...retrieved.domainKnowledge.entities])].slice(0, 20),
+      entities: [...new Set([...merged.entities, ...retrieved.domainKnowledge.entities])].slice(0, scaledCap(20, promptLength)),
     };
   }
 
   if (retrieved.domainKnowledge.actions.length > 0) {
     merged = {
       ...merged,
-      userActions: [...new Set([...merged.userActions, ...retrieved.domainKnowledge.actions])].slice(0, 15),
+      userActions: [...new Set([...merged.userActions, ...retrieved.domainKnowledge.actions])].slice(0, scaledCap(15, promptLength)),
     };
   }
 
@@ -168,7 +170,7 @@ export function mergeRetrievedIntoContext(
     const reqComponents = interpretation.structuralRequirements.map(r => r.component);
     merged = {
       ...merged,
-      interfaceRequirements: [...new Set([...merged.interfaceRequirements, ...reqComponents])].slice(0, 20),
+      interfaceRequirements: [...new Set([...merged.interfaceRequirements, ...reqComponents])].slice(0, scaledCap(20, promptLength)),
     };
   }
 

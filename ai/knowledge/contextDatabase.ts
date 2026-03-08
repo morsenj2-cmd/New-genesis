@@ -130,10 +130,10 @@ export function enrichFromStoredContext(
 
   return {
     ...currentContext,
-    entities: mergedEntities.slice(0, 20),
-    userActions: mergedActions.slice(0, 15),
-    operationalConcepts: mergedConcepts.slice(0, 15),
-    interfaceRequirements: mergedRequirements.slice(0, 20),
+    entities: mergedEntities.slice(0, 60),
+    userActions: mergedActions.slice(0, 45),
+    operationalConcepts: mergedConcepts.slice(0, 45),
+    interfaceRequirements: mergedRequirements.slice(0, 60),
     confidence: Math.min(0.95, currentContext.confidence + 0.1),
   };
 }

@@ -129,7 +129,7 @@ function buildSearchQueries(prompt: string, seeds: ExtractedSeeds): Array<{ quer
     });
   }
 
-  const promptWords = prompt.split(/\s+/).slice(0, 12).join(" ");
+  const promptWords = prompt.split(/\s+/).slice(0, 30).join(" ");
   queries.push({
     query: `${promptWords} software platform explanation`,
     strategy: "direct_prompt",

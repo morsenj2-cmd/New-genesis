@@ -276,13 +276,13 @@ function deriveOperationalConcepts(actions: string[], entities: string[], traits
   if (traits.isContentOriented) concepts.push("content_publishing", "media_management", "categorization");
 
   for (const action of actions) {
-    for (const entity of entities.slice(0, 5)) {
+    for (const entity of entities.slice(0, 10)) {
       const concept = `${action}_${entity}`.replace(/\s+/g, "_");
       if (!concepts.includes(concept)) concepts.push(concept);
     }
   }
 
-  return concepts.slice(0, 15);
+  return concepts.slice(0, 40);
 }
 
 function deriveInterfaceRequirements(
@@ -309,7 +309,7 @@ function deriveInterfaceRequirements(
   if (entities.some(e => ["user", "profile", "account"].includes(e))) requirements.push("user_profile", "auth_forms");
   if (entities.some(e => ["map", "location", "address"].includes(e))) requirements.push("map_component");
 
-  return [...new Set(requirements)].slice(0, 20);
+  return [...new Set(requirements)].slice(0, 50);
 }
 
 export function reasonContext(prompt: string): ReasonedContext {

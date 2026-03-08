@@ -8,6 +8,7 @@ import { extractContext, extractedToReasonedContext, type ExtractedContext } fro
 import { lookupContext, enrichFromStoredContext, lookupContextFromMemory } from "../knowledge/contextDatabase";
 import { interpretPrompt, interpretationToReasonedContextPatch, type PromptInterpretation } from "../context/promptInterpreter";
 import { retrieveContextForInterpretation, mergeRetrievedIntoContext } from "./contextRetrieval";
+import { scaledCap } from "../context/promptScale";
 
 export interface AugmentedInterpretation {
   context: ReasonedContext;
@@ -21,6 +22,7 @@ export interface AugmentedInterpretation {
 }
 
 export async function augmentPrompt(prompt: string): Promise<AugmentedInterpretation> {
+  const pLen = prompt.length;
   const sources: string[] = ["semantic_interpretation"];
 
   const interpretation = interpretPrompt(prompt);
@@ -39,19 +41,19 @@ export async function augmentPrompt(prompt: string): Promise<AugmentedInterpreta
   if (interpPatch.entities.length > 0) {
     context = {
       ...context,
-      entities: [...new Set([...interpPatch.entities, ...context.entities])].slice(0, 20),
+      entities: [...new Set([...interpPatch.entities, ...context.entities])].slice(0, scaledCap(20, pLen)),
     };
   }
   if (interpPatch.userActions.length > 0) {
     context = {
       ...context,
-      userActions: [...new Set([...interpPatch.userActions, ...context.userActions])].slice(0, 15),
+      userActions: [...new Set([...interpPatch.userActions, ...context.userActions])].slice(0, scaledCap(15, pLen)),
     };
   }
   if (interpPatch.interfaceRequirements.length > 0) {
     context = {
       ...context,
-      interfaceRequirements: [...new Set([...interpPatch.interfaceRequirements, ...context.interfaceRequirements])].slice(0, 20),
+      interfaceRequirements: [...new Set([...interpPatch.interfaceRequirements, ...context.interfaceRequirements])].slice(0, scaledCap(20, pLen)),
     };
   }
 
@@ -62,7 +64,7 @@ export async function augmentPrompt(prompt: string): Promise<AugmentedInterpreta
   }
 
   const retrieved = await retrieveContextForInterpretation(prompt, interpretation, context);
-  context = mergeRetrievedIntoContext(context, retrieved, interpretation);
+  context = mergeRetrievedIntoContext(context, retrieved, interpretation, pLen);
   sources.push(...retrieved.retrievalSources);
 
   const internetCtx = retrieved.internetContext;
@@ -126,6 +128,7 @@ export async function augmentPrompt(prompt: string): Promise<AugmentedInterpreta
 }
 
 export function augmentPromptSync(prompt: string): AugmentedInterpretation {
+  const pLen = prompt.length;
   const sources: string[] = ["semantic_interpretation"];
 
   const interpretation = interpretPrompt(prompt);
@@ -143,19 +146,19 @@ export function augmentPromptSync(prompt: string): AugmentedInterpretation {
   if (interpPatch.entities.length > 0) {
     context = {
       ...context,
-      entities: [...new Set([...interpPatch.entities, ...context.entities])].slice(0, 20),
+      entities: [...new Set([...interpPatch.entities, ...context.entities])].slice(0, scaledCap(20, pLen)),
     };
   }
   if (interpPatch.userActions.length > 0) {
     context = {
       ...context,
-      userActions: [...new Set([...interpPatch.userActions, ...context.userActions])].slice(0, 15),
+      userActions: [...new Set([...interpPatch.userActions, ...context.userActions])].slice(0, scaledCap(15, pLen)),
     };
   }
   if (interpPatch.interfaceRequirements.length > 0) {
     context = {
       ...context,
-      interfaceRequirements: [...new Set([...interpPatch.interfaceRequirements, ...context.interfaceRequirements])].slice(0, 20),
+      interfaceRequirements: [...new Set([...interpPatch.interfaceRequirements, ...context.interfaceRequirements])].slice(0, scaledCap(20, pLen)),
     };
   }
 
