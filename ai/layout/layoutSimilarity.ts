@@ -1,23 +1,54 @@
 import type { LayoutDNA } from "./layoutDNA";
 import { computeDNASimilarity, mutateDNA } from "./layoutDNA";
 import { createHash } from "crypto";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { dirname, resolve } from "path";
 
 const SIMILARITY_THRESHOLD = 0.65;
 const MAX_HISTORY = 50;
+const HISTORY_FILE = resolve("ai/layout/layoutHistory.json");
 
-const dnaHistory: LayoutDNA[] = [];
+let dnaHistory: LayoutDNA[] = [];
+let historyLoaded = false;
+
+function loadHistory(): void {
+  if (historyLoaded) return;
+  historyLoaded = true;
+  try {
+    if (existsSync(HISTORY_FILE)) {
+      const raw = readFileSync(HISTORY_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        dnaHistory = parsed.slice(-MAX_HISTORY);
+      }
+    }
+  } catch {
+    dnaHistory = [];
+  }
+}
+
+function persistHistory(): void {
+  try {
+    const dir = dirname(HISTORY_FILE);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(HISTORY_FILE, JSON.stringify(dnaHistory.slice(-MAX_HISTORY), null, 2));
+  } catch {}
+}
 
 export function storeDNA(dna: LayoutDNA): void {
+  loadHistory();
   dnaHistory.push(dna);
   if (dnaHistory.length > MAX_HISTORY) {
     dnaHistory.splice(0, dnaHistory.length - MAX_HISTORY);
   }
+  persistHistory();
 }
 
 export function isDNATooSimilar(
   candidate: LayoutDNA,
   threshold: number = SIMILARITY_THRESHOLD,
 ): { similar: boolean; highestScore: number; matchIndex: number | null } {
+  loadHistory();
   let highestScore = 0;
   let matchIndex: number | null = null;
 
@@ -62,9 +93,12 @@ export function ensureUniqueDNA(
 }
 
 export function getDNAHistorySize(): number {
+  loadHistory();
   return dnaHistory.length;
 }
 
 export function clearDNAHistory(): void {
   dnaHistory.length = 0;
+  historyLoaded = true;
+  persistHistory();
 }

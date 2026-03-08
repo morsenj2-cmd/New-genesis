@@ -6,6 +6,8 @@ import { reasonDomain, type UICapabilityRequirements } from "../context/domainRe
 import { buildContextGraph, type ContextGraph } from "../context/contextGraphAI";
 import { extractContext, extractedToReasonedContext, type ExtractedContext } from "../context/contextExtractor";
 import { lookupContext, enrichFromStoredContext, lookupContextFromMemory } from "../knowledge/contextDatabase";
+import { interpretPrompt, interpretationToReasonedContextPatch, type PromptInterpretation } from "../context/promptInterpreter";
+import { retrieveContextForInterpretation, mergeRetrievedIntoContext } from "./contextRetrieval";
 
 export interface AugmentedInterpretation {
   context: ReasonedContext;
@@ -15,12 +17,43 @@ export interface AugmentedInterpretation {
   augmentationSources: string[];
   internetContext?: InternetContext;
   extractedContext?: ExtractedContext;
+  promptInterpretation?: PromptInterpretation;
 }
 
 export async function augmentPrompt(prompt: string): Promise<AugmentedInterpretation> {
-  const sources: string[] = ["prompt_reasoning"];
+  const sources: string[] = ["semantic_interpretation"];
+
+  const interpretation = interpretPrompt(prompt);
+  const interpPatch = interpretationToReasonedContextPatch(interpretation);
 
   let context = reasonContext(prompt);
+
+  if (interpPatch.domainHint && interpPatch.domainConfidence > context.confidence) {
+    context = {
+      ...context,
+      domain: interpPatch.domainHint,
+      systemType: interpPatch.systemType || context.systemType,
+    };
+  }
+
+  if (interpPatch.entities.length > 0) {
+    context = {
+      ...context,
+      entities: [...new Set([...interpPatch.entities, ...context.entities])].slice(0, 20),
+    };
+  }
+  if (interpPatch.userActions.length > 0) {
+    context = {
+      ...context,
+      userActions: [...new Set([...interpPatch.userActions, ...context.userActions])].slice(0, 15),
+    };
+  }
+  if (interpPatch.interfaceRequirements.length > 0) {
+    context = {
+      ...context,
+      interfaceRequirements: [...new Set([...interpPatch.interfaceRequirements, ...context.interfaceRequirements])].slice(0, 20),
+    };
+  }
 
   const enriched = enrichContextFromKnowledge(context, prompt);
   if (enriched !== context) {
@@ -28,42 +61,12 @@ export async function augmentPrompt(prompt: string): Promise<AugmentedInterpreta
     sources.push("learned_knowledge");
   }
 
-  const storedCtx = await lookupContext(prompt).catch(() => null);
-  if (storedCtx) {
-    context = enrichFromStoredContext(context, storedCtx);
-    sources.push("context_database");
-  }
+  const retrieved = await retrieveContextForInterpretation(prompt, interpretation, context);
+  context = mergeRetrievedIntoContext(context, retrieved, interpretation);
+  sources.push(...retrieved.retrievalSources);
 
-  let internetCtx: InternetContext | undefined;
-  try {
-    internetCtx = await retrieveInternetContext(prompt);
-    if (internetCtx.confidence > 0.2) {
-      sources.push("internet_retrieval");
-    }
-  } catch {
-    internetCtx = undefined;
-  }
-
-  let extractedCtx: ExtractedContext | undefined;
-  if (internetCtx) {
-    extractedCtx = extractContext(prompt, internetCtx);
-    const extractedAsReasoned = extractedToReasonedContext(extractedCtx);
-
-    context = {
-      ...context,
-      entities: [...new Set([...context.entities, ...extractedAsReasoned.entities])].slice(0, 20),
-      userActions: [...new Set([...context.userActions, ...extractedAsReasoned.userActions])].slice(0, 15),
-      operationalConcepts: [...new Set([...context.operationalConcepts, ...extractedAsReasoned.operationalConcepts])].slice(0, 15),
-      interfaceRequirements: [...new Set([...context.interfaceRequirements, ...extractedAsReasoned.interfaceRequirements])].slice(0, 20),
-      confidence: Math.min(0.95, context.confidence + (internetCtx.confidence * 0.15)),
-    };
-
-    if (extractedCtx.domain !== "general" && context.domain === "general") {
-      context = { ...context, domain: extractedCtx.domain };
-    }
-
-    sources.push("context_extraction");
-  }
+  const internetCtx = retrieved.internetContext;
+  const extractedCtx = retrieved.extractedContext;
 
   const promptHints = [
     ...context.entities.slice(0, 5),
@@ -118,13 +121,44 @@ export async function augmentPrompt(prompt: string): Promise<AugmentedInterpreta
     augmentationSources: sources,
     internetContext: internetCtx,
     extractedContext: extractedCtx,
+    promptInterpretation: interpretation,
   };
 }
 
 export function augmentPromptSync(prompt: string): AugmentedInterpretation {
-  const sources: string[] = ["prompt_reasoning"];
+  const sources: string[] = ["semantic_interpretation"];
+
+  const interpretation = interpretPrompt(prompt);
+  const interpPatch = interpretationToReasonedContextPatch(interpretation);
 
   let context = reasonContext(prompt);
+
+  if (interpPatch.domainHint && interpPatch.domainConfidence > context.confidence) {
+    context = {
+      ...context,
+      domain: interpPatch.domainHint,
+      systemType: interpPatch.systemType || context.systemType,
+    };
+  }
+  if (interpPatch.entities.length > 0) {
+    context = {
+      ...context,
+      entities: [...new Set([...interpPatch.entities, ...context.entities])].slice(0, 20),
+    };
+  }
+  if (interpPatch.userActions.length > 0) {
+    context = {
+      ...context,
+      userActions: [...new Set([...interpPatch.userActions, ...context.userActions])].slice(0, 15),
+    };
+  }
+  if (interpPatch.interfaceRequirements.length > 0) {
+    context = {
+      ...context,
+      interfaceRequirements: [...new Set([...interpPatch.interfaceRequirements, ...context.interfaceRequirements])].slice(0, 20),
+    };
+  }
+
   const enriched = enrichContextFromKnowledge(context, prompt);
   if (enriched !== context) {
     context = enriched;
@@ -158,5 +192,6 @@ export function augmentPromptSync(prompt: string): AugmentedInterpretation {
     capabilities,
     graph,
     augmentationSources: sources,
+    promptInterpretation: interpretation,
   };
 }
