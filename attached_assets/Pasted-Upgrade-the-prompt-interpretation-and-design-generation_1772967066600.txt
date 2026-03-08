@@ -1,0 +1,148 @@
+Upgrade the prompt interpretation and design generation pipeline so the system determines the **correct interface category** before generating any layout.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+---
+
+## CRITICAL FAILURE
+
+The generator currently builds landing pages by default even when the prompt describes a different type of interface.
+
+This happens because the system:
+
+• defaults to marketing layouts
+• relies on keyword detection
+• does not reason about the full product described in the prompt
+
+This must be fixed by forcing a **context classification stage** before layout generation.
+
+---
+
+## MANDATORY INTERFACE CLASSIFICATION
+
+Create a mandatory pre-generation stage that determines the type of interface being requested.
+
+Create:
+
+/ai/context/interfaceClassifier.ts
+
+The classifier must read the **entire prompt using the LLM** and determine:
+
+system_type
+primary_user
+user_workflows
+interface_category
+
+Possible interface categories include:
+
+product_dashboard
+admin_dashboard
+analytics_dashboard
+web_application
+landing_page
+marketing_site
+internal_tool
+data_management_interface
+workflow_management_interface
+
+The generator must not assume a landing page unless the prompt clearly indicates marketing content.
+
+---
+
+## INTERFACE TYPE VALIDATION
+
+Create:
+
+/ai/context/interfaceValidator.ts
+
+Before layout generation begins:
+
+check that the generated layout architecture matches the detected interface category.
+
+Examples:
+
+If category = dashboard
+layout must contain:
+
+sidebar navigation
+data panels
+charts
+tables
+activity feeds
+metric cards
+
+If category = landing page
+layout must contain:
+
+hero section
+feature sections
+marketing content
+call-to-action blocks.
+
+If layout architecture does not match the interface category, regenerate.
+
+---
+
+## WORKFLOW EXTRACTION
+
+Create:
+
+/ai/context/workflowExtractor.ts
+
+The LLM must analyze the entire prompt and extract:
+
+core product functionality
+user tasks
+data operations
+primary workflows.
+
+The layout generator must design the interface **around those workflows**.
+
+Example output structure:
+
+{
+users,
+primary_tasks,
+system_features,
+required_interfaces,
+data_entities
+}
+
+---
+
+## STRUCTURE GENERATION RULE
+
+The structural layout generator must build UI around **user workflows**, not around generic website templates.
+
+Pipeline must become:
+
+prompt
+→ full LLM prompt interpretation
+→ interface classification
+→ workflow extraction
+→ internet context enrichment
+→ structural layout generation
+→ component architecture selection
+→ visual styling.
+
+---
+
+## LANDING PAGE DEFAULT MUST BE DISABLED
+
+The generator must never default to landing page architecture.
+
+Landing page layouts may only be generated if the prompt explicitly describes marketing or promotional content.
+
+---
+
+## RESULT
+
+After this upgrade:
+
+the system correctly determines the interface category
+dashboard prompts generate dashboard interfaces
+application prompts generate application interfaces
+marketing prompts generate landing pages
+
+The generator will no longer produce landing pages when the prompt describes a product interface.
