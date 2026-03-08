@@ -28,6 +28,10 @@ import { validateContent, needsRegeneration } from "@shared/contextValidator";
 import { detectMediaIntent, stripMediaPlacements } from "@shared/mediaIntentDetector";
 import { routePrompt, routePromptAsync, interpretDesignPrompt } from "../ai/promptRouter";
 import { extractProjectContext } from "../ai/context/projectContext";
+import { generateProjectSeeds } from "../ai/seed/projectSeeds";
+import { generateLayoutEntropy } from "../ai/layout/layoutEntropy";
+import { composeLayout } from "../ai/layout/layoutComposer";
+import { ensureLayoutDiversity } from "../ai/layout/diversityGuard";
 import { buildLogEntry, detectFeedbackSignal, sanitizePrompt } from "../ai/learning/promptLogger";
 import { appendExample } from "../ai/learning/learningDataset";
 import { recordPrompt, triggerRetrainIfNeeded, getQueueStatus, getTrainingHistory } from "../ai/learning/trainingQueue";
@@ -223,22 +227,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const resolvedPageType = universalCtx.pageType || (intent.pageType as any) || undefined;
       const isLandingPage = resolvedPageType === "landing_page" || resolvedPageType === "marketing_site";
-      let layout = (productContext && !isLandingPage)
-        ? generateContextualLayout(seed, productContext, universalCtx)
-        : generateLayout(seed, { name, prompt, font, themeColor, pageType: resolvedPageType });
+
+      const projectSeeds = generateProjectSeeds(seed);
+      const isDashboard = resolvedPageType === "dashboard" || resolvedPageType === "web_app";
+      const entropyContext = {
+        pageType: resolvedPageType,
+        domain: effectiveIndustry,
+        isDashboard,
+        isContentHeavy: isDashboard,
+      };
+      const entropy = generateLayoutEntropy(projectSeeds, entropyContext);
+
+      const composerContext = {
+        pageType: resolvedPageType,
+        domain: effectiveIndustry,
+        isDashboard,
+        productType: effectiveProductType,
+        componentSeed: projectSeeds.componentSeed,
+      };
+
+      let layout = composeLayout(entropy, composerContext);
+
+      if (productContext && !isLandingPage) {
+        const contextualLayout = generateContextualLayout(seed, productContext, universalCtx);
+        if (contextualLayout.sections.length > layout.sections.length) {
+          layout = contextualLayout;
+        }
+      }
 
       layout = applyLayoutConstraints(layout, resolvedPageType);
       layout = simplifyIfNeeded(layout, resolvedPageType);
 
-      const layoutSigComponents = buildLayoutSigComponents(seed, layout, genome, resolvedPageType);
-      const previousGenomes: string[] = [];
-      if (isLayoutTooSimilar(layoutSigComponents, previousGenomes)) {
-        if (needsMutation(layoutSigComponents, [])) {
-          layout = mutateLayout(layout, seed + "-mutation");
-          layout = applyLayoutConstraints(layout, resolvedPageType);
-          layout = simplifyIfNeeded(layout, resolvedPageType);
-        }
-      }
+      const diversityResult = ensureLayoutDiversity(layout, entropy, composerContext);
+      layout = diversityResult.layout;
 
       if (!mediaAllowed) {
         layout = stripMediaPlacements(layout) as typeof layout;
@@ -364,10 +385,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (hasProductTypeChange && !project.layoutLocked) {
         const intentForLayout = interpretIntent(commands);
         const productContext = getProductContext(intentForLayout);
+
+        const nlSeeds = generateProjectSeeds(project.seed);
+        const nlPageType = currentSettings?.pageType || project.productType || undefined;
+        const nlIsDashboard = nlPageType === "dashboard" || nlPageType === "web_app";
+        const nlEntropy = generateLayoutEntropy(nlSeeds, {
+          pageType: nlPageType as string | undefined,
+          domain: (currentSettings as any)?.industry,
+          isDashboard: nlIsDashboard,
+          isContentHeavy: nlIsDashboard,
+        });
+        const nlComposerCtx = {
+          pageType: nlPageType as string | undefined,
+          domain: (currentSettings as any)?.industry,
+          isDashboard: nlIsDashboard,
+          productType: newProductType,
+          componentSeed: nlSeeds.componentSeed,
+        };
+
+        let composedLayout = composeLayout(nlEntropy, nlComposerCtx);
         if (productContext) {
-          currentLayout = generateContextualLayout(project.seed, productContext);
-          allDescriptions.push(`Layout switched to ${productContext.label}`);
+          const contextualLayout = generateContextualLayout(project.seed, productContext);
+          if (contextualLayout.sections.length > composedLayout.sections.length) {
+            composedLayout = contextualLayout;
+          }
         }
+
+        const nlDiversity = ensureLayoutDiversity(composedLayout, nlEntropy, nlComposerCtx);
+        currentLayout = nlDiversity.layout;
+        allDescriptions.push(productContext
+          ? `Layout regenerated for ${productContext.label} (unique composition)`
+          : "Layout regenerated with unique composition");
       }
 
       const nlMediaRequest = detectMediaIntent(commands);
@@ -526,6 +574,66 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error regenerating style:", err);
       res.status(500).json({ message: "Failed to regenerate style" });
+    }
+  });
+
+  app.post("/api/project/:id/regenerate-layout", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      if (project.layoutLocked) return res.status(400).json({ message: "Layout is locked" });
+
+      const entropy_seed = createHash("sha256")
+        .update(`${project.seed}-layout-regen-${Date.now()}-${randomUUID()}`)
+        .digest("hex");
+
+      const regenSeeds = generateProjectSeeds(entropy_seed);
+      const currentSettings = parseSettings(project.settingsJson);
+      const pageType = (currentSettings as any)?.pageType || project.productType || undefined;
+      const isDashboard = pageType === "dashboard" || pageType === "web_app";
+
+      const entropy = generateLayoutEntropy(regenSeeds, {
+        pageType,
+        domain: (currentSettings as any)?.industry,
+        isDashboard,
+        isContentHeavy: isDashboard,
+      });
+
+      const composerCtx = {
+        pageType,
+        domain: (currentSettings as any)?.industry,
+        isDashboard,
+        productType: project.productType ?? undefined,
+        componentSeed: regenSeeds.componentSeed,
+      };
+
+      let layout = composeLayout(entropy, composerCtx);
+      layout = applyLayoutConstraints(layout, pageType);
+      layout = simplifyIfNeeded(layout, pageType);
+
+      const diversityResult = ensureLayoutDiversity(layout, entropy, composerCtx);
+      layout = diversityResult.layout;
+
+      const mediaAllowed = (currentSettings as any)?.mediaAllowed !== false;
+      if (!mediaAllowed) {
+        layout = stripMediaPlacements(layout) as typeof layout;
+      }
+
+      const updated = await storage.updateProject(project.id, userId!, {
+        layoutJson: JSON.stringify(layout),
+      });
+
+      res.json({
+        project: updated,
+        layout,
+        attempts: diversityResult.attempts,
+        entropyHash: diversityResult.entropy.entropyHash,
+      });
+    } catch (err) {
+      console.error("Error regenerating layout:", err);
+      res.status(500).json({ message: "Failed to regenerate layout" });
     }
   });
 

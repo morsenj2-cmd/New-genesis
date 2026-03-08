@@ -1,0 +1,200 @@
+Upgrade the design-generation engine and internal LLM so that **every generated project produces structurally unique UI designs**, even when prompts describe similar systems. The current generator is repeating layouts because it relies on fixed templates and limited layout variation. Replace this behavior with a **deterministic but high-entropy generation pipeline**.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+---
+
+## UNIQUE DESIGN GENERATION SYSTEM
+
+Every project must generate a unique interface architecture.
+The system must prevent reuse of identical layout structures across projects.
+
+Implement a **Layout Entropy Engine**.
+
+Create:
+
+/ai/layout/layoutEntropy.ts
+
+Responsibilities:
+
+• Generate layout seeds independent of style seeds
+• Introduce structural variation in sections
+• Randomize layout composition patterns
+• Prevent duplication of previously generated layouts
+
+Each project must produce a **layout fingerprint**.
+
+Fingerprint components:
+
+section order
+grid structures
+component grouping
+spacing scale
+alignment patterns
+navigation structure
+content density
+
+Store fingerprints in a registry and prevent duplicates.
+
+---
+
+## STRUCTURAL VARIATION ENGINE
+
+Create:
+
+/ai/layout/layoutComposer.ts
+
+The layout composer must dynamically build page structure rather than choosing templates.
+
+Available building blocks must include:
+
+hero variants
+content grids
+asymmetric layouts
+sidebar layouts
+dashboard panels
+card clusters
+split layouts
+stack layouts
+data panels
+interactive modules
+
+The composer must combine these components in new arrangements every time.
+
+---
+
+## PROJECT SEED SYSTEM
+
+Every project must generate multiple seeds:
+
+layoutSeed
+styleSeed
+componentSeed
+spacingSeed
+interactionSeed
+
+Create:
+
+/ai/seed/projectSeeds.ts
+
+The seeds must influence:
+
+layout structure
+grid size
+component grouping
+typography rhythm
+spacing system
+component scale
+
+Two projects must never share the same full seed combination.
+
+---
+
+## COMPONENT VARIATION ENGINE
+
+Create:
+
+/ai/components/componentVariants.ts
+
+Each UI component must have multiple structural variants.
+
+Example categories:
+
+upload areas
+file explorers
+dashboards
+data tables
+navigation bars
+cards
+forms
+action panels
+
+Variants must differ in:
+
+layout orientation
+information density
+interaction style
+visual hierarchy
+
+The system must select variants using project seeds.
+
+---
+
+## LAYOUT HISTORY DATABASE
+
+Create:
+
+/ai/layout/layoutRegistry.ts
+
+Store:
+
+layout fingerprint
+section structures
+grid configuration
+component arrangement
+
+Before generating a new design:
+
+compare fingerprint with previous layouts.
+
+If similarity > threshold
+force regeneration with new seeds.
+
+---
+
+## DIVERSITY ENFORCEMENT
+
+Create:
+
+/ai/layout/diversityGuard.ts
+
+This module evaluates generated designs.
+
+Checks:
+
+layout similarity
+component repetition
+section arrangement reuse
+grid duplication
+
+If similarity is detected, regenerate layout using new entropy parameters.
+
+---
+
+## CONTEXT-AWARE STRUCTURE
+
+Layouts must still follow prompt context.
+
+Pipeline:
+
+prompt
+→ context extraction
+→ workflow analysis
+→ layout entropy generation
+→ structural composition
+→ uniqueness validation.
+
+---
+
+## EDITOR CONSISTENCY
+
+The same system must apply when:
+
+creating projects
+regenerating styles
+regenerating layouts
+editing with natural language.
+
+No design regeneration step may reuse an existing layout fingerprint.
+
+---
+
+## EXPECTED RESULT
+
+After this upgrade:
+
+two projects with identical prompts will produce different interface structures
+layout composition will vary significantly
+component arrangements will change across projects
+designs will no longer repeat.
