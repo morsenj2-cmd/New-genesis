@@ -41,6 +41,9 @@ import { recordAdaptation, getAdaptationStats } from "../ai/model/adaptation";
 import { retrain as retrainModel, getVersionHistory, getCurrentVersion } from "../ai/model/retraining";
 import { onRetrain } from "../ai/learning/trainingQueue";
 import { loadFromDatabase } from "../ai/learning/learningDataset";
+import { classifyInterface, categoryToPageType, categoryIsDashboard } from "../ai/context/interfaceClassifier";
+import { extractFullWorkflows } from "../ai/context/workflowExtractor";
+import { validateInterfaceLayout, fixLayoutForCategory } from "../ai/context/interfaceValidator";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -197,6 +200,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const universalCtx = extractUniversalContext(fullText);
 
+      const classification = classifyInterface(prompt);
+      const workflows = extractFullWorkflows(prompt);
+      console.log(`[Classifier] category=${classification.category} confidence=${classification.confidence.toFixed(2)} marketing=${classification.isMarketingContent} reasoning=${classification.reasoning}`);
+
+      const classifiedPageType = categoryToPageType(classification.category);
+      const classifiedIsDashboard = categoryIsDashboard(classification.category);
+
       const effectiveIndustry = universalCtx.industry || detectedIndustry;
       const effectiveProductType = universalCtx.productType || intent.productType || undefined;
 
@@ -215,6 +225,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         promptContent,
         semanticContext,
         mediaAllowed,
+        interfaceCategory: classification.category,
+        interfaceConfidence: classification.confidence,
+        systemType: classification.system_type,
+        primaryUser: classification.primary_user,
+        userWorkflows: classification.user_workflows,
+        workflowData: workflows,
       };
 
       const contextLock = createContextLock(universalCtx);
@@ -226,15 +242,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       genome = mergeDesignSources(genome, { selectedFont: font, selectedPrimaryColor: themeColor, uploadedLogoUrl: logoUrl, productType: effectiveProductType });
       const genomeJson = JSON.stringify(genome);
 
-      const resolvedPageType = universalCtx.pageType || (intent.pageType as any) || undefined;
+      const resolvedPageType = classifiedPageType || universalCtx.pageType || (intent.pageType as any) || undefined;
 
       const projectSeeds = generateProjectSeeds(seed);
-      const isDashboard = resolvedPageType === "dashboard" || resolvedPageType === "web_app";
+      const isDashboard = classifiedIsDashboard || resolvedPageType === "dashboard" || resolvedPageType === "web_app";
       const dnaContext = {
         pageType: resolvedPageType,
         domain: effectiveIndustry,
         isDashboard,
         productType: effectiveProductType,
+        interfaceCategory: classification.category,
       };
 
       let dna = generateLayoutDNA(projectSeeds.layoutSeed, dnaContext);
@@ -254,6 +271,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       layout = applyLayoutConstraints(layout, resolvedPageType);
       layout = simplifyIfNeeded(layout, resolvedPageType);
+
+      const validation = validateInterfaceLayout(layout, classification.category);
+      if (!validation.valid) {
+        console.log(`[Validator] Layout invalid for ${classification.category}: missing=[${validation.missingComponents}] unexpected=[${validation.unexpectedComponents}]`);
+        layout = fixLayoutForCategory(layout, classification.category);
+      }
 
       const { buildFingerprint } = await import("../ai/layout/diversityGuard");
       const { registerLayout } = await import("../ai/layout/layoutRegistry");
@@ -386,14 +409,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           .update(`${project.seed}-nl-layout-${Date.now()}-${randomUUID()}`)
           .digest("hex");
         const nlSeeds = generateProjectSeeds(nlSeed);
-        const nlPageType = (currentSettings as any)?.pageType || project.productType || undefined;
-        const nlIsDashboard = nlPageType === "dashboard" || nlPageType === "web_app";
+
+        const nlClassification = classifyInterface(commands);
+        const nlClassifiedPageType = categoryToPageType(nlClassification.category);
+        const nlClassifiedIsDash = categoryIsDashboard(nlClassification.category);
+
+        const nlPageType = nlClassifiedPageType || (currentSettings as any)?.pageType || project.productType || undefined;
+        const nlIsDashboard = nlClassifiedIsDash || nlPageType === "dashboard" || nlPageType === "web_app";
 
         const nlDnaContext = {
           pageType: nlPageType as string | undefined,
           domain: (currentSettings as any)?.industry,
           isDashboard: nlIsDashboard,
           productType: newProductType,
+          interfaceCategory: nlClassification.category,
         };
 
         let nlDna = generateLayoutDNA(nlSeeds.layoutSeed, nlDnaContext);
@@ -409,7 +438,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           componentSeed: nlSeeds.componentSeed,
         };
 
-        currentLayout = generateStructuralLayout(nlDna, nlStructCtx);
+        let nlLayout = generateStructuralLayout(nlDna, nlStructCtx);
+
+        const nlValidation = validateInterfaceLayout(nlLayout, nlClassification.category);
+        if (!nlValidation.valid) {
+          nlLayout = fixLayoutForCategory(nlLayout, nlClassification.category);
+        }
+
+        currentLayout = nlLayout;
         currentLayout = applyLayoutConstraints(currentLayout, nlPageType);
         currentLayout = simplifyIfNeeded(currentLayout, nlPageType);
 
@@ -623,14 +659,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const regenSeeds = generateProjectSeeds(regenSeed);
       const currentSettings = parseSettings(project.settingsJson);
-      const pageType = (currentSettings as any)?.pageType || project.productType || undefined;
-      const isDashboard = pageType === "dashboard" || pageType === "web_app";
+
+      const storedCategory = (currentSettings as any)?.interfaceCategory;
+      const regenClassification = storedCategory
+        ? { category: storedCategory, isDashboard: categoryIsDashboard(storedCategory) }
+        : project.prompt
+          ? (() => { const c = classifyInterface(project.prompt); return { category: c.category, isDashboard: categoryIsDashboard(c.category) }; })()
+          : { category: undefined, isDashboard: false };
+
+      const regenPageType = (regenClassification.category ? categoryToPageType(regenClassification.category) : undefined)
+        || (currentSettings as any)?.pageType || project.productType || undefined;
+      const isDashboard = regenClassification.isDashboard || regenPageType === "dashboard" || regenPageType === "web_app";
 
       const dnaCtx = {
-        pageType,
+        pageType: regenPageType,
         domain: (currentSettings as any)?.industry,
         isDashboard,
         productType: project.productType ?? undefined,
+        interfaceCategory: regenClassification.category,
       };
 
       let dna = generateLayoutDNA(regenSeeds.layoutSeed, dnaCtx);
@@ -642,8 +688,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ...dnaCtx,
         componentSeed: regenSeeds.componentSeed,
       });
-      layout = applyLayoutConstraints(layout, pageType);
-      layout = simplifyIfNeeded(layout, pageType);
+      layout = applyLayoutConstraints(layout, regenPageType);
+      layout = simplifyIfNeeded(layout, regenPageType);
+
+      if (regenClassification.category) {
+        const regenValidation = validateInterfaceLayout(layout, regenClassification.category);
+        if (!regenValidation.valid) {
+          layout = fixLayoutForCategory(layout, regenClassification.category);
+        }
+      }
 
       const mediaAllowed = (currentSettings as any)?.mediaAllowed !== false;
       if (!mediaAllowed) {

@@ -70,13 +70,49 @@ const DENSITY_LEVELS = [
   "sparse", "relaxed", "balanced", "compact", "dense", "ultra-dense",
 ];
 
-const SECTION_POOLS = {
+const SECTION_POOLS: Record<string, string[]> = {
   landing: [
     "featureGrid", "cardList", "testimonial", "cta", "stats",
     "featureGrid", "cardList", "cta",
   ],
   dashboard: [
     "stats", "featureGrid", "cardList", "stats",
+    "featureGrid", "stats", "cardList",
+  ],
+  product_dashboard: [
+    "stats", "featureGrid", "cardList", "stats",
+    "featureGrid", "cardList", "stats",
+  ],
+  admin_dashboard: [
+    "stats", "featureGrid", "cardList", "stats",
+    "featureGrid", "stats",
+  ],
+  analytics_dashboard: [
+    "stats", "stats", "featureGrid", "cardList",
+    "stats", "featureGrid", "stats",
+  ],
+  internal_tool: [
+    "stats", "featureGrid", "cardList",
+    "featureGrid", "stats", "cardList",
+  ],
+  data_management: [
+    "featureGrid", "cardList", "stats",
+    "featureGrid", "cardList",
+  ],
+  data_management_interface: [
+    "featureGrid", "cardList", "stats",
+    "featureGrid", "cardList",
+  ],
+  workflow_management: [
+    "featureGrid", "cardList", "stats",
+    "cardList", "featureGrid",
+  ],
+  workflow_management_interface: [
+    "featureGrid", "cardList", "stats",
+    "cardList", "featureGrid",
+  ],
+  web_application: [
+    "featureGrid", "stats", "cardList", "cta",
     "featureGrid", "stats", "cardList",
   ],
   webapp: [
@@ -130,6 +166,7 @@ export interface DNAContext {
   domain?: string;
   isDashboard?: boolean;
   productType?: string;
+  interfaceCategory?: string;
 }
 
 export function generateLayoutDNA(seed: string, context?: DNAContext): LayoutDNA {
@@ -150,7 +187,10 @@ export function generateLayoutDNA(seed: string, context?: DNAContext): LayoutDNA
   const rawCount = 3 + (seedByte(seed, 12) % 5);
   const sectionCount = isDash ? Math.min(rawCount, 5) : Math.min(rawCount, 7);
 
-  const pool = isDash ? SECTION_POOLS.dashboard
+  const catKey = context?.interfaceCategory;
+  const pool = (catKey && SECTION_POOLS[catKey])
+    ? SECTION_POOLS[catKey]
+    : isDash ? SECTION_POOLS.dashboard
     : isLanding ? SECTION_POOLS.landing
     : context?.pageType === "ecommerce_store" ? SECTION_POOLS.ecommerce
     : SECTION_POOLS.generic;
