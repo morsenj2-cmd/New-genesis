@@ -19,7 +19,7 @@ export default function AboutPage() {
         }}
       >
         <AppSidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
           <header className="flex items-center px-6 py-4 border-b border-white/[0.06] bg-transparent sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
@@ -29,7 +29,7 @@ export default function AboutPage() {
 
           <main className="flex-1 overflow-y-auto p-6 flex justify-center">
             <div
-              className="max-w-2xl w-full rounded-2xl p-8 border border-white/[0.08]"
+              className="max-w-2xl w-full rounded-2xl p-8 border border-white/[0.08] overflow-hidden"
               style={{
                 background: "rgba(12, 12, 12, 0.55)",
                 backdropFilter: "blur(24px) saturate(1.4)",
@@ -47,7 +47,7 @@ export default function AboutPage() {
                 About Us
               </h2>
               <div
-                className="space-y-4 text-white/80 text-sm leading-relaxed"
+                className="space-y-4 text-white/80 text-sm leading-relaxed break-words"
                 style={{ fontFamily: "'Arimo', sans-serif" }}
               >
                 <p>
