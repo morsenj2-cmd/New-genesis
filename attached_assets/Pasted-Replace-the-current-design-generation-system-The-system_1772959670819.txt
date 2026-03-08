@@ -1,0 +1,201 @@
+Replace the current design generation system. The system must stop modifying existing layouts and instead generate completely new architectures each time a project is created.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+---
+
+## CORE PROBLEM
+
+The generator currently changes only surface properties such as:
+
+colors
+rounded corners
+spacing
+minor component styling
+
+This means the underlying layout architecture remains identical.
+
+The generator must instead produce **entirely different page structures**, not style variations.
+
+---
+
+## NEW GENERATION MODEL
+
+Implement a **Structural Layout Generator** that builds interfaces from a layout grammar instead of templates.
+
+Create:
+
+/ai/layout/structuralGenerator.ts
+
+The generator must build pages using layout primitives rather than templates.
+
+Layout primitives include:
+
+vertical stack
+split grid
+asymmetric grid
+sidebar layout
+centered hero
+left-heavy hero
+right-heavy hero
+masonry grid
+content bands
+floating panels
+dashboard clusters
+full-width sections
+
+The system must combine these primitives into new page structures.
+
+---
+
+## STRUCTURE FIRST PIPELINE
+
+Replace the current generation flow.
+
+Old flow:
+
+prompt → template → style adjustments
+
+New flow:
+
+prompt
+→ context reasoning
+→ layout structure generation
+→ component placement
+→ style generation
+
+Structure must be generated **before** styling.
+
+---
+
+## LAYOUT DNA SYSTEM
+
+Create:
+
+/ai/layout/layoutDNA.ts
+
+Each project must generate a layout DNA object.
+
+Example structure:
+
+{
+heroType,
+sectionOrder,
+gridStructure,
+navigationType,
+contentDensity,
+componentGrouping,
+visualHierarchy
+}
+
+The layout generator must use this DNA to build the page.
+
+No two projects may share identical layout DNA.
+
+---
+
+## STRUCTURE RANDOMIZATION ENGINE
+
+Create:
+
+/ai/layout/structureEntropy.ts
+
+This module must introduce controlled randomness into layout generation.
+
+It must randomize:
+
+section order
+hero composition
+grid column counts
+content band arrangements
+component placement
+navigation structure
+
+This randomness must remain compatible with the prompt context.
+
+---
+
+## COMPONENT ARCHITECTURE VARIATION
+
+Create:
+
+/ai/components/architectureVariants.ts
+
+Each functional element must have multiple architectural forms.
+
+Example for a file storage interface:
+
+file browser grid
+file browser table
+file explorer sidebar layout
+file card gallery
+column-based storage layout
+panel-based storage interface
+
+The generator must select among these architectures using layout DNA.
+
+---
+
+## LAYOUT SIMILARITY PREVENTION
+
+Create:
+
+/ai/layout/layoutSimilarity.ts
+
+Before rendering a new layout:
+
+compare layout DNA with previous projects.
+
+If similarity exceeds threshold:
+
+regenerate layout DNA.
+
+Store previous layout DNA in:
+
+/ai/layout/layoutHistory.json
+
+---
+
+## MULTI-STAGE GENERATION
+
+The generator must produce layout in stages.
+
+Stage 1: context reasoning
+Stage 2: structural architecture
+Stage 3: component architecture
+Stage 4: layout composition
+Stage 5: visual styling
+
+Structure must be finalized before styling occurs.
+
+---
+
+## REGENERATE STYLE BEHAVIOR
+
+Change regenerate style behavior.
+
+Currently:
+
+style regeneration modifies color only.
+
+New behavior:
+
+Regenerate Style must also regenerate:
+
+layout DNA
+component architecture
+section composition
+
+This ensures the page structure changes completely.
+
+---
+
+## RESULT
+
+After this upgrade:
+
+two projects with identical prompts will produce different structures
+layout composition will vary significantly
+component placement will change across projects
+interfaces will no longer look like minor variations of the same template.
