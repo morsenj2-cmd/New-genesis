@@ -165,15 +165,8 @@ interface SearchResult {
   resultPages?: Array<{ title: string; url: string }>;
 }
 
-async function performSearch(query: string): Promise<SearchResult | null> {
-  try {
-    const { webSearch } = await (import("../../.local/skills/web-search/SKILL.md" as any) as Promise<any>).catch(() => ({ webSearch: null }));
-    if (!webSearch) return null;
-    const result = await webSearch({ query });
-    return result as SearchResult;
-  } catch {
-    return null;
-  }
+async function performSearch(_query: string): Promise<SearchResult | null> {
+  return null;
 }
 
 export async function retrieveInternetContext(prompt: string): Promise<InternetContext> {

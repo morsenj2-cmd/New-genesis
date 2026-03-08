@@ -5,8 +5,12 @@ import { rm, readFile } from "fs/promises";
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
 const allowlist = [
+  "@clerk/backend",
+  "@clerk/express",
   "@google/generative-ai",
+  "archiver",
   "axios",
+  "cloudinary",
   "connect-pg-simple",
   "cors",
   "date-fns",

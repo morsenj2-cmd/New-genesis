@@ -120,33 +120,8 @@ export async function retrieveDomainKnowledge(domain: string, promptHints: strin
   return fallback;
 }
 
-async function fetchWebKnowledge(domain: string, hints: string[]): Promise<DomainKnowledge | null> {
-  try {
-    const { webSearch } = await import("../../.local/skills/web-search/SKILL.md" as any).catch(() => ({ webSearch: null }));
-    if (!webSearch) return null;
-
-    const query = `${domain} software system typical features components UI patterns`;
-    const results = await webSearch({ query });
-
-    if (!results?.searchAnswer) return null;
-
-    const answer = results.searchAnswer;
-    const concepts = extractTermsFromText(answer, ["feature", "capability", "function", "module"]);
-    const actions = extractTermsFromText(answer, ["manage", "track", "create", "monitor", "analyze"]);
-    const entities = extractTermsFromText(answer, ["user", "data", "record", "item", "object"]);
-
-    return {
-      domain,
-      concepts: concepts.length > 0 ? concepts : hints,
-      commonActions: actions.length > 0 ? actions : ["manage", "view", "create"],
-      typicalEntities: entities.length > 0 ? entities : hints,
-      interfacePatterns: ["dashboard", "list view", "detail page"],
-      source: "web",
-      confidence: 0.6,
-    };
-  } catch {
-    return null;
-  }
+async function fetchWebKnowledge(_domain: string, _hints: string[]): Promise<DomainKnowledge | null> {
+  return null;
 }
 
 function extractTermsFromText(text: string, seedTerms: string[]): string[] {
