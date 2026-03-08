@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Hash, Clock, ChevronRight, Dna } from "lucide-react";
+import { Plus, Hash, Clock, ChevronRight } from "lucide-react";
 import type { Project } from "@shared/schema";
 import spiralBg from "@assets/image_1772970592054.png";
 
@@ -78,20 +78,6 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
-function SpiralBackground() {
-  return (
-    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0" data-testid="spiral-background">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <img
-          src={spiralBg}
-          alt=""
-          className="w-[700px] h-auto object-contain select-none opacity-[0.35]"
-          draggable={false}
-        />
-      </div>
-    </div>
-  );
-}
 
 function GuestHero() {
   return (
@@ -204,10 +190,19 @@ export default function DashboardPage() {
 
   return (
     <SidebarProvider>
-      <div className="relative flex h-screen w-full bg-background">
-        <SpiralBackground />
+      <div
+        className="relative flex h-screen w-full"
+        data-testid="spiral-background"
+        style={{
+          backgroundColor: "#000",
+          backgroundImage: `url(${spiralBg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
         <AppSidebar />
-        <div className="relative z-[1] flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-transparent sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
@@ -238,7 +233,7 @@ export default function DashboardPage() {
             ) : !projects || projects.length === 0 ? (
               <EmptyState />
             ) : (
-              <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projects.map((project) => (
                   <ProjectCard key={project.id} project={project} />
                 ))}
