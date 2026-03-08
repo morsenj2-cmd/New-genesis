@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Hash, Clock, ChevronRight, Dna } from "lucide-react";
 import type { Project } from "@shared/schema";
+import spiralBg from "@assets/Screenshot_(1345)_1772970290388.png";
 
 function ProjectCard({ project }: { project: Project }) {
   const fontLabel = project.font || "Arimo";
@@ -77,52 +78,67 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
+function SpiralBackground({ showText = false }: { showText?: boolean }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" data-testid="spiral-background">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <img
+          src={spiralBg}
+          alt=""
+          className={`w-[700px] h-auto object-contain select-none ${showText ? "opacity-[0.35]" : "opacity-[0.2]"}`}
+          draggable={false}
+        />
+      </div>
+    </div>
+  );
+}
+
 function GuestHero() {
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
-      <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-8">
-        <Dna className="h-8 w-8 text-primary" />
+    <div className="relative flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
+      <SpiralBackground showText />
+      <div className="relative z-10">
+        <h2
+          className="text-4xl sm:text-5xl font-bold text-foreground mb-4 leading-tight max-w-2xl"
+          style={{ fontFamily: "'Arimo', sans-serif" }}
+          data-testid="text-hero-tagline"
+        >
+          Make your vibecoded app stand out in minutes!
+        </h2>
+        <p
+          className="text-lg text-muted-foreground"
+          style={{ fontFamily: "'Arimo', sans-serif" }}
+          data-testid="text-hero-sub"
+        >
+          No code needed!
+        </p>
       </div>
-      <h2
-        className="text-3xl font-bold text-foreground mb-4 leading-tight max-w-md"
-        style={{ fontFamily: "'Arimo', sans-serif" }}
-        data-testid="text-hero-tagline"
-      >
-        Make your vibecoded website unique in minutes
-      </h2>
-      <p
-        className="text-lg text-muted-foreground"
-        style={{ fontFamily: "'Arimo', sans-serif" }}
-        data-testid="text-hero-sub"
-      >
-        No code needed!
-      </p>
     </div>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
-      <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-        <Dna className="h-8 w-8 text-primary" />
+    <div className="relative flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
+      <SpiralBackground showText />
+      <div className="relative z-10">
+        <h2
+          className="text-4xl sm:text-5xl font-bold text-foreground mb-4 leading-tight max-w-2xl"
+          style={{ fontFamily: "'Arimo', sans-serif" }}
+          data-testid="text-hero-tagline-auth"
+        >
+          Make your vibecoded app stand out in minutes!
+        </h2>
+        <p
+          className="text-lg text-muted-foreground mb-8"
+          style={{ fontFamily: "'Arimo', sans-serif" }}
+        >
+          No code needed!
+        </p>
+        <p className="text-muted-foreground text-sm max-w-sm leading-relaxed mx-auto">
+          Create your first project to get started. Set up your brand and describe what you want to build.
+        </p>
       </div>
-      <h2
-        className="text-3xl font-bold text-foreground mb-4 leading-tight max-w-md"
-        style={{ fontFamily: "'Arimo', sans-serif" }}
-        data-testid="text-hero-tagline-auth"
-      >
-        Make your vibecoded website unique in minutes
-      </h2>
-      <p
-        className="text-lg text-muted-foreground mb-8"
-        style={{ fontFamily: "'Arimo', sans-serif" }}
-      >
-        No code needed!
-      </p>
-      <p className="text-muted-foreground text-sm max-w-sm leading-relaxed">
-        Create your first project to get started. Set up your brand and describe what you want to build.
-      </p>
     </div>
   );
 }
@@ -215,7 +231,7 @@ export default function DashboardPage() {
             </Button>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-6 relative">
             {!isSignedIn && isLoaded ? (
               <GuestHero />
             ) : isLoading ? (
@@ -223,11 +239,14 @@ export default function DashboardPage() {
             ) : !projects || projects.length === 0 ? (
               <EmptyState />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {projects.map((project) => (
-                  <ProjectCard key={project.id} project={project} />
-                ))}
-              </div>
+              <>
+                <SpiralBackground />
+                <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {projects.map((project) => (
+                    <ProjectCard key={project.id} project={project} />
+                  ))}
+                </div>
+              </>
             )}
           </main>
         </div>
