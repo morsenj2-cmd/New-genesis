@@ -9,6 +9,8 @@ import type {
 } from "./promptSchema";
 import type { ProjectContext } from "./promptSchema";
 import type { ReasonedContext } from "../context/contextReasoner";
+import type { InternetContext } from "../retrieval/internetContext";
+import type { ContextGraph } from "../context/contextGraphAI";
 
 const COLOR_MAP: Record<string, string> = {
   blue: "hsl(220, 80%, 55%)", navy: "hsl(215, 70%, 35%)",
@@ -218,7 +220,13 @@ function resolveIntent(
   return topIntents[0]?.intentType ?? "style_change";
 }
 
-export function infer(prompt: string, context?: ProjectContext, reasonedContext?: ReasonedContext): StructuredIntent {
+export function infer(
+  prompt: string,
+  context?: ProjectContext,
+  reasonedContext?: ReasonedContext,
+  internetContext?: InternetContext,
+  systemGraph?: ContextGraph,
+): StructuredIntent {
   const weights = getOrTrainWeights();
   const { meaningful } = tokenize(prompt);
   const allTokens = [...new Set([
@@ -265,6 +273,37 @@ export function infer(prompt: string, context?: ProjectContext, reasonedContext?
         if (context && context.industry && context.industry !== reasonedContext.domain) {
           boost += 0.15;
         }
+      }
+      return { ...r, score: r.score + boost };
+    }).sort((a, b) => b.score - a.score);
+  }
+
+  if (internetContext && internetContext.confidence > 0.3) {
+    intentRankings = intentRankings.map(r => {
+      let boost = 0;
+      if (r.intentType === "design_generation" && internetContext.workflows.length > 0) {
+        boost += 0.08;
+      }
+      if (r.intentType === "design_generation" && internetContext.entities.length > 3) {
+        boost += 0.05;
+      }
+      if (r.intentType === "layout_modification" && internetContext.interfacePatterns.length > 2) {
+        boost += 0.04;
+      }
+      return { ...r, score: r.score + boost };
+    }).sort((a, b) => b.score - a.score);
+  }
+
+  if (systemGraph && systemGraph.nodes.length > 3) {
+    const actionNodes = systemGraph.nodes.filter(n => n.type === "action").length;
+    const dataNodes = systemGraph.nodes.filter(n => n.type === "data_object").length;
+    intentRankings = intentRankings.map(r => {
+      let boost = 0;
+      if (r.intentType === "design_generation" && actionNodes > 2 && dataNodes > 1) {
+        boost += 0.06;
+      }
+      if (r.intentType === "layout_modification" && systemGraph.edges.length > 5) {
+        boost += 0.03;
       }
       return { ...r, score: r.score + boost };
     }).sort((a, b) => b.score - a.score);

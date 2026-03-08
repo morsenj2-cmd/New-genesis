@@ -1,0 +1,220 @@
+Upgrade the internal prompt-interpretation LLM so that prompt understanding is driven by internet-retrieved context rather than shallow keyword parsing.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+---
+
+## CORE REQUIREMENT
+
+Every prompt must go through an Internet-Augmented Context Pipeline before any UI or layout is generated.
+
+Design generation must only occur AFTER external context retrieval and reasoning.
+
+---
+
+1. INTERNET CONTEXT RETRIEVAL ENGINE
+
+---
+
+Create a module:
+
+/ai/retrieval/internetContext.ts
+
+Responsibilities:
+
+• Accept user prompt
+• Extract core entities, concepts, industries, and tasks
+• Perform internet searches using multiple sources
+• Retrieve documentation, articles, and domain explanations
+• Aggregate and summarize contextual information
+
+Sources allowed:
+
+search engines
+public documentation
+industry articles
+developer resources
+
+The module must gather sufficient contextual understanding before passing the prompt to the LLM.
+
+---
+
+2. CONTEXT EXTRACTION PIPELINE
+
+---
+
+Create:
+
+/ai/context/contextExtractor.ts
+
+This module must convert the prompt + retrieved knowledge into structured context:
+
+{
+domain
+industry
+systemType
+entities
+userActions
+workflows
+interfaceRequirements
+}
+
+Example categories to detect:
+
+actors
+operations
+data objects
+system workflows
+user goals
+
+---
+
+3. CONTEXT DATABASE
+
+---
+
+Create persistent knowledge storage:
+
+/ai/knowledge/contextDatabase.ts
+
+Database structure:
+
+prompt_hash
+domain
+interpreted_context
+retrieved_sources
+generated_interface_patterns
+
+Pipeline:
+
+prompt → search internet → build context → check database → if context not found → store new context.
+
+This allows the LLM to continuously expand its understanding over time.
+
+---
+
+4. CONTEXT-FIRST GENERATION
+
+---
+
+Modify design generation pipeline:
+
+Current flow:
+
+prompt → layout generator
+
+New flow:
+
+prompt
+→ internet retrieval
+→ context extraction
+→ database lookup
+→ context validation
+→ layout generation.
+
+Layouts must be derived from the interpreted context graph.
+
+---
+
+5. CONTEXT GRAPH ENGINE
+
+---
+
+Create:
+
+/ai/context/contextGraph.ts
+
+This graph represents:
+
+actors
+actions
+data relationships
+system capabilities
+interface needs
+
+The layout engine must read from this graph when deciding which components to generate.
+
+---
+
+6. INTERNET-AUGMENTED LLM REASONING
+
+---
+
+The LLM must receive three inputs:
+
+1. original prompt
+2. retrieved internet context
+3. interpreted system graph
+
+The LLM must reason over these inputs before producing UI structure.
+
+---
+
+7. DESIGN CONSISTENCY RULE
+
+---
+
+Generated interfaces must align with the extracted context.
+
+Validation step:
+
+/ai/context/contextValidator.ts
+
+If generated components do not correspond to:
+
+actors
+workflows
+operations
+
+the layout must be regenerated.
+
+---
+
+8. LEARNING LOOP
+
+---
+
+Every prompt must be logged:
+
+prompt
+interpreted context
+internet sources used
+generated layout structure.
+
+Store in:
+
+/ai/learning/promptHistory/
+
+Periodically fine-tune the LLM using this dataset so the system improves as usage increases.
+
+---
+
+9. EDITOR INTEGRATION
+
+---
+
+Ensure the natural-language editor uses the exact same pipeline:
+
+editor prompt
+→ internet retrieval
+→ context extraction
+→ database lookup
+→ LLM reasoning
+→ UI modification.
+
+This guarantees prompt interpretation behaves the same during generation and editing.
+
+---
+
+10. RESULT
+
+---
+
+After this upgrade:
+
+the LLM searches the internet for contextual knowledge
+the system builds structured domain understanding
+new contexts are stored in the knowledge database
+generated designs match the discovered domain workflows
+the system improves continuously as prompts accumulate.

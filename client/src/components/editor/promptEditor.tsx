@@ -18,6 +18,7 @@ interface IntentPreview {
     systemType: string;
     entities: string[];
     validationScore: number;
+    augmentationSources: string[];
   };
 }
 
@@ -99,6 +100,7 @@ export function PromptEditor({ projectId, onApplied, className = "" }: PromptEdi
               systemType: data.reasoning.systemType,
               entities: data.reasoning.entities ?? [],
               validationScore: Math.round((data.reasoning.validationScore ?? 0) * 100),
+              augmentationSources: data.reasoning.augmentationSources ?? [],
             } : undefined,
           });
         }
@@ -203,14 +205,26 @@ export function PromptEditor({ projectId, onApplied, className = "" }: PromptEdi
               <span className="text-white/60 truncate">{intentPreview.description}</span>
             )}
             {intentPreview.reasoning && intentPreview.reasoning.domain !== "general" && (
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap" data-testid="reasoning-preview">
-                <span className="text-white/25 text-[10px]">
-                  Domain: <span className="text-white/50">{intentPreview.reasoning.domain.replace(/_/g, " ")}</span>
-                </span>
-                {intentPreview.reasoning.entities.length > 0 && (
+              <div className="flex flex-col gap-0.5 mt-0.5" data-testid="reasoning-preview">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-white/25 text-[10px]">
-                    · {intentPreview.reasoning.entities.slice(0, 3).join(", ")}
+                    Domain: <span className="text-white/50">{intentPreview.reasoning.domain.replace(/_/g, " ")}</span>
                   </span>
+                  {intentPreview.reasoning.entities.length > 0 && (
+                    <span className="text-white/25 text-[10px]">
+                      · {intentPreview.reasoning.entities.slice(0, 3).join(", ")}
+                    </span>
+                  )}
+                </div>
+                {intentPreview.reasoning.augmentationSources.length > 1 && (
+                  <div className="flex items-center gap-1" data-testid="augmentation-sources">
+                    <span className="text-white/20 text-[9px]">Sources:</span>
+                    {intentPreview.reasoning.augmentationSources.map((src, i) => (
+                      <span key={i} className="text-[9px] text-white/30 bg-white/5 px-1 rounded">
+                        {src.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             )}

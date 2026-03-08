@@ -47,6 +47,26 @@ export const promptLogs = pgTable("prompt_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const contextKnowledge = pgTable("context_knowledge", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  promptHash: text("prompt_hash").notNull(),
+  domain: text("domain").notNull(),
+  interpretedContext: text("interpreted_context").notNull(),
+  retrievedSources: text("retrieved_sources").notNull(),
+  generatedInterfacePatterns: text("generated_interface_patterns").notNull(),
+  internetContext: text("internet_context"),
+  validationScore: real("validation_score"),
+  usageCount: integer("usage_count").default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertContextKnowledgeSchema = createInsertSchema(contextKnowledge).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertContextKnowledge = z.infer<typeof insertContextKnowledgeSchema>;
+export type ContextKnowledge = typeof contextKnowledge.$inferSelect;
+
 export const insertPromptLogSchema = createInsertSchema(promptLogs).omit({
   id: true,
   createdAt: true,

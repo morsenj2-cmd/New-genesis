@@ -1,8 +1,11 @@
 import { reasonContext, type ReasonedContext } from "../context/contextReasoner";
 import { retrieveDomainKnowledge, mergeKnowledge, type DomainKnowledge } from "./webKnowledge";
+import { retrieveInternetContext, type InternetContext } from "./internetContext";
 import { enrichContextFromKnowledge } from "../learning/promptKnowledge";
 import { reasonDomain, type UICapabilityRequirements } from "../context/domainReasoner";
 import { buildContextGraph, type ContextGraph } from "../context/contextGraphAI";
+import { extractContext, extractedToReasonedContext, type ExtractedContext } from "../context/contextExtractor";
+import { lookupContext, enrichFromStoredContext, lookupContextFromMemory } from "../knowledge/contextDatabase";
 
 export interface AugmentedInterpretation {
   context: ReasonedContext;
@@ -10,6 +13,8 @@ export interface AugmentedInterpretation {
   capabilities: UICapabilityRequirements;
   graph: ContextGraph;
   augmentationSources: string[];
+  internetContext?: InternetContext;
+  extractedContext?: ExtractedContext;
 }
 
 export async function augmentPrompt(prompt: string): Promise<AugmentedInterpretation> {
@@ -21,6 +26,43 @@ export async function augmentPrompt(prompt: string): Promise<AugmentedInterpreta
   if (enriched !== context) {
     context = enriched;
     sources.push("learned_knowledge");
+  }
+
+  const storedCtx = await lookupContext(prompt).catch(() => null);
+  if (storedCtx) {
+    context = enrichFromStoredContext(context, storedCtx);
+    sources.push("context_database");
+  }
+
+  let internetCtx: InternetContext | undefined;
+  try {
+    internetCtx = await retrieveInternetContext(prompt);
+    if (internetCtx.confidence > 0.2) {
+      sources.push("internet_retrieval");
+    }
+  } catch {
+    internetCtx = undefined;
+  }
+
+  let extractedCtx: ExtractedContext | undefined;
+  if (internetCtx) {
+    extractedCtx = extractContext(prompt, internetCtx);
+    const extractedAsReasoned = extractedToReasonedContext(extractedCtx);
+
+    context = {
+      ...context,
+      entities: [...new Set([...context.entities, ...extractedAsReasoned.entities])].slice(0, 20),
+      userActions: [...new Set([...context.userActions, ...extractedAsReasoned.userActions])].slice(0, 15),
+      operationalConcepts: [...new Set([...context.operationalConcepts, ...extractedAsReasoned.operationalConcepts])].slice(0, 15),
+      interfaceRequirements: [...new Set([...context.interfaceRequirements, ...extractedAsReasoned.interfaceRequirements])].slice(0, 20),
+      confidence: Math.min(0.95, context.confidence + (internetCtx.confidence * 0.15)),
+    };
+
+    if (extractedCtx.domain !== "general" && context.domain === "general") {
+      context = { ...context, domain: extractedCtx.domain };
+    }
+
+    sources.push("context_extraction");
   }
 
   const promptHints = [
@@ -74,6 +116,8 @@ export async function augmentPrompt(prompt: string): Promise<AugmentedInterpreta
     capabilities,
     graph,
     augmentationSources: sources,
+    internetContext: internetCtx,
+    extractedContext: extractedCtx,
   };
 }
 
@@ -86,6 +130,14 @@ export function augmentPromptSync(prompt: string): AugmentedInterpretation {
     context = enriched;
     sources.push("learned_knowledge");
   }
+
+  try {
+    const cachedCtx = lookupContextFromMemory(prompt);
+    if (cachedCtx) {
+      context = enrichFromStoredContext(context, cachedCtx);
+      sources.push("context_database");
+    }
+  } catch {}
 
   const knowledge: DomainKnowledge = {
     domain: context.domain,

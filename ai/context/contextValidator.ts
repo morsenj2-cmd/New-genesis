@@ -1,6 +1,7 @@
 import type { ReasonedContext } from "./contextReasoner";
 import type { UICapabilityRequirements, ComponentRequirement } from "./domainReasoner";
 import type { ContextGraph } from "./contextGraphAI";
+import type { ExtractedContext, WorkflowDescriptor } from "./contextExtractor";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -11,7 +12,7 @@ export interface ValidationResult {
 
 export interface ValidationIssue {
   severity: "error" | "warning" | "info";
-  category: "missing_component" | "orphan_entity" | "action_mismatch" | "domain_conflict" | "coverage_gap";
+  category: "missing_component" | "orphan_entity" | "action_mismatch" | "domain_conflict" | "coverage_gap" | "workflow_mismatch" | "actor_mismatch";
   message: string;
   affectedElement?: string;
 }
@@ -199,6 +200,125 @@ function validateMinimumCapabilities(
       severity: "warning",
       category: "coverage_gap",
       message: "Layout has fewer than 2 sections",
+    });
+  }
+}
+
+export function validateWithExtractedContext(
+  context: ReasonedContext,
+  capabilities: UICapabilityRequirements,
+  graph: ContextGraph,
+  extracted: ExtractedContext,
+): ValidationResult {
+  const baseResult = validateContextInterpretation(context, capabilities, graph);
+  const issues = [...baseResult.issues];
+  const suggestions = [...baseResult.suggestions];
+
+  validateActorCoverage(extracted.actors, capabilities, graph, issues, suggestions);
+  validateWorkflowCoverage(extracted.workflows, capabilities, issues, suggestions);
+  validateOperationCoverage(extracted.operations, capabilities, issues, suggestions);
+
+  const errorCount = issues.filter(i => i.severity === "error").length;
+  const warningCount = issues.filter(i => i.severity === "warning").length;
+  const score = Math.max(0, 1.0 - errorCount * 0.2 - warningCount * 0.05);
+
+  return {
+    isValid: errorCount === 0,
+    score,
+    issues,
+    suggestions,
+  };
+}
+
+function validateActorCoverage(
+  actors: string[],
+  capabilities: UICapabilityRequirements,
+  graph: ContextGraph,
+  issues: ValidationIssue[],
+  suggestions: string[],
+): void {
+  const graphActors = new Set(
+    graph.nodes.filter(n => n.type === "actor").map(n => n.label.toLowerCase())
+  );
+  const componentActors = new Set<string>();
+  for (const comp of [...capabilities.primaryComponents, ...capabilities.supportingComponents]) {
+    const words = comp.type.split("_");
+    for (const w of words) componentActors.add(w);
+  }
+
+  for (const actor of actors) {
+    if (actor === "user") continue;
+    const isRepresented = graphActors.has(actor) ||
+      componentActors.has(actor) ||
+      [...graphActors].some(ga => ga.includes(actor) || actor.includes(ga));
+
+    if (!isRepresented) {
+      issues.push({
+        severity: "info",
+        category: "actor_mismatch",
+        message: `Actor "${actor}" is not represented in the system graph or components`,
+        affectedElement: actor,
+      });
+      suggestions.push(`Consider adding UI elements for the "${actor}" role`);
+    }
+  }
+}
+
+function validateWorkflowCoverage(
+  workflows: WorkflowDescriptor[],
+  capabilities: UICapabilityRequirements,
+  issues: ValidationIssue[],
+  suggestions: string[],
+): void {
+  const componentTypes = new Set([
+    ...capabilities.primaryComponents.map(c => c.type),
+    ...capabilities.supportingComponents.map(c => c.type),
+  ]);
+  const componentWords = new Set<string>();
+  for (const ct of componentTypes) {
+    for (const w of ct.split("_")) componentWords.add(w);
+  }
+
+  for (const workflow of workflows) {
+    const workflowWords = workflow.name.split(/[\s_]+/);
+    const hasCoverage = workflowWords.some(w =>
+      componentWords.has(w) || [...componentTypes].some(ct => ct.includes(w))
+    );
+
+    if (!hasCoverage) {
+      issues.push({
+        severity: "warning",
+        category: "workflow_mismatch",
+        message: `Workflow "${workflow.name}" has no corresponding UI component`,
+        affectedElement: workflow.name,
+      });
+      suggestions.push(`Add components to support the "${workflow.name}" workflow`);
+    }
+  }
+}
+
+function validateOperationCoverage(
+  operations: string[],
+  capabilities: UICapabilityRequirements,
+  issues: ValidationIssue[],
+  suggestions: string[],
+): void {
+  const componentActions = new Set<string>();
+  for (const comp of [...capabilities.primaryComponents, ...capabilities.supportingComponents]) {
+    if (comp.dataBinding) componentActions.add(comp.dataBinding);
+    for (const w of comp.type.split("_")) componentActions.add(w);
+  }
+
+  const unmatchedOps = operations.filter(op =>
+    !componentActions.has(op) &&
+    ![...componentActions].some(ca => ca.includes(op) || op.includes(ca))
+  );
+
+  if (unmatchedOps.length > operations.length * 0.5 && operations.length > 2) {
+    issues.push({
+      severity: "warning",
+      category: "workflow_mismatch",
+      message: `${unmatchedOps.length} of ${operations.length} operations lack UI components: ${unmatchedOps.slice(0, 3).join(", ")}`,
     });
   }
 }

@@ -254,10 +254,14 @@ Morse includes a locally-run AI model for prompt interpretation — no external 
 - `ai/context/contextReasoner.ts` — Semantic domain recognition: infers domain, systemType, userActions, entities, operationalConcepts, interfaceRequirements, and domainTraits from any prompt; uses embedding similarity against 7 archetype clusters + 15 domain overrides + noun phrase extraction for novel industries
 - `ai/context/domainReasoner.ts` — Translates domain concepts into UI capability requirements: maps actions → components, entities → data structures, derives interaction patterns and layout suggestions (dashboard/landing/marketplace/portal/crud/content/wizard)
 - `ai/context/contextGraphAI.ts` — Builds a traversable context graph with 5 node types (actor, action, data_object, capability, interface_element) and relationship edges (performs, operates_on, requires, renders_in, displayed_in)
-- `ai/context/contextValidator.ts` — Validates interpretation quality: checks action coverage, entity coverage, domain consistency, graph connectivity, and minimum capabilities; returns score 0-1 and triggers re-interpretation on errors
+- `ai/context/contextExtractor.ts` — Structured context extraction from prompt + internet knowledge: extracts actors, operations, data objects, workflows, user goals; merges prompt reasoning with internet context
+- `ai/context/contextValidator.ts` — Validates interpretation quality: checks action coverage, entity coverage, domain consistency, graph connectivity, minimum capabilities, actor coverage, workflow coverage, operation coverage; returns score 0-1 and triggers re-interpretation on errors
+- `ai/retrieval/internetContext.ts` — Multi-source internet context retrieval engine: extracts entities/concepts/industries/tasks from prompt, builds multiple search queries with different strategies, performs parallel internet searches, aggregates and summarizes results
 - `ai/retrieval/webKnowledge.ts` — Domain knowledge retrieval with 24hr caching, 6 built-in knowledge bases (healthcare, finance, education, logistics, real_estate, food_service), web search fallback, graceful degradation
-- `ai/retrieval/contextAugmentation.ts` — RAG pipeline: prompt → context reasoning → knowledge retrieval → domain reasoning → context graph → validated interpretation; both async (with web) and sync (local-only) modes
+- `ai/retrieval/contextAugmentation.ts` — Full RAG pipeline: prompt → context reasoning → context database lookup → internet retrieval → context extraction → knowledge retrieval → domain reasoning → context graph → validated interpretation; both async (with internet) and sync (local-only) modes
+- `ai/knowledge/contextDatabase.ts` — Persistent context knowledge storage: stores prompt interpretations with hash lookup, domain-based retrieval, context enrichment from stored data, in-memory LRU cache, DB persistence via context_knowledge table
 - `ai/learning/promptKnowledge.ts` — Continuous context learning: stores prompt interpretations, enables domain-specific learning, enriches future contexts from accumulated knowledge, tracks correction patterns
+- `ai/learning/promptHistory.ts` — Full prompt history logging: records every prompt with interpreted context, internet sources, generated layout structure, validation score; stores to context database for long-term learning
 
 **Continuous Learning System:**
 - `ai/learning/promptLogger.ts` — Privacy sanitization (emails, keys, tokens redacted) + log entry builder + feedback signal detection
@@ -267,12 +271,19 @@ Morse includes a locally-run AI model for prompt interpretation — no external 
 - `ai/model/adaptation.ts` — Online learning adapter: weighted prototype shifting between full retrains (max 30% adaptation strength)
 - `ai/model/retraining.ts` — Full retraining from base + learned data, model versioning (up to 10 versions), rollback support
 
-**DB Table:** `prompt_logs` — stores every prompt with sanitized text, intent classification, confidence, patches summary, feedback signal, pattern ID, training flag
+**DB Tables:**
+- `prompt_logs` — stores every prompt with sanitized text, intent classification, confidence, patches summary, feedback signal, pattern ID, training flag
+- `context_knowledge` — persistent context knowledge storage with promptHash, domain, interpretedContext (JSON), retrievedSources (JSON), generatedInterfacePatterns (JSON), internetContext (JSON), validationScore, usageCount
 
 **API Endpoints:**
-- `POST /api/ai/interpret` — Classify a prompt and get structured intent
+- `POST /api/ai/interpret` — Full internet-augmented prompt interpretation with reasoning output
 - `GET /api/ai/learning/stats` — Learning system stats (queue, patterns, adaptation, model version)
 - `GET /api/ai/learning/patterns` — Top recurring prompt patterns
 - `GET /api/ai/learning/logs` — Recent prompt logs
+- `GET /api/ai/learning/history` — Prompt history with domain/validation/source tracking
 - `POST /api/ai/learning/feedback` — Submit feedback on a prompt log
 - `POST /api/ai/learning/retrain` — Manually trigger model retraining
+- `GET /api/ai/context/lookup?domain=X` — Look up stored contexts by domain
+
+**Internet-Augmented Pipeline Flow:**
+prompt → internet retrieval (multi-query) → context extraction (actors/operations/data/workflows) → context database lookup → context validation → LLM reasoning (3 inputs: prompt + internet context + system graph) → UI generation

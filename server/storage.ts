@@ -1,6 +1,6 @@
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
-import { users, projects, promptLogs, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog } from "@shared/schema";
+import { users, projects, promptLogs, contextKnowledge, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -40,6 +40,10 @@ export interface IStorage {
     previousGenomesJson?: string;
   }): Promise<Project | undefined>;
   deleteProject(id: string, userId: string): Promise<void>;
+  getContextByHash(promptHash: string): Promise<ContextKnowledge | undefined>;
+  getContextByDomain(domain: string): Promise<ContextKnowledge[]>;
+  storeContext(data: InsertContextKnowledge): Promise<ContextKnowledge>;
+  incrementContextUsage(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -142,6 +146,24 @@ export class DatabaseStorage implements IStorage {
     const data: Partial<PromptLog> = { feedbackSignal: signal };
     if (correctedIntent) data.correctedIntentJson = correctedIntent;
     await db.update(promptLogs).set(data).where(eq(promptLogs.id, id));
+  }
+
+  async getContextByHash(promptHash: string): Promise<ContextKnowledge | undefined> {
+    const [row] = await db.select().from(contextKnowledge).where(eq(contextKnowledge.promptHash, promptHash));
+    return row;
+  }
+
+  async getContextByDomain(domain: string): Promise<ContextKnowledge[]> {
+    return db.select().from(contextKnowledge).where(eq(contextKnowledge.domain, domain)).orderBy(desc(contextKnowledge.createdAt)).limit(10);
+  }
+
+  async storeContext(data: InsertContextKnowledge): Promise<ContextKnowledge> {
+    const [row] = await db.insert(contextKnowledge).values(data).returning();
+    return row;
+  }
+
+  async incrementContextUsage(id: string): Promise<void> {
+    await db.update(contextKnowledge).set({ usageCount: sql`${contextKnowledge.usageCount} + 1` }).where(eq(contextKnowledge.id, id));
   }
 }
 

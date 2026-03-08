@@ -320,7 +320,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let contentPatch: Record<string, string> = {};
       const nlContextLock = extractContextLock(project.settingsJson);
 
-      const aiResult = routePrompt({ prompt: commands, project });
+      const aiResult = await routePromptAsync({ prompt: commands, project });
 
       const intents = interpretSemanticMulti(commands);
       const patchSet = generateMultiPatches(intents);
@@ -730,6 +730,47 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ logs });
     } catch (err) {
       res.status(500).json({ message: "Failed to fetch logs" });
+    }
+  });
+
+  app.get("/api/ai/learning/history", requireAuth, async (_req, res) => {
+    try {
+      const { getHistoryStats, getRecentHistory } = await import("../ai/learning/promptHistory");
+      const stats = getHistoryStats();
+      const recent = getRecentHistory(20);
+      res.json({
+        stats,
+        recentEntries: recent.map(e => ({
+          prompt: e.prompt.slice(0, 100),
+          domain: e.interpretedContext.domain,
+          validationScore: e.validationScore,
+          sourcesUsed: e.internetSources.length,
+          timestamp: e.timestamp,
+        })),
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch history" });
+    }
+  });
+
+  app.get("/api/ai/context/lookup", requireAuth, async (req, res) => {
+    try {
+      const domain = req.query.domain as string;
+      if (!domain) return res.status(400).json({ message: "domain query parameter required" });
+      const { lookupDomainContexts } = await import("../ai/knowledge/contextDatabase");
+      const contexts = await lookupDomainContexts(domain);
+      res.json({
+        domain,
+        count: contexts.length,
+        contexts: contexts.map(c => ({
+          promptHash: c.promptHash,
+          domain: c.domain,
+          validationScore: c.validationScore,
+          interfacePatterns: c.generatedInterfacePatterns,
+        })),
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to lookup contexts" });
     }
   });
 
