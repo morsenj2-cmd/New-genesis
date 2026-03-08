@@ -34,9 +34,13 @@ const PRESET_COLORS = [
   "#14b8a6", "#f97316", "#64748b", "#ffffff",
 ];
 
+const PROMPT_SOFT_LIMIT = 10000;
+const PROMPT_WARNING_THRESHOLD = 8000;
+const PROMPT_HARD_LIMIT = 50000;
+
 const detailsSchema = z.object({
   name: z.string().min(1, "Project name is required").max(100),
-  prompt: z.string().min(1, "Prompt is required").max(2000),
+  prompt: z.string().min(1, "Prompt is required").max(PROMPT_HARD_LIMIT),
   brandName: z.string().max(60).optional(),
 });
 
@@ -518,20 +522,43 @@ export default function NewProjectPage() {
                   <FormField
                     control={form.control}
                     name="prompt"
-                    render={({ field }) => (
+                    render={({ field }) => {
+                      const charCount = field.value?.length || 0;
+                      const showWarning = charCount > PROMPT_WARNING_THRESHOLD;
+                      const nearLimit = charCount > PROMPT_HARD_LIMIT * 0.9;
+                      return (
                       <FormItem>
                         <FormLabel>Prompt</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Describe what you want to build or generate..."
-                            className="min-h-36 resize-none"
+                            placeholder="Describe what you want to build or generate. You can include detailed design specifications, user workflows, page structure requirements, and more..."
+                            className="min-h-36 resize-y"
+                            maxLength={PROMPT_HARD_LIMIT}
                             data-testid="input-project-prompt"
                             {...field}
                           />
                         </FormControl>
+                        <div className="flex items-center justify-between mt-1">
+                          <div>
+                            {showWarning && !nearLimit && (
+                              <p className="text-xs text-amber-500" data-testid="text-prompt-warning">
+                                Long prompt — the system will extract structured context for optimal generation
+                              </p>
+                            )}
+                            {nearLimit && (
+                              <p className="text-xs text-red-500" data-testid="text-prompt-limit-warning">
+                                Approaching character limit
+                              </p>
+                            )}
+                          </div>
+                          <span className={`text-xs tabular-nums ${nearLimit ? "text-red-500" : showWarning ? "text-amber-500" : "text-muted-foreground"}`} data-testid="text-prompt-char-count">
+                            {charCount.toLocaleString()} / {PROMPT_HARD_LIMIT.toLocaleString()}
+                          </span>
+                        </div>
                         <FormMessage />
                       </FormItem>
-                    )}
+                      );
+                    }}
                   />
                   <div className="flex gap-3 pt-2">
                     <Button

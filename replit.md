@@ -6,7 +6,7 @@ Morse is a web application for creating and managing generative AI projects with
 
 Key features:
 - User authentication via Clerk (dashboard public, only project creation gated)
-- Project creation with name + prompt inputs
+- Project creation with name + prompt inputs (hard limit 50,000 chars, UI warning at 8,000 chars, live character counter)
 - Brand setup: logo upload (stored on Cloudinary), font selection (preset or custom upload stored on Cloudinary), theme color (custom picker + presets)
 - Deterministic seed generation (SHA-256 hash) per project
 - Deterministic Design Genome Generator: derives colors, typography, spacing, radius, icon style, and motion from the seed
