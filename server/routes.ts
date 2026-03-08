@@ -44,6 +44,7 @@ import { loadFromDatabase } from "../ai/learning/learningDataset";
 import { classifyInterface, categoryToPageType, categoryIsDashboard } from "../ai/context/interfaceClassifier";
 import { extractFullWorkflows } from "../ai/context/workflowExtractor";
 import { validateInterfaceLayout, fixLayoutForCategory } from "../ai/context/interfaceValidator";
+import { improveLayout } from "../ai/layout/layoutImprover";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -265,6 +266,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isDashboard,
         productType: effectiveProductType,
         componentSeed: projectSeeds.componentSeed,
+        mediaAllowed,
       };
 
       let layout = generateStructuralLayout(dna, structuralContext);
@@ -282,6 +284,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { registerLayout } = await import("../ai/layout/layoutRegistry");
       const fingerprint = buildFingerprint(layout);
       registerLayout(fingerprint);
+
+      const improved = improveLayout(layout, {
+        pageType: resolvedPageType,
+        mediaAllowed,
+      });
+      layout = improved.layout;
+      if (improved.improvements.length > 0) {
+        console.log(`[Improver] ${improved.improvements.join("; ")} (score: ${improved.score.total}/10)`);
+      }
 
       if (!mediaAllowed) {
         layout = stripMediaPlacements(layout) as typeof layout;
@@ -455,6 +466,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const nlMediaRequest = detectMediaIntent(commands);
       const existingMediaAllowed = (currentSettings as any).mediaAllowed === true;
       const effectiveMediaAllowed = existingMediaAllowed || nlMediaRequest;
+
+      const nlImproved = improveLayout(currentLayout, {
+        pageType: (currentSettings as any)?.pageType,
+        mediaAllowed: effectiveMediaAllowed,
+      });
+      currentLayout = nlImproved.layout;
+
       if (!effectiveMediaAllowed) {
         currentLayout = stripMediaPlacements(currentLayout) as typeof currentLayout;
       }
@@ -624,6 +642,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         regenLayout = simplifyIfNeeded(regenLayout, regenPageType);
 
         const regenMediaAllowed = (currentSettings as any)?.mediaAllowed !== false;
+        const styleImproved = improveLayout(regenLayout, {
+          pageType: regenPageType,
+          mediaAllowed: regenMediaAllowed,
+        });
+        regenLayout = styleImproved.layout;
+
         if (!regenMediaAllowed) {
           regenLayout = stripMediaPlacements(regenLayout) as typeof regenLayout;
         }
@@ -699,6 +723,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const mediaAllowed = (currentSettings as any)?.mediaAllowed !== false;
+
+      const regenImproved = improveLayout(layout, {
+        pageType: regenPageType,
+        mediaAllowed,
+      });
+      layout = regenImproved.layout;
+
       if (!mediaAllowed) {
         layout = stripMediaPlacements(layout) as typeof layout;
       }

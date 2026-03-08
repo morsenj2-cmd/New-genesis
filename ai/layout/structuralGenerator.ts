@@ -9,6 +9,7 @@ export interface StructuralContext {
   isDashboard?: boolean;
   productType?: string;
   componentSeed: string;
+  mediaAllowed?: boolean;
 }
 
 type LayoutPrimitive =
@@ -31,7 +32,7 @@ function seedByte(seed: string, offset: number): number {
   return Number.isNaN(val) ? (offset * 37 + 13) % 256 : val;
 }
 
-function heroTypeToSection(dna: LayoutDNA, seed: string): LayoutSection {
+function heroTypeToSection(dna: LayoutDNA, seed: string, mediaAllowed?: boolean): LayoutSection {
   const heroMap: Record<HeroType, Partial<LayoutSection>> = {
     "centered-hero": { alignment: "center", imagePlacement: "top", orientation: "vertical" },
     "left-heavy-hero": { alignment: "left", imagePlacement: "right", orientation: "horizontal" },
@@ -46,10 +47,14 @@ function heroTypeToSection(dna: LayoutDNA, seed: string): LayoutSection {
   const heroProps = heroMap[dna.heroType] || heroMap["centered-hero"];
   const variant = selectArchitectureVariant("hero", seed, 0);
 
+  const resolvedImagePlacement = mediaAllowed
+    ? (heroProps.imagePlacement as ImagePlacement)
+    : ("none" as ImagePlacement);
+
   return {
     type: "hero" as SectionType,
     alignment: heroProps.alignment as Alignment,
-    imagePlacement: heroProps.imagePlacement as ImagePlacement,
+    imagePlacement: resolvedImagePlacement,
     orientation: heroProps.orientation as Orientation,
     componentType: variant?.id,
   };
@@ -171,8 +176,13 @@ function resolveImagePlacement(
   sectionType: string,
   sectionIndex: number,
   seed: string,
+  mediaAllowed?: boolean,
 ): ImagePlacement {
   if (sectionType === "stats" || sectionType === "cta" || sectionType === "footer") return "none";
+
+  if (!mediaAllowed) return "none";
+
+  if (sectionType === "testimonial") return "none";
 
   const dnaPlacement = dna.imagePlacementPattern[sectionIndex];
   if (dnaPlacement === "none") return "none";
@@ -209,7 +219,7 @@ export function generateStructuralLayout(
   const sections: LayoutSection[] = [];
   const seed = context.componentSeed;
 
-  sections.push(heroTypeToSection(dna, seed));
+  sections.push(heroTypeToSection(dna, seed, context.mediaAllowed));
 
   for (let i = 0; i < dna.sectionOrder.length; i++) {
     const sectionType = dna.sectionOrder[i] as SectionType;
@@ -218,7 +228,7 @@ export function generateStructuralLayout(
     const primitive = selectPrimitive(sectionType, dna, sectionIndex, seed);
     const primitiveProps = primitiveToSectionProps(primitive, dna, sectionIndex);
     const alignment = resolveAlignment(dna, sectionIndex, seed);
-    const imagePlacement = resolveImagePlacement(dna, sectionType, sectionIndex, seed);
+    const imagePlacement = resolveImagePlacement(dna, sectionType, sectionIndex, seed, context.mediaAllowed);
     const cardCount = resolveCardCount(sectionType, dna, sectionIndex);
 
     const archCategory = mapSectionTypeToArchCategory(sectionType);
