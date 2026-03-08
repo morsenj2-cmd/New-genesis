@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Hash, Clock, ChevronRight, Dna } from "lucide-react";
 import type { Project } from "@shared/schema";
-import spiralBg from "@assets/Screenshot_(1345)_1772970290388.png";
+import spiralBg from "@assets/image_1772970592054.png";
 
 function ProjectCard({ project }: { project: Project }) {
   const fontLabel = project.font || "Arimo";
@@ -78,14 +78,14 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
-function SpiralBackground({ showText = false }: { showText?: boolean }) {
+function SpiralBackground() {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none" data-testid="spiral-background">
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0" data-testid="spiral-background">
       <div className="absolute inset-0 flex items-center justify-center">
         <img
           src={spiralBg}
           alt=""
-          className={`w-[700px] h-auto object-contain select-none ${showText ? "opacity-[0.35]" : "opacity-[0.2]"}`}
+          className="w-[700px] h-auto object-contain select-none opacity-[0.35]"
           draggable={false}
         />
       </div>
@@ -96,7 +96,6 @@ function SpiralBackground({ showText = false }: { showText?: boolean }) {
 function GuestHero() {
   return (
     <div className="relative flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
-      <SpiralBackground showText />
       <div className="relative z-10">
         <h2
           className="text-4xl sm:text-5xl font-bold text-foreground mb-4 leading-tight max-w-2xl"
@@ -120,7 +119,6 @@ function GuestHero() {
 function EmptyState() {
   return (
     <div className="relative flex flex-col items-center justify-center h-full min-h-96 text-center px-4">
-      <SpiralBackground showText />
       <div className="relative z-10">
         <h2
           className="text-4xl sm:text-5xl font-bold text-foreground mb-4 leading-tight max-w-2xl"
@@ -206,10 +204,11 @@ export default function DashboardPage() {
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full bg-background">
+      <div className="relative flex h-screen w-full bg-background">
+        <SpiralBackground />
         <AppSidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="relative z-[1] flex flex-col flex-1 overflow-hidden">
+          <header className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-transparent sticky top-0 z-10">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div>
@@ -239,14 +238,11 @@ export default function DashboardPage() {
             ) : !projects || projects.length === 0 ? (
               <EmptyState />
             ) : (
-              <>
-                <SpiralBackground />
-                <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {projects.map((project) => (
-                    <ProjectCard key={project.id} project={project} />
-                  ))}
-                </div>
-              </>
+              <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {projects.map((project) => (
+                  <ProjectCard key={project.id} project={project} />
+                ))}
+              </div>
             )}
           </main>
         </div>
