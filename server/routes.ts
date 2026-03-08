@@ -26,7 +26,7 @@ import { isLayoutTooSimilar, buildLayoutSigComponents } from "@shared/layoutSign
 import { needsMutation, mutateLayout } from "@shared/layoutMutation";
 import { validateContent, needsRegeneration } from "@shared/contextValidator";
 import { detectMediaIntent, stripMediaPlacements } from "@shared/mediaIntentDetector";
-import { routePrompt, interpretDesignPrompt } from "../ai/promptRouter";
+import { routePrompt, routePromptAsync, interpretDesignPrompt } from "../ai/promptRouter";
 import { extractProjectContext } from "../ai/context/projectContext";
 import { buildLogEntry, detectFeedbackSignal, sanitizePrompt } from "../ai/learning/promptLogger";
 import { appendExample } from "../ai/learning/learningDataset";
@@ -99,7 +99,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (projectId) {
         project = await storage.getProject(projectId) ?? undefined;
       }
-      const result = routePrompt({ prompt, project: project ?? undefined });
+      const result = await routePromptAsync({ prompt, project: project ?? undefined });
       res.json({
         intent: result.intent,
         patchSet: result.patchSet,
@@ -108,6 +108,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         shouldCorrectContext: result.shouldCorrectContext,
         brandRename: result.brandRename,
         description: result.description,
+        reasoning: result.reasoning ? {
+          domain: result.reasoning.context.domain,
+          systemType: result.reasoning.context.systemType,
+          confidence: result.reasoning.context.confidence,
+          entities: result.reasoning.context.entities.slice(0, 10),
+          actions: result.reasoning.context.userActions.slice(0, 10),
+          suggestedSections: result.reasoning.suggestedSections,
+          validationScore: result.reasoning.validationScore,
+          graphSummary: result.reasoning.graphSummary,
+          augmentationSources: result.reasoning.augmentationSources,
+        } : undefined,
       });
 
       try {

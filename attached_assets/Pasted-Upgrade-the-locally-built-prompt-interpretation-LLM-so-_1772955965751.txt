@@ -1,0 +1,204 @@
+Upgrade the locally built prompt-interpretation LLM so it performs dynamic context recognition and domain reasoning for any prompt.
+
+The system must understand prompts the way a modern LLM does rather than relying on shallow pattern matching.
+
+The improvement must apply universally to all industries, all page types, and all prompts.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+------------------------------------------------
+1. DYNAMIC CONTEXT RECOGNITION
+------------------------------------------------
+
+Replace the current prompt parsing logic with semantic domain recognition.
+
+Create:
+
+/ai/context/contextReasoner.ts
+
+Responsibilities:
+
+identify domain
+identify system type
+identify user goals
+identify actions performed in the system
+identify entities interacting with the system
+
+Output structure:
+
+{
+ domain
+ systemType
+ userActions
+ entities
+ operationalConcepts
+ interfaceRequirements
+}
+
+The model must infer context rather than relying on predefined domain lists.
+
+------------------------------------------------
+2. DOMAIN REASONING LAYER
+------------------------------------------------
+
+Create a reasoning layer that translates domain concepts into interface requirements.
+
+File:
+
+/ai/context/domainReasoner.ts
+
+Process:
+
+prompt context
+→ extract domain concepts
+→ map concepts to functional components
+→ produce UI capability requirements
+
+Example reasoning logic:
+
+user actions → interface tools  
+entities → data structures  
+operations → widgets/components  
+
+------------------------------------------------
+3. GENERATIVE CONTEXT GRAPH
+------------------------------------------------
+
+Create a dynamic context graph.
+
+File:
+
+/ai/context/contextGraph.ts
+
+The graph must represent:
+
+actors
+actions
+data objects
+system capabilities
+relationships between them
+
+This graph becomes the blueprint for layout generation.
+
+------------------------------------------------
+4. INTERNET KNOWLEDGE RETRIEVAL
+------------------------------------------------
+
+Allow the LLM to retrieve additional contextual knowledge from the internet.
+
+Create:
+
+/ai/retrieval/webKnowledge.ts
+
+Capabilities:
+
+query search engines
+retrieve documentation
+retrieve domain knowledge
+
+Process:
+
+prompt → knowledge query → retrieve context → feed into model reasoning.
+
+This enables the model to understand unfamiliar industries.
+
+------------------------------------------------
+5. RETRIEVAL AUGMENTED PROMPTING
+------------------------------------------------
+
+Implement retrieval augmented reasoning.
+
+File:
+
+/ai/retrieval/contextAugmentation.ts
+
+Pipeline:
+
+user prompt
+→ retrieve domain information
+→ combine with prompt
+→ send augmented context to LLM
+→ produce structured interpretation.
+
+------------------------------------------------
+6. UNIVERSAL DOMAIN ADAPTATION
+------------------------------------------------
+
+The system must work for any domain without predefined examples.
+
+Remove hardcoded industry templates.
+
+The system must dynamically derive domain knowledge from:
+
+prompt
+retrieved information
+existing project context.
+
+------------------------------------------------
+7. CONTEXT VALIDATION
+------------------------------------------------
+
+Create a validation step before layout generation.
+
+File:
+
+/ai/context/contextValidator.ts
+
+Ensure that generated components correspond to:
+
+identified actions
+identified entities
+identified operations.
+
+If mismatch detected regenerate context interpretation.
+
+------------------------------------------------
+8. CONTINUOUS CONTEXT LEARNING
+------------------------------------------------
+
+The LLM must improve as users interact with the platform.
+
+Store prompt interpretations in:
+
+/ai/learning/promptKnowledge/
+
+Data stored:
+
+prompt
+interpreted context
+user corrections
+resulting layout
+
+This data must be used for periodic model fine-tuning.
+
+------------------------------------------------
+9. EDITOR CONTEXT CONSISTENCY
+------------------------------------------------
+
+Ensure the editor uses the same LLM reasoning pipeline.
+
+All prompts from:
+
+design generation
+layout regeneration
+style regeneration
+editor prompt box
+
+must pass through the same context reasoning system.
+
+------------------------------------------------
+10. RESULT
+------------------------------------------------
+
+After this upgrade:
+
+the LLM performs dynamic context recognition
+
+the system understands prompts from any domain
+
+the generator produces interfaces matching real system capabilities
+
+the model can retrieve knowledge from the internet when needed
+
+the system continuously improves from user prompts.

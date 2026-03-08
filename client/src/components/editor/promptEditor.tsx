@@ -13,6 +13,12 @@ interface IntentPreview {
   confidence: number;
   description: string;
   actions: Array<{ verb: string; target: string; value?: string }>;
+  reasoning?: {
+    domain: string;
+    systemType: string;
+    entities: string[];
+    validationScore: number;
+  };
 }
 
 interface PromptEditorProps {
@@ -88,6 +94,12 @@ export function PromptEditor({ projectId, onApplied, className = "" }: PromptEdi
             confidence: Math.round((data.intent?.confidence ?? 0) * 100),
             description: data.description || "",
             actions: data.intent?.actions ?? [],
+            reasoning: data.reasoning ? {
+              domain: data.reasoning.domain,
+              systemType: data.reasoning.systemType,
+              entities: data.reasoning.entities ?? [],
+              validationScore: Math.round((data.reasoning.validationScore ?? 0) * 100),
+            } : undefined,
           });
         }
       } catch {}
@@ -189,6 +201,18 @@ export function PromptEditor({ projectId, onApplied, className = "" }: PromptEdi
             </div>
             {intentPreview.description && (
               <span className="text-white/60 truncate">{intentPreview.description}</span>
+            )}
+            {intentPreview.reasoning && intentPreview.reasoning.domain !== "general" && (
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap" data-testid="reasoning-preview">
+                <span className="text-white/25 text-[10px]">
+                  Domain: <span className="text-white/50">{intentPreview.reasoning.domain.replace(/_/g, " ")}</span>
+                </span>
+                {intentPreview.reasoning.entities.length > 0 && (
+                  <span className="text-white/25 text-[10px]">
+                    · {intentPreview.reasoning.entities.slice(0, 3).join(", ")}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>

@@ -8,6 +8,7 @@ import type {
   ContentChange, ContextOverride, Action, Target, PageType, ModelWeights,
 } from "./promptSchema";
 import type { ProjectContext } from "./promptSchema";
+import type { ReasonedContext } from "../context/contextReasoner";
 
 const COLOR_MAP: Record<string, string> = {
   blue: "hsl(220, 80%, 55%)", navy: "hsl(215, 70%, 35%)",
@@ -217,7 +218,7 @@ function resolveIntent(
   return topIntents[0]?.intentType ?? "style_change";
 }
 
-export function infer(prompt: string, context?: ProjectContext): StructuredIntent {
+export function infer(prompt: string, context?: ProjectContext, reasonedContext?: ReasonedContext): StructuredIntent {
   const weights = getOrTrainWeights();
   const { meaningful } = tokenize(prompt);
   const allTokens = [...new Set([
@@ -251,13 +252,31 @@ export function infer(prompt: string, context?: ProjectContext): StructuredInten
     })).sort((a, b) => b.score - a.score);
   }
 
+  if (reasonedContext) {
+    intentRankings = intentRankings.map(r => {
+      let boost = 0;
+      if (r.intentType === "design_generation" && reasonedContext.confidence > 0.6 && reasonedContext.userActions.length > 2) {
+        boost += 0.1;
+      }
+      if (r.intentType === "layout_modification" && reasonedContext.interfaceRequirements.length > 3) {
+        boost += 0.05;
+      }
+      if (r.intentType === "context_correction" && reasonedContext.domain !== "general" && reasonedContext.confidence > 0.5) {
+        if (context && context.industry && context.industry !== reasonedContext.domain) {
+          boost += 0.15;
+        }
+      }
+      return { ...r, score: r.score + boost };
+    }).sort((a, b) => b.score - a.score);
+  }
+
   const namedValues = extractNamedValues(prompt);
   const styleChanges = extractStyleChanges(allTokens, conceptScores);
   const layoutChanges = extractLayoutChanges(allTokens, prompt);
   const contentChanges = extractContentChanges(prompt);
   const contextOverrides = extractContextOverrides(allTokens, prompt);
   const brandName = extractBrandName(prompt);
-  const industry = detectIndustry(allTokens) ?? namedValues.industry;
+  const industry = detectIndustry(allTokens) ?? namedValues.industry ?? (reasonedContext?.domain !== "general" ? reasonedContext?.domain : undefined);
   const pageType = detectPageType(prompt);
 
   if (brandName) contentChanges.push({ field: "brandName", value: brandName });

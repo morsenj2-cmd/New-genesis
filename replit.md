@@ -250,6 +250,15 @@ Morse includes a locally-run AI model for prompt interpretation — no external 
 - `ai/context/projectContext.ts` — Project context extraction for context-aware routing
 - `ai/training/dataset.ts` — 150+ curated training examples across 10 intent types
 
+**Dynamic Context Reasoning Pipeline:**
+- `ai/context/contextReasoner.ts` — Semantic domain recognition: infers domain, systemType, userActions, entities, operationalConcepts, interfaceRequirements, and domainTraits from any prompt; uses embedding similarity against 7 archetype clusters + 15 domain overrides + noun phrase extraction for novel industries
+- `ai/context/domainReasoner.ts` — Translates domain concepts into UI capability requirements: maps actions → components, entities → data structures, derives interaction patterns and layout suggestions (dashboard/landing/marketplace/portal/crud/content/wizard)
+- `ai/context/contextGraphAI.ts` — Builds a traversable context graph with 5 node types (actor, action, data_object, capability, interface_element) and relationship edges (performs, operates_on, requires, renders_in, displayed_in)
+- `ai/context/contextValidator.ts` — Validates interpretation quality: checks action coverage, entity coverage, domain consistency, graph connectivity, and minimum capabilities; returns score 0-1 and triggers re-interpretation on errors
+- `ai/retrieval/webKnowledge.ts` — Domain knowledge retrieval with 24hr caching, 6 built-in knowledge bases (healthcare, finance, education, logistics, real_estate, food_service), web search fallback, graceful degradation
+- `ai/retrieval/contextAugmentation.ts` — RAG pipeline: prompt → context reasoning → knowledge retrieval → domain reasoning → context graph → validated interpretation; both async (with web) and sync (local-only) modes
+- `ai/learning/promptKnowledge.ts` — Continuous context learning: stores prompt interpretations, enables domain-specific learning, enriches future contexts from accumulated knowledge, tracks correction patterns
+
 **Continuous Learning System:**
 - `ai/learning/promptLogger.ts` — Privacy sanitization (emails, keys, tokens redacted) + log entry builder + feedback signal detection
 - `ai/learning/learningDataset.ts` — In-memory dataset expansion from logs, intent bucketing, weighted export for retraining
