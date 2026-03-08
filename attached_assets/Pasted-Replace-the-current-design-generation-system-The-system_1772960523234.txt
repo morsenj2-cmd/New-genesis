@@ -1,0 +1,265 @@
+Replace the current design generation system. The system must stop modifying existing layouts and instead generate completely new architectures each time a project is created.
+
+Do NOT modify Clerk authentication.
+Do NOT modify Neon database configuration.
+
+---
+
+## CORE PROBLEMS
+
+1. The generator currently changes only surface properties such as:
+
+colors
+rounded corners
+spacing
+minor component styling
+
+This means the underlying layout architecture remains identical.
+
+2. Context detection currently relies on keyword detection instead of semantic understanding of the full prompt.
+
+Because of this, the system often misinterprets user intent.
+
+The generator must instead:
+
+• interpret the **entire prompt semantically**
+• derive context using the internal LLM
+• enrich context using internet retrieval
+• then generate structure based on that context
+
+The generator must produce **entirely different page structures**, not style variations.
+
+---
+
+## FULL PROMPT INTERPRETATION (LLM REQUIRED)
+
+All prompts must be processed by the internal LLM using full semantic interpretation.
+
+The system must **read the entire prompt**, not scan for keywords.
+
+Create:
+
+/ai/context/promptInterpreter.ts
+
+Pipeline:
+
+prompt
+→ send full prompt to internal LLM
+→ extract meaning from entire sentence structure
+→ derive system intent
+→ derive interface type
+→ derive user workflows
+
+The LLM must determine the system purpose by reasoning over the complete prompt.
+
+Keyword detection must be completely disabled.
+
+---
+
+## INTERNET CONTEXT ENRICHMENT
+
+After the LLM interprets the prompt, the system must enrich its understanding using internet context.
+
+Create:
+
+/ai/retrieval/contextRetrieval.ts
+
+Pipeline:
+
+LLM prompt interpretation
+→ generate knowledge queries
+→ search the internet
+→ retrieve domain information
+→ summarize relevant system workflows
+→ feed enriched context back into the generator
+
+This allows the system to understand unfamiliar domains.
+
+---
+
+## STRUCTURE FIRST GENERATION PIPELINE
+
+Replace the current generation flow.
+
+Old flow:
+
+prompt → template → style adjustments
+
+New flow:
+
+prompt
+→ LLM prompt interpretation
+→ internet context retrieval
+→ workflow extraction
+→ layout structure generation
+→ component placement
+→ style generation
+
+Structure must always be generated **before styling**.
+
+---
+
+## NEW GENERATION MODEL
+
+Implement a **Structural Layout Generator** that builds interfaces from a layout grammar instead of templates.
+
+Create:
+
+/ai/layout/structuralGenerator.ts
+
+The generator must build pages using layout primitives rather than templates.
+
+Layout primitives include:
+
+vertical stack
+split grid
+asymmetric grid
+sidebar layout
+centered hero
+left-heavy hero
+right-heavy hero
+masonry grid
+content bands
+floating panels
+dashboard clusters
+full-width sections
+
+The system must combine these primitives into new page structures.
+
+---
+
+## LAYOUT DNA SYSTEM
+
+Create:
+
+/ai/layout/layoutDNA.ts
+
+Each project must generate a layout DNA object.
+
+Example structure:
+
+{
+heroType,
+sectionOrder,
+gridStructure,
+navigationType,
+contentDensity,
+componentGrouping,
+visualHierarchy
+}
+
+The layout generator must use this DNA to build the page.
+
+No two projects may share identical layout DNA.
+
+---
+
+## STRUCTURE RANDOMIZATION ENGINE
+
+Create:
+
+/ai/layout/structureEntropy.ts
+
+This module must introduce controlled randomness into layout generation.
+
+It must randomize:
+
+section order
+hero composition
+grid column counts
+content band arrangements
+component placement
+navigation structure
+
+This randomness must remain compatible with the prompt context.
+
+---
+
+## COMPONENT ARCHITECTURE VARIATION
+
+Create:
+
+/ai/components/architectureVariants.ts
+
+Each functional element must have multiple architectural forms.
+
+Example architecture forms include:
+
+grid interfaces
+table interfaces
+panel-based systems
+sidebar explorers
+card galleries
+cluster dashboards
+split workspaces
+
+The generator must select among these architectures using layout DNA.
+
+---
+
+## LAYOUT SIMILARITY PREVENTION
+
+Create:
+
+/ai/layout/layoutSimilarity.ts
+
+Before rendering a new layout:
+
+compare layout DNA with previous projects.
+
+If similarity exceeds threshold:
+
+regenerate layout DNA.
+
+Store previous layout DNA in:
+
+/ai/layout/layoutHistory.json
+
+---
+
+## MULTI-STAGE GENERATION
+
+The generator must produce layout in stages.
+
+Stage 1: prompt interpretation using LLM
+Stage 2: internet context enrichment
+Stage 3: workflow extraction
+Stage 4: structural architecture generation
+Stage 5: component architecture selection
+Stage 6: layout composition
+Stage 7: visual styling
+
+Structure must be finalized before styling occurs.
+
+---
+
+## REGENERATE STYLE BEHAVIOR
+
+Change regenerate style behavior.
+
+Currently:
+
+style regeneration modifies color only.
+
+New behavior:
+
+Regenerate Style must also regenerate:
+
+layout DNA
+component architecture
+section composition
+
+This ensures the page structure changes completely.
+
+---
+
+## RESULT
+
+After this upgrade:
+
+the system understands prompts using full semantic reasoning
+keyword-based interpretation is eliminated
+internet knowledge enriches prompt understanding
+two projects with identical prompts produce different structures
+layout composition varies significantly
+interfaces are generated from context rather than templates.
