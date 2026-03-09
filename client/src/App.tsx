@@ -1,4 +1,4 @@
-import { ClerkProvider, useAuth } from "@clerk/react";
+import { ClerkProvider, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
 import { Switch, Route, useLocation } from "wouter";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
@@ -76,7 +76,7 @@ function Router() {
       <Route path="/" component={RootRedirect} />
       <Route path="/sign-in" component={() => <AuthRedirect component={SignInPage} />} />
       <Route path="/sign-up" component={() => <AuthRedirect component={SignUpPage} />} />
-      <Route path="/sign-in/sso-callback" component={() => <LoadingScreen />} />
+      <Route path="/sign-in/sso-callback" component={() => <AuthenticateWithRedirectCallback />} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/new" component={NewProjectPage} />
       <Route path="/project/:id" component={() => <ProtectedRoute component={ProjectPage} />} />
