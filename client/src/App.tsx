@@ -76,6 +76,7 @@ function Router() {
       <Route path="/" component={RootRedirect} />
       <Route path="/sign-in" component={() => <AuthRedirect component={SignInPage} />} />
       <Route path="/sign-up" component={() => <AuthRedirect component={SignUpPage} />} />
+      <Route path="/sign-in/sso-callback" component={() => <LoadingScreen />} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/new" component={NewProjectPage} />
       <Route path="/project/:id" component={() => <ProtectedRoute component={ProjectPage} />} />
