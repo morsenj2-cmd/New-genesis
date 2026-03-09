@@ -1,5 +1,5 @@
 import { ClerkProvider, useAuth } from "@clerk/react";
-import { Switch, Route, useLocation, useNavigate } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -59,14 +59,13 @@ function AuthRedirect({ component: Component }: { component: React.ComponentType
 }
 
 function RootRedirect() {
-  const location = useLocation();
-  const navigate = useNavigate();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (location.pathname === "/") {
-      navigate("/dashboard", { replace: true });
+    if (window.location.pathname === "/") {
+      setLocation("/dashboard");
     }
-  }, [location]);
+  }, []);
 
   return <LoadingScreen />;
 }
