@@ -1705,7 +1705,22 @@ export default function ProjectPage() {
               />
 
               <main className="flex-1 overflow-hidden bg-muted/10 flex flex-col" data-testid="section-website-preview">
-                {geminiStatus === "pending" ? (
+                {canvasMode && displayGenome && activeLayout ? (
+                  <CanvasEditor
+                    genome={displayGenome}
+                    layout={activeLayout}
+                    projectName={project.name}
+                    projectPrompt={project.prompt}
+                    projectLogoUrl={project.logoUrl}
+                    productType={effectiveProductType}
+                    contentOverrides={contentOverrides}
+                    onContentChange={setContentOverrides}
+                    onLayoutChange={(newLayout) => setActiveLayout(newLayout)}
+                    creditsUsed={project.nlCreditsUsed ?? 0}
+                    creditLimit={subscription?.perProjectLimit ?? 500}
+                    userPlan={subscription?.plan ?? "free"}
+                  />
+                ) : geminiStatus === "pending" ? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8" data-testid="ai-generating-state">
                     <div className="relative">
                       <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -1783,8 +1798,8 @@ export default function ProjectPage() {
                     />
                   )
                 ) : displayGenome && activeLayout ? (
-                  canvasMode ? (
-                    <CanvasEditor
+                  <div className="flex-1 overflow-y-auto">
+                    <GenomePreview
                       genome={displayGenome}
                       layout={activeLayout}
                       projectName={project.name}
@@ -1792,25 +1807,8 @@ export default function ProjectPage() {
                       projectLogoUrl={project.logoUrl}
                       productType={effectiveProductType}
                       contentOverrides={contentOverrides}
-                      onContentChange={setContentOverrides}
-                      onLayoutChange={(newLayout) => setActiveLayout(newLayout)}
-                      creditsUsed={project.nlCreditsUsed ?? 0}
-                      creditLimit={subscription?.perProjectLimit ?? 500}
-                      userPlan={subscription?.plan ?? "free"}
                     />
-                  ) : (
-                    <div className="flex-1 overflow-y-auto">
-                      <GenomePreview
-                        genome={displayGenome}
-                        layout={activeLayout}
-                        projectName={project.name}
-                        projectPrompt={project.prompt}
-                        projectLogoUrl={project.logoUrl}
-                        productType={effectiveProductType}
-                        contentOverrides={contentOverrides}
-                      />
-                    </div>
-                  )
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full min-h-64 p-8 text-center">
                     <Dna className="h-10 w-10 text-muted-foreground mb-3" />
