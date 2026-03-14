@@ -42,6 +42,28 @@ function extractJson(text: string): string {
   return text;
 }
 
+function sanitizeGeneratedCss(html: string): string {
+  html = html.replace(
+    /h([1-6])\s*\{[^}]*?max-width\s*:\s*[\d.]+rem[^}]*?\}/g,
+    (match, level) => {
+      const sizes: Record<string, string> = { "1": "2.5rem", "2": "1.75rem", "3": "1.25rem", "4": "1.1rem", "5": "1rem", "6": "0.875rem" };
+      return match.replace(/max-width\s*:\s*[\d.]+rem/, `font-size: ${sizes[level] || "1rem"}`);
+    }
+  );
+
+  html = html.replace(
+    /h([1-6])\s*\{([^}]*?)\}/g,
+    (match, _level, body) => {
+      if (/max-width\s*:\s*[\d.]+rem/.test(body) && !/font-size/.test(body)) {
+        return match;
+      }
+      return match;
+    }
+  );
+
+  return html;
+}
+
 function extractHtml(text: string): string {
   const htmlBlock = text.match(/```html\s*([\s\S]*?)\s*```/);
   if (htmlBlock) return htmlBlock[1].trim();
@@ -333,7 +355,7 @@ ${imageInstruction}
 HARD RULES (non-negotiable):
 1. SINGLE FILE: All HTML, CSS in <style>, JS in <script>. No external libraries or CDN imports.
 2. CONTRAST: Dark backgrounds require light text (#f1f5f9). Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root. Explicitly set color on ALL text elements — never rely on browser defaults. Buttons use white text on colored backgrounds. Inputs have visible borders (rgba(255,255,255,0.1)).
-3. TYPOGRAPHY: h1 max 2.5rem, h2 max 1.75rem, h3 max 1.25rem, body 1rem with line-height 1.7.
+3. TYPOGRAPHY: Use font-size (NOT max-width) for headings: h1 { font-size: 2.5rem; }, h2 { font-size: 1.75rem; }, h3 { font-size: 1.25rem; }, body { font-size: 1rem; line-height: 1.7; }. NEVER set max-width on heading elements.
 4. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
 5. FUNCTIONALITY: Every button has a click handler. Every form validates and processes. Every input is connected to state. Zero decorative/dead UI elements. If a feature is shown, it works completely.
 6. STATE: Use window.appState for all app data. Persist to localStorage on every change. Load from localStorage on startup. Render all UI dynamically from state — never hardcode content in HTML.
@@ -375,6 +397,8 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
         html = html.replace(/https?:\/\/(via\.placeholder\.com|placehold\.co|placeholder\.com)\/(\d+)(x(\d+))?/g,
           (_, _host, w, _x, h) => `https://picsum.photos/seed/${imageKeywords}${Math.floor(Math.random() * 99)}/${w}/${h || w}`);
       }
+
+      html = sanitizeGeneratedCss(html);
 
       const isValid = lineCount >= 200 && hasStyle && hasScript && hasInitOrRender;
 
@@ -438,6 +462,8 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     if (!html.includes("</html>") && html.includes("<html")) {
       html += "\n</body>\n</html>";
     }
+
+    html = sanitizeGeneratedCss(html);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
