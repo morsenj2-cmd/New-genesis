@@ -282,13 +282,27 @@ Morse uses Groq (llama-3.3-70b-versatile) to generate complete, fully functional
 - No external navigation (window.location, window.open blocked)
 - All interactive elements must work (zero dead buttons/forms)
 - State via window.appState + localStorage persistence
-- Initialization on DOMContentLoaded (never blank on load)
+- Initialization on DOMContentLoaded with event delegation for dynamic elements
 - Realistic domain-specific seed data (15-25 records)
 - 12,000 max tokens, minimum 800 lines
 
+**Content Requirements** (every generated app must include):
+- Hero/header section with product name, tagline, CTA
+- Main content area rendered visibly from state (never empty on load)
+- 3+ distinct navigable views/sections with real content
+- Footer with brand/copyright
+- Comprehensive CSS (200+ lines), rich HTML, full JS (300+ lines)
+- Event delegation, search/filter, modal dialogs, toast system
+
+**Post-Generation Validation**:
+- Truncation repair: auto-closes `</html>` if truncated
+- Placeholder replacement: auto-replaces via.placeholder.com/placehold.co URLs with picsum.photos
+- Quality check: validates line count ≥200, has `<style>`/`<script>`, has init/render functions
+- Retry: up to 2 attempts if validation fails
+
 Key files: `server/gemini.ts` (generation engine), interpret → generate pipeline.
-Safety: `injectSafetyScript()` blocks external navigation, window.open, external hrefs. Client-side fallback in `project.tsx` `safeGeminiHtml` useMemo.
-Images: picsum.photos with seeded URLs (source.unsplash.com deprecated).
+Safety: `injectSafetyScript()` blocks external navigation, window.open, external hrefs (http/https/www). Client-side fallback in `project.tsx` `safeGeminiHtml` useMemo (synced selectors).
+Images: Always picsum.photos with seeded URLs. Auto-detected visual product types (ecommerce, fashion, restaurant, etc.) get prominent image instructions. NEVER via.placeholder.com, source.unsplash.com, or placehold.co.
 Regeneration: Both `regenerate-style` and `regenerate-layout` routes trigger async AI HTML regeneration.
 
 ### AI System — Local Prototype Network

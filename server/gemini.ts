@@ -272,12 +272,12 @@ export async function geminiGenerateApp(
       : "";
 
     const combinedText = `${prompt} ${nlInstruction ?? ""}`.toLowerCase();
-    const hasImages = combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
     const imageKeywords = interpret.productName.toLowerCase().replace(/\s+/g, "+");
+    const visualTypes = ["ecommerce", "store", "shop", "portfolio", "gallery", "restaurant", "real_estate", "travel", "fashion", "clothing", "food", "hotel", "marketplace", "catalog"];
+    const isVisualProduct = visualTypes.some(t => combinedText.includes(t) || (interpret.productType || "").toLowerCase().includes(t) || (interpret.pageType || "").toLowerCase().includes(t));
+    const hasImages = isVisualProduct || combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
 
-    const imageInstruction = hasImages
-      ? `IMAGES: Use picsum.photos for guaranteed-loading images. Format: src="https://picsum.photos/seed/${imageKeywords}/800/500". Vary seed for multiple: seed/${imageKeywords}1, seed/${imageKeywords}2, etc. Hero: seed/${imageKeywords}/1200/600. NEVER use source.unsplash.com.`
-      : "";
+    const imageInstruction = `IMAGES: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/${imageKeywords}/800/500". Vary seed for each image: seed/${imageKeywords}1, seed/${imageKeywords}2, seed/${imageKeywords}3, etc. Hero images: seed/${imageKeywords}/1200/600. Cards/products: seed/${imageKeywords}1/400/300, seed/${imageKeywords}2/400/300. NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com. ALWAYS use picsum.photos.${hasImages ? " This product is visual — include prominent product/hero images throughout." : ""}`;
 
     const system = `You are an elite full-stack web developer. You build production-quality, fully functional applications as single self-contained HTML files. You analyze the user's product description and autonomously decide the best architecture, layout, navigation style, data model, and UI patterns. You never build generic templates — every app is unique to the user's domain. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
@@ -327,19 +327,58 @@ HARD RULES (non-negotiable):
 4. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
 5. FUNCTIONALITY: Every button has a click handler. Every form validates and processes. Every input is connected to state. Zero decorative/dead UI elements. If a feature is shown, it works completely.
 6. STATE: Use window.appState for all app data. Persist to localStorage on every change. Load from localStorage on startup. Render all UI dynamically from state — never hardcode content in HTML.
-7. INITIALIZATION: At the end of <script>: document.addEventListener('DOMContentLoaded', function() { init(); }); — init() must populate ALL visible content from state so the page is never blank on load.
+7. INITIALIZATION: At the end of <script>: document.addEventListener('DOMContentLoaded', function() { init(); }); — init() must populate ALL visible content from state so the page is never blank on load. Use event delegation (document.addEventListener on a parent) for dynamically rendered elements.
 8. RESPONSIVE: CSS grid/flex, works on mobile. Navigation adapts (hamburger menu or collapsible sidebar on small screens).
 9. REALISTIC DATA: Seed with real names, dates, and numbers specific to this domain. No lorem ipsum, no "test" entries, no placeholder text.
 10. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions. Active state on current nav item.
 
+CONTENT REQUIREMENTS (the app must have ALL of these):
+- HERO/HEADER SECTION: A visually striking top section with the product name, tagline, and primary call-to-action.
+- MAIN CONTENT AREA: The core functional area (product grid, data table, dashboard panels, feature showcase, etc.) — must be rendered visibly from state data on load, NOT hidden or empty.
+- MULTIPLE VIEWS/SECTIONS: At least 3 distinct content areas navigable via the nav bar. Each view must have real, substantial content.
+- FOOTER: With copyright, brand name, and relevant links.
+- CSS must be comprehensive: style EVERY element, including scrollbar styling (webkit), selection styling, focus states on inputs, hover transitions on cards/buttons, gradient accents.
+- JavaScript must include: event delegation for dynamic elements, search/filter functionality, modal dialogs for detail views, toast notification system, data rendering functions that rebuild UI from state.
+
 ${integrations && integrations.length > 0 ? `INTEGRATIONS:\n${integrations.map(ig => `- ${ig.name}: Key = "${ig.value}" — include initialization in <head>.`).join("\n")}` : ""}
 
-Write at minimum 800 lines of functional code. The app must feel like real software. Start with <!DOCTYPE html> immediately.`;
+CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/minimal output is unacceptable. The app must be DENSE with content, features, and polish — it must feel like real production software, not a prototype. Include extensive CSS (200+ lines), rich HTML structure, and comprehensive JavaScript (300+ lines). Start with <!DOCTYPE html> immediately.`;
 
     const maxTokens = 12000;
-    const text = await chat(system, user, maxTokens);
-    const html = extractHtml(text);
-    return injectSafetyScript(html);
+
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const text = await chat(system, user, maxTokens);
+      let html = extractHtml(text);
+
+      if (!html.includes("</html>") && html.includes("<html")) {
+        html += "\n</body>\n</html>";
+      }
+
+      const lineCount = html.split("\n").length;
+      const hasStyle = html.includes("<style>") && html.includes("</style>");
+      const hasScript = html.includes("<script>") && html.includes("</script>");
+      const hasInitOrRender = html.includes("DOMContentLoaded") || html.includes("init(") || html.includes("render");
+      const hasBadPlaceholder = html.includes("via.placeholder.com") || html.includes("placehold.co") || html.includes("placeholder.com/");
+
+      if (hasBadPlaceholder) {
+        html = html.replace(/https?:\/\/(via\.placeholder\.com|placehold\.co|placeholder\.com)\/(\d+)(x(\d+))?/g,
+          (_, _host, w, _x, h) => `https://picsum.photos/seed/${imageKeywords}${Math.floor(Math.random() * 99)}/${w}/${h || w}`);
+      }
+
+      const isValid = lineCount >= 200 && hasStyle && hasScript && hasInitOrRender;
+
+      if (isValid || attempt === maxAttempts) {
+        if (lineCount < 200) {
+          console.warn(`[Groq] Generated HTML is only ${lineCount} lines (attempt ${attempt}/${maxAttempts}) — accepting anyway`);
+        }
+        return injectSafetyScript(html);
+      }
+
+      console.warn(`[Groq] Generated HTML too short (${lineCount} lines) or missing critical sections — retrying (attempt ${attempt}/${maxAttempts})`);
+    }
+
+    return null;
   } catch (err) {
     console.error("[Groq] Stage 2 (generate app) failed:", err);
     return null;
