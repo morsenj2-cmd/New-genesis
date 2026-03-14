@@ -152,21 +152,21 @@ export function mergeRetrievedIntoContext(
     };
   }
 
-  if (retrieved.domainKnowledge.entities.length > 0) {
+  if (retrieved.domainKnowledge?.entities?.length > 0) {
     merged = {
       ...merged,
       entities: [...new Set([...merged.entities, ...retrieved.domainKnowledge.entities])].slice(0, scaledCap(20, promptLength)),
     };
   }
 
-  if (retrieved.domainKnowledge.actions.length > 0) {
+  if (retrieved.domainKnowledge?.actions?.length > 0) {
     merged = {
       ...merged,
       userActions: [...new Set([...merged.userActions, ...retrieved.domainKnowledge.actions])].slice(0, scaledCap(15, promptLength)),
     };
   }
 
-  if (interpretation.structuralRequirements.length > 0) {
+  if (interpretation.structuralRequirements?.length > 0) {
     const reqComponents = interpretation.structuralRequirements.map(r => r.component);
     merged = {
       ...merged,

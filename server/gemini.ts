@@ -168,7 +168,23 @@ export async function geminiGenerateApp(
       ? `\nUSER EDIT REQUEST: The user has requested the following change to the design: "${nlInstruction}"\nMake sure this change is clearly applied in the generated application.`
       : "";
 
+    const isDashboard = interpret.hasDashboard || interpret.pageType === "dashboard" || interpret.productType === "dashboard";
+
     const system = `You are an expert web developer. Generate complete, self-contained HTML applications. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary before or after the HTML.`;
+
+    const layoutSection = isDashboard
+      ? `LAYOUT: This is a DASHBOARD application — NOT a marketing landing page. Build a full dashboard UI:
+- Fixed top navbar with logo/brand on the left and user/nav items on the right
+- Fixed left sidebar with navigation links to each section (use icons or emoji as icons)
+- Main content area on the right showing the active section
+- Default to the first/overview section being visible on load
+- NO hero sections, NO marketing copy, NO CTAs for "Get Started"
+- Every section is a live data view: tables, charts (use CSS bars/charts), metric cards, filters, forms`
+      : `LAYOUT: This is a landing/marketing page. Include:
+- Fixed top navbar
+- Hero section with headline + CTA
+- Feature sections
+- Footer`;
 
     const user = `Generate a complete, fully functional single-page web application as a self-contained HTML file.
 
@@ -181,6 +197,8 @@ AUDIENCE: ${interpret.targetAudience}
 KEY BENEFIT: ${interpret.keyBenefit}
 STYLE: ${interpret.style} — ${interpret.personality}
 ${nlSection}
+
+${layoutSection}
 
 DESIGN TOKENS (use these exact values for ALL colors and typography):
 Primary color: ${genome.colors.primary}
@@ -204,18 +222,17 @@ REQUIREMENTS:
      ${colorVars}
    }
 4. Dark background (use --color-bg for body background)
-5. Navigation bar: ${logoUrl ? `show the logo image (src="${logoUrl}", height="36") on the left` : `show brand name "${brandName}" as text on the left`}, relevant nav links on the right
-6. Hero section: compelling headline + subheadline + CTA button specific to this product
-7. ALL interactive features must actually work: tabs switch content, modals open/close, forms submit, filters filter, accordions open/close
-8. Realistic pre-loaded demo data: use specific names, numbers, dates — NO Lorem ipsum, no "Test User", no placeholder text
-9. Smooth scroll between sections
-10. Hover effects on all interactive elements
-11. Minimum 5 distinct sections relevant to this specific product type
-12. Professional, polished visual design — not generic
-13. Mobile responsive using CSS flexbox/grid
-14. Use only vanilla HTML, CSS, and JavaScript — no external libraries or frameworks
+5. LOGO IN NAV (CRITICAL): ${logoUrl
+      ? `You MUST place this logo image tag in the navbar: <img src="${logoUrl}" alt="${brandName}" style="height:36px;width:auto;object-fit:contain;"> — do not omit it, do not use text instead`
+      : `Show the brand name "${brandName}" as styled bold text in the navbar`}
+6. ALL interactive features must actually work: sidebar nav switches sections, tabs switch content, modals open/close, forms submit, filters filter
+7. Realistic pre-loaded demo data: use specific names, numbers, dates — NO Lorem ipsum, no "Test User", no placeholder text
+8. Hover effects on all interactive elements
+9. Professional, polished visual design — not generic
+10. Mobile responsive using CSS flexbox/grid
+11. Use only vanilla HTML, CSS, and JavaScript — no external libraries or frameworks
 
-Write at minimum 500 lines of code. Start with <!DOCTYPE html> immediately.`;
+Write at minimum 600 lines of code. Start with <!DOCTYPE html> immediately.`;
 
     const text = await chat(system, user, 8000);
     return extractHtml(text);
