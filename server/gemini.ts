@@ -275,7 +275,21 @@ export async function geminiGenerateApp(
       : "";
 
     const isDashboard = interpret.hasDashboard || interpret.pageType === "dashboard" || interpret.productType === "dashboard";
-    const isWebApp = interpret.pageType === "web_app" || interpret.productType === "saas" || interpret.productType === "productivity" || interpret.productType === "dashboard";
+    // Treat EVERYTHING that involves user interaction as a web app — only purely informational sites get landing page treatment
+    const isWebApp = !isDashboard && (
+      interpret.pageType === "web_app" ||
+      interpret.productType === "saas" ||
+      interpret.productType === "productivity" ||
+      interpret.productType === "ecommerce" ||
+      interpret.productType === "social" ||
+      interpret.productType === "fintech" ||
+      interpret.productType === "healthcare" ||
+      interpret.productType === "education" ||
+      // Also detect from features/prompt keywords — if the product DOES things, it's an app
+      interpret.features.some((f: string) => /track|manage|create|edit|delete|add|search|filter|sort|calculate|convert|schedule|book|order|pay|upload|download|send|receive|login|sign|play|record|monitor|analyze|chat|message|timer|clock|count|score|vote|rate|review|share|save|export|import|generate|build|design|compose|write|draw|plan|organize|list|board|kanban|calendar|browse|shop|buy|sell|donate|subscribe|register|submit|post|comment|reply|follow|like|bookmark|archive|assign|complete|start|stop|pause|reset|toggle|switch|select|pick|choose|compare|customize|configure|set up|enroll|apply|request|reserve|check|scan|measure|log|enter|input|fill/i.test(f)) ||
+      // Catch-all: if the classifier said web_app in any form
+      interpret.hasBackend
+    );
     const isLandingPage = !isDashboard && !isWebApp;
 
     const system = `You are an elite full-stack web developer who builds production-quality, fully functional applications. You build REAL working software — not mockups, not wireframes, not marketing pages. Every feature must actually work with real data manipulation, state management, and user interactions. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary before or after the HTML.`;
@@ -359,16 +373,26 @@ LAYOUT:
 - CSS: .view { display:none; min-height:calc(100vh - 70px); padding: 2rem; } .view.active { display:block; }
 - JS router: function navigate(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id)?.classList.add('active');window.scrollTo(0,0);updateNav(id);}
 
-CRITICAL RULE — BUILD THE ACTUAL PRODUCT:
-Read the DESCRIPTION and FEATURES carefully. Build the SPECIFIC application described.
-- If it's a timer → implement setInterval/clearInterval countdown, start/pause/reset, time display
-- If it's a calculator → implement actual math operations, display, button grid
-- If it's a task manager → implement task CRUD, drag-and-drop or status changes, filters
-- If it's a text editor → implement textarea with formatting, save/load, word count
-- If it's a game → implement game loop, scoring, controls, win/lose states
-- If it's a tracker → implement data entry, charts/visualization, history
-- If it's a converter → implement real conversion formulas, input/output
-- Whatever the product is, build its CORE FUNCTIONALITY with real JavaScript logic
+CRITICAL RULE — BUILD THE ACTUAL PRODUCT (THIS IS THE MOST IMPORTANT INSTRUCTION):
+Read the DESCRIPTION and FEATURES carefully. Build the SPECIFIC application described — not a template, not a generic app.
+- Timer/Clock/Stopwatch → setInterval/clearInterval, countdown display (MM:SS), start/pause/reset/lap buttons, alarm sound (new Audio with oscillator), session tracking
+- Calculator → math operations (+−×÷%), memory, display, responsive button grid, keyboard support
+- Task Manager/Todo → add/edit/delete tasks, status toggle (done/pending), categories, drag reorder, due dates, priority levels, filter/search
+- Text/Note Editor → textarea with word/char count, auto-save to localStorage, multiple notes list, search, delete, export
+- Game → canvas or DOM game loop with requestAnimationFrame, scoring, lives, levels, controls (keyboard/touch), win/lose/restart
+- Tracker (fitness/habit/budget/mood) → data entry form, history list/chart (CSS bars), daily/weekly view, streaks, totals, averages
+- Converter (unit/currency/temperature) → real formulas, bidirectional conversion, multiple unit types, swap button, copy result
+- E-commerce/Store → product grid with prices, working cart (add/remove/quantity), cart total calculation, checkout form with validation, order confirmation
+- Social/Chat → message list, compose input, send button that adds to conversation, user profiles, like/react buttons, real-time-feeling updates
+- Booking/Scheduling → date/time picker, available slots, booking form, confirmation, booking list management
+- Recipe/Cooking → recipe list, ingredient checkboxes, serving size adjuster that recalculates quantities, timer, favorites
+- Finance/Budget → transaction entry, income/expense tracking, category breakdown, running balance, charts
+- Quiz/Survey → question navigation, answer selection, score calculation, results page, timer optional
+- Music/Audio → playlist, play/pause controls, progress bar, volume slider, track info display
+- Calendar/Planner → month/week/day views, add/edit/delete events, date navigation, event details modal
+- Portfolio/Gallery → grid layout, lightbox modal, category filter, project detail view
+- Weather/Dashboard → data cards, charts, location selector, unit toggle (°C/°F), forecast display
+- Whatever the product is → build its CORE FUNCTIONALITY with real JavaScript logic that actually does what the product promises
 
 STATE MANAGEMENT (CRITICAL):
 - Create window.appState with ALL state the app needs (timers, counters, data, settings, history)
@@ -406,8 +430,8 @@ THE #1 RULE: Every button, input, and interactive element must have a working Ja
 - Render functions update the DOM dynamically — never rely on static HTML`;
 
     } else {
-      architectureSection = `ARCHITECTURE: MULTI-PAGE MARKETING/LANDING SITE
-This is a polished, professional marketing site — but all interactive elements must still work.
+      architectureSection = `ARCHITECTURE: MULTI-PAGE INTERACTIVE WEBSITE
+This is a polished, professional website — but EVERY interactive element MUST actually work with real JavaScript.
 
 LAYOUT: MULTI-PAGE SPA — each nav item is a separate "page" (full viewport). Structure:
   <nav class="navbar">...</nav>
@@ -420,30 +444,47 @@ CSS: .page { display:none; min-height:calc(100vh - 70px); padding: 3rem 2rem; } 
 JS router (REQUIRED): function navigate(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
 Each nav link calls navigate('page-name') — do NOT use href="#..." for page switching
 
+CRITICAL RULE — BUILD WHAT THE USER DESCRIBED:
+Read the DESCRIPTION carefully. If the product involves ANY interactive features, those features MUST work:
+- Restaurant site → interactive menu with categories, dietary filters, item detail modals, order/reservation form
+- Nonprofit/Charity → working donation form with amount selection, recurring toggle, payment info fields, confirmation
+- Portfolio → project gallery with category filter, lightbox modal, contact form
+- Event site → event schedule with filtering, RSVP form, countdown timer to event date
+- Real estate → property listings with search/filter, detail modals, inquiry form
+- Gym/Fitness → class schedule browser, membership signup form, trainer profiles
+- School/Education → course catalog with filters, enrollment form, FAQ accordions
+Whatever the site is for, the interactive elements must ACTUALLY FUNCTION with JavaScript.
+
 REQUIRED PAGES (minimum 4-5 pages, ALL must have substantial content):
-1. HOME: Hero section with headline, subheadline, and CTA button that navigates to a form page + feature highlights
-2. ABOUT/STORY: Company background, mission, team members with names and roles
-3. PRODUCTS/SERVICES: Grid of offerings with descriptions, icons or images, and detail expandable sections
-4. CONTACT/SIGN UP: Complete working form with name, email, message fields — validation and success message
-5. At least ONE more page relevant to this specific product (e.g., Blog, Pricing, Portfolio, FAQ)
+1. HOME: Hero section with headline, subheadline, and CTA button + feature highlights
+2. ABOUT/STORY: Background, mission, team members with names and roles
+3. PRODUCTS/SERVICES/OFFERINGS: Grid of items — each expandable or with detail modals, filterable if 6+ items
+4. CONTACT/SIGN UP: Complete working form (name, email, message/subject) with JS validation and success message
+5. At least ONE more page relevant to this product (e.g., Blog, Pricing with toggle, Portfolio, FAQ)
 
-INTERACTIVE ELEMENTS:
-- FAQ accordions that expand/collapse on click
-- Testimonial carousel/slider with dots/arrows to navigate between testimonials
-- Animated counters for statistics (count up on page load)
-- Smooth scroll-to sections within a page
-- Working contact/signup form with field validation and success state`;
+INTERACTIVE ELEMENTS (ALL must have working JavaScript):
+- FAQ accordions that expand/collapse on click with smooth CSS transition
+- Testimonial carousel/slider with dots/arrows and auto-advance (every 5s)
+- Animated counters for statistics (count up on page visibility)
+- Tab sections that switch content on click
+- Working forms with field validation, error messages, and success state
+- Pricing toggle (monthly/yearly) that actually recalculates and updates prices
+- Gallery/portfolio items that open in a lightbox modal
+- Mobile hamburger menu that opens/closes on click`;
 
-      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — every interactive element must work):
-- EVERY button must have a working onclick handler — zero decorative/dead buttons
-- All forms must validate: required fields, email format, show inline error messages, show success message on valid submit
-- FAQ accordions: click to toggle open/close, only one open at a time, smooth height transition
-- Testimonial slider: auto-advance every 5s, manual dots/arrows, smooth CSS transition
-- Any pricing toggle (monthly/yearly) must actually update displayed prices
-- Tab sections must switch content on click
-- Mobile hamburger menu must open/close a dropdown nav
-- Contact forms: show success message after submit, clear fields, prevent default
-- All hover states must be visible (opacity change, color shift, or scale)`;
+      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — ZERO dead/decorative elements):
+- EVERY button MUST have a working onclick handler — a button that does nothing is a BUG
+- EVERY form MUST validate on submit: check required fields, show red borders + error text for invalid, show success message for valid
+- EVERY interactive element MUST respond: accordions toggle, tabs switch, sliders slide, modals open/close
+- FAQ: click toggles open/close, only one open at a time, smooth max-height transition
+- Testimonials: auto-advance every 5s, dots/arrows work, smooth CSS opacity/transform transition
+- Pricing toggle: clicking monthly/yearly MUST update ALL price values dynamically via JavaScript
+- Contact form: validate all fields → show success message → clear form → prevent default
+- Gallery items: click opens lightbox modal with image + close button + backdrop click to close
+- Hamburger menu: click toggles mobile nav dropdown, click outside closes
+- CTA buttons: navigate to the relevant page (contact/signup/pricing) — never dead links
+- All hover states visible: opacity, color shift, scale, or border change on interactive elements
+- Tab content: clicking tab label switches visible content panel, active tab highlighted`;
     }
 
     const user = `Generate a complete, fully functional ${isDashboard ? "dashboard application" : isWebApp ? "web application" : "website"} as a self-contained HTML file.
@@ -527,21 +568,24 @@ ${integrations && integrations.length > 0 ? `13. INTEGRATIONS:
 ${integrations.map(ig => `   - ${ig.name}: Key = "${ig.value}"
      Include <script> initialization in <head>.`).join("\n")}` : ""}
 
-${isDashboard || isWebApp ? `CRITICAL FUNCTIONALITY CHECKLIST (the app is BROKEN if any of these fail):
-✓ EVERY button has a working onclick handler — zero decorative/dead buttons
-✓ EVERY form has a submit handler with validation — zero forms that do nothing
-✓ EVERY input has a change handler — zero inputs that aren't connected to state
+UNIVERSAL FUNCTIONALITY MANDATE (applies to ALL app types — ZERO EXCEPTIONS):
+✓ EVERY button has a working onclick handler — a button that does nothing is a BROKEN app
+✓ EVERY form has a submit handler with validation — forms that don't respond are BROKEN
+✓ EVERY interactive element responds to user input — dead UI elements are NEVER acceptable
 ✓ The CORE FEATURE described in the prompt works completely with real JS logic
-✓ State stored in window.appState and rendered dynamically — NOT hardcoded HTML
+✓ Navigation works: every nav item switches content, active state highlighted
+✓ Visual feedback on ALL interactions: hover states, click feedback, success/error messages
+✓ CSS is polished: transitions on state changes, hover effects on clickable elements
+✓ The output feels like REAL SOFTWARE that someone would actually use — not a wireframe or mockup
+${isDashboard || isWebApp ? `✓ State stored in window.appState and rendered dynamically — NOT hardcoded HTML
 ✓ localStorage persistence: save on every state change, load on startup/refresh
-✓ Visual feedback: buttons show active/disabled states, actions show success/error toast
-✓ All navigation works: view switching, back to home, all nav items functional
-✓ CSS is polished: proper hover states on clickable elements, transitions on state changes
-✓ The app feels like REAL SOFTWARE that someone would actually use — not a wireframe` : ""}
+✓ Toast notifications for user actions (success/error) that auto-dismiss` : `✓ Forms show validation errors inline and success message after valid submit
+✓ Accordions, sliders, tabs, modals — all interactive components work with JS
+✓ Mobile menu toggle works`}
 
-Write at minimum ${isDashboard || isWebApp ? "900" : "700"} lines of functional code. Start with <!DOCTYPE html> immediately.`;
+Write at minimum 800 lines of functional code. Prioritize working JavaScript over static HTML content. Start with <!DOCTYPE html> immediately.`;
 
-    const maxTokens = (isDashboard || isWebApp) ? 12000 : 8000;
+    const maxTokens = (isDashboard || isWebApp) ? 12000 : 10000;
     const text = await chat(system, user, maxTokens);
     const html = extractHtml(text);
     return injectSafetyScript(html);

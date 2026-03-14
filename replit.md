@@ -267,15 +267,18 @@ Logos and custom fonts are uploaded to Cloudinary on project creation. The serve
 
 ### AI Generation Engine — Groq LLM
 
-Morse uses Groq (llama-3.3-70b-versatile) to generate complete, functional HTML applications from user prompts. The generation engine differentiates between three app types:
+Morse uses Groq (llama-3.3-70b-versatile) to generate complete, fully functional HTML applications from user prompts. The generation engine differentiates between three app types with aggressive functional detection:
 
-- **Web Apps** (`web_app`): Full CRUD applications with localStorage persistence, real state management (`window.appState`), working search/filter/sort, modal forms with validation, toast notifications, dynamic rendering from data arrays. Allocated 12,000 tokens for complex output.
-- **Dashboards** (`dashboard`): Fixed sidebar + content panels with sortable data tables, CSS charts, pagination, real-time stat cards, settings persistence. Allocated 12,000 tokens.
-- **Landing Pages** (`landing_page`): Multi-page SPA marketing sites with working forms, FAQ accordions, testimonial sliders. Allocated 8,000 tokens.
+- **Web Apps** (`web_app`): Product-specific applications with full working JavaScript. Detects via pageType, productType (saas/ecommerce/social/fintech/healthcare/education/productivity), OR feature keywords (80+ action verbs like track/manage/create/edit/browse/donate/play/score). Includes localStorage persistence, `window.appState` state management, dynamic rendering, toast notifications. 12,000 tokens. Prompt includes 20+ product-specific implementation guides (timer→setInterval, calculator→math ops, ecommerce→cart system, etc.)
+- **Dashboards** (`dashboard`): Fixed sidebar + content panels with CRUD tables, CSS charts, pagination, settings. 12,000 tokens.
+- **Landing Pages** (`landing_page`): Only for purely informational sites with zero interactive features. Still requires ALL buttons/forms/accordions/sliders to work. 10,000 tokens.
+
+**Universal Functionality Mandate**: ALL app types enforce zero dead buttons, working forms, visual feedback, and real JavaScript logic. No exceptions.
 
 Key files: `server/gemini.ts` (generation engine), interpret → classify → generate pipeline.
 Safety: `injectSafetyScript()` blocks external navigation, window.open, external hrefs. Client-side fallback in `project.tsx` `safeGeminiHtml` useMemo.
 Images: picsum.photos with seeded URLs (source.unsplash.com deprecated).
+Regeneration: Both `regenerate-style` and `regenerate-layout` routes now trigger async AI HTML regeneration.
 
 ### AI System — Local Prototype Network
 
