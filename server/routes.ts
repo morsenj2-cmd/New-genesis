@@ -59,6 +59,39 @@ function requireAuth(req: any, res: any, next: any) {
   next();
 }
 
+function deepMerge(target: any, source: any): any {
+  if (!source || typeof source !== "object") return target;
+  if (!target || typeof target !== "object") return source;
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    if (source[key] !== null && typeof source[key] === "object" && !Array.isArray(source[key]) &&
+        target[key] !== null && typeof target[key] === "object" && !Array.isArray(target[key])) {
+      result[key] = deepMerge(target[key], source[key]);
+    } else if (source[key] !== undefined) {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
+
+function isValidGenome(genome: any): boolean {
+  if (!genome || typeof genome !== "object") return false;
+  if (!genome.colors?.primary || !genome.colors?.background || !genome.colors?.surface) return false;
+  if (!genome.typography?.heading || !genome.typography?.body) return false;
+  if (!genome.spacing?.md) return false;
+  if (!genome.radius?.md) return false;
+  if (!genome.iconStyle?.strokeWidth) return false;
+  if (!genome.motion?.duration) return false;
+  return true;
+}
+
+function isValidLayout(layout: any): boolean {
+  if (!layout || typeof layout !== "object") return false;
+  if (!Array.isArray(layout.sections) || layout.sections.length === 0) return false;
+  if (!layout.metadata) return false;
+  return true;
+}
+
 function isBase64DataUrl(str: string): boolean {
   return typeof str === "string" && str.startsWith("data:");
 }
@@ -637,7 +670,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: newProductType,
       });
 
-      // If AI is available, mark as pending so a new HTML is generated reflecting the NL change
+      const originalGenome = project.genomeJson ? JSON.parse(project.genomeJson) : generateGenome(project.seed);
+      const originalLayout = project.layoutJson ? JSON.parse(project.layoutJson) : generateLayout(project.seed);
+
+      if (!isValidGenome(currentGenome)) {
+        console.warn(`[NL Apply] Patched genome failed validation — deep merging with original`);
+        currentGenome = deepMerge(originalGenome, currentGenome);
+        if (!isValidGenome(currentGenome)) {
+          console.warn(`[NL Apply] Genome still invalid after merge — reverting to original`);
+          currentGenome = originalGenome;
+        }
+      }
+
+      if (!isValidLayout(currentLayout)) {
+        console.warn(`[NL Apply] Patched layout failed validation — reverting to original`);
+        currentLayout = originalLayout;
+      }
+
       if (isGeminiAvailable()) {
         (currentSettings as any).geminiStatus = "pending";
       }

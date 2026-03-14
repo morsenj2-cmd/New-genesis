@@ -35,6 +35,8 @@ Key features:
   - Accessibility: "more readable", "accessible"
   - Content: "change headline to X", "set CTA to Y"
   - Smart fallback: context-aware suggestions when nothing matches
+  - Apply pipeline safety: deepMerge for genome patches (never shallow overwrite), isValidGenome/isValidLayout validation before save, auto-revert to original on invalid patch, logged warnings for rejected patches
+- GenomePreview defensive rendering: `safeGenome()` fills missing fields with GENOME_DEFAULTS, `lastValidLayoutRef` falls back to previous valid layout if new layout breaks, null guards on all genome field access in navbar/button/icon components
 - Branding tokens: `genome.branding.logoColor/logoFont/logoWeight` — GenomeNavbar applies these to logo text and icon color
 - Design Source Priority: user's uploaded logo, selected font, selected primary color always override generator output via `mergeDesignSources()` in `shared/designMerger.ts`
 - Content Generator: category-specific headlines, subheadlines, CTA labels, features, stats, testimonials, CTA copy, and footer taglines from `shared/contentGenerator.ts` — 14 product types each with realistic copy, each with a distinct `brandName` (Vault, Relay, Lens, Shopbase, Sprint, Pipeline, Pulse, Flowbase, Devkit, Streamly, Clair, Medi, Coursify, Tempo)
