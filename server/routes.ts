@@ -503,12 +503,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  const FREE_TIER_CREDIT_LIMIT = 500;
+
   app.post("/api/project/:id/apply-nl", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const creditsUsed = project.nlCreditsUsed ?? 0;
+      if (creditsUsed >= FREE_TIER_CREDIT_LIMIT) {
+        return res.status(429).json({
+          message: `Credit limit reached. You've used all ${FREE_TIER_CREDIT_LIMIT} free AI edits for this project.`,
+          creditsUsed,
+          creditsLimit: FREE_TIER_CREDIT_LIMIT,
+        });
+      }
 
       const { commands } = req.body;
       if (!commands || typeof commands !== "string") {
@@ -643,6 +654,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         (currentSettings as any).geminiStatus = "pending";
       }
 
+      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, FREE_TIER_CREDIT_LIMIT);
+      if (newCreditsUsed === null) {
+        return res.status(429).json({
+          message: `Credit limit reached. You've used all ${FREE_TIER_CREDIT_LIMIT} free AI edits for this project.`,
+          creditsUsed: FREE_TIER_CREDIT_LIMIT,
+          creditsLimit: FREE_TIER_CREDIT_LIMIT,
+        });
+      }
+
       const updated = await storage.updateProject(project.id, userId!, {
         genomeJson: JSON.stringify(currentGenome),
         layoutJson: JSON.stringify(currentLayout),
@@ -660,6 +680,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         patchCount: totalPatchCount,
         intents,
         contentPatch,
+        creditsUsed: newCreditsUsed,
+        creditsLimit: FREE_TIER_CREDIT_LIMIT,
       });
 
       // Fire AI edit (or re-generation) async with the NL instruction applied

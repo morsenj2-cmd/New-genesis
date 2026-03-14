@@ -26,6 +26,7 @@ export const projects = pgTable("projects", {
   settingsJson: text("settings_json"),
   productType: text("product_type"),
   layoutLocked: boolean("layout_locked").default(false),
+  nlCreditsUsed: integer("nl_credits_used").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

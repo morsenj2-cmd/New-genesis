@@ -41,7 +41,9 @@ export interface IStorage {
     layoutLocked?: boolean;
     styleSeed?: string;
     previousGenomesJson?: string;
+    nlCreditsUsed?: number;
   }): Promise<Project | undefined>;
+  incrementNlCredits(id: string, userId: string, limit: number): Promise<number | null>;
   deleteProject(id: string, userId: string): Promise<void>;
   getContextByHash(promptHash: string): Promise<ContextKnowledge | undefined>;
   getContextByDomain(domain: string): Promise<ContextKnowledge[]>;
@@ -105,6 +107,7 @@ export class DatabaseStorage implements IStorage {
       layoutLocked?: boolean;
       styleSeed?: string;
       previousGenomesJson?: string;
+      nlCreditsUsed?: number;
     },
   ): Promise<Project | undefined> {
     const [updated] = await db
@@ -113,6 +116,21 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(projects.id, id), eq(projects.userId, userId)))
       .returning();
     return updated;
+  }
+
+  async incrementNlCredits(id: string, userId: string, limit: number): Promise<number | null> {
+    const [result] = await db
+      .update(projects)
+      .set({ nlCreditsUsed: sql`${projects.nlCreditsUsed} + 1` })
+      .where(
+        and(
+          eq(projects.id, id),
+          eq(projects.userId, userId),
+          sql`${projects.nlCreditsUsed} < ${limit}`
+        )
+      )
+      .returning({ nlCreditsUsed: projects.nlCreditsUsed });
+    return result ? result.nlCreditsUsed : null;
   }
 
   async deleteProject(id: string, userId: string): Promise<void> {

@@ -897,7 +897,7 @@ function LeftPanel({
           </Button>
         </div>
         <Separator />
-        <NLDesigner projectId={project.id} onApplied={onNLApplied} />
+        <NLDesigner projectId={project.id} creditsUsed={project.nlCreditsUsed ?? 0} onApplied={onNLApplied} />
         <IntegrationsDialog projectId={project.id} initialIntegrations={integrations} />
       </div>
 
@@ -1148,8 +1148,15 @@ export default function ProjectPage() {
   // instead of navigating the parent Morse page
   const safeGeminiHtml = useMemo(() => {
     if (!geminiAppHtml) return null;
-    if (geminiAppHtml.includes("__safeNav")) return geminiAppHtml; // already injected server-side
-    // Client-side fallback safety injection for older generated HTML
+    let html = geminiAppHtml;
+    html = html.replace(
+      /h([1-6])\s*\{[^}]*?max-width\s*:\s*[\d.]+rem[^}]*?\}/g,
+      (match: string, level: string) => {
+        const sizes: Record<string, string> = { "1": "2.5rem", "2": "1.75rem", "3": "1.25rem", "4": "1.1rem", "5": "1rem", "6": "0.875rem" };
+        return match.replace(/max-width\s*:\s*[\d.]+rem/, `font-size: ${sizes[level] || "1rem"}`);
+      }
+    );
+    if (html.includes("__safeNav")) return html;
     const script = `<script>
 (function(){
   try{Object.defineProperty(window,'__safeNav',{value:true,writable:false});}catch(e){}
@@ -1189,8 +1196,8 @@ export default function ProjectPage() {
   var ob=new MutationObserver(initNav);if(document.body)ob.observe(document.body,{childList:true,subtree:true});
 })();
 </script>`;
-    if (geminiAppHtml.includes("</body>")) return geminiAppHtml.replace("</body>", script + "\n</body>");
-    return geminiAppHtml + script;
+    if (html.includes("</body>")) return html.replace("</body>", script + "\n</body>");
+    return html + script;
   }, [geminiAppHtml]);
 
   useEffect(() => {
