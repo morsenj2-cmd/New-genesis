@@ -209,9 +209,9 @@ Project name: "${projectName}"
 User prompt: "${prompt}"
 
 CLASSIFICATION GUIDE for pageType:
-- "web_app": The user wants a FUNCTIONAL application with interactive features, data management, CRUD operations, user workflows, or tool-like behavior. Examples: task manager, CRM, inventory system, booking platform, project tracker, recipe app, budget planner, social network, marketplace, scheduling tool, note-taking app, fitness tracker. DEFAULT TO THIS if the product involves users interacting with data or performing tasks.
-- "dashboard": The user wants an analytics/admin panel with charts, tables, metrics, and data visualization. Examples: analytics dashboard, admin panel, monitoring system, sales dashboard, reporting tool.
-- "landing_page": The user ONLY wants a marketing/informational website to showcase a product or organization. Examples: company homepage, portfolio, restaurant menu site, event page, nonprofit awareness site. Only use this if the product is purely informational with no interactive data features.
+- "dashboard": The user wants a data visualization panel with charts, tables, stats, metrics, rankings, standings, or monitoring. Examples: analytics dashboard, admin panel, F1 race dashboard, sports standings, stock market tracker, sales dashboard, server monitoring. If the user uses the word "dashboard" or wants to track/monitor data with charts and tables, use this.
+- "web_app": The user wants a FUNCTIONAL application with interactive features, data management, CRUD operations, user workflows, or tool-like behavior. Examples: task manager, CRM, inventory system, booking platform, calculator, timer, game, budget planner, social network. DEFAULT TO THIS if the product involves users interacting with data or performing tasks.
+- "landing_page": The user ONLY wants a marketing/informational website to showcase a product or organization. Examples: company homepage, portfolio, restaurant menu site. Only use this if the product is purely informational with no interactive data features.
 
 Return JSON with exactly these fields:
 {
@@ -228,14 +228,17 @@ Return JSON with exactly these fields:
   "keyBenefit": "the single clearest value proposition",
   "navigationStyle": "minimal | standard | rich",
   "contentDensity": "minimal | standard | rich",
-  "hasDashboard": false,
+  "hasDashboard": "boolean — true if user mentions dashboard/monitoring/analytics/standings/rankings/tracker/data visualization, false otherwise",
   "hasBackend": false,
   "uniqueToken": "one word that captures the unique feel"
 }`;
 
     const text = await chat(system, user, 1024);
     const json = extractJson(text);
-    return JSON.parse(json) as GeminiInterpretResult;
+    const parsed = JSON.parse(json);
+    parsed.hasDashboard = parsed.hasDashboard === true || parsed.hasDashboard === "true";
+    parsed.hasBackend = parsed.hasBackend === true || parsed.hasBackend === "true";
+    return parsed as GeminiInterpretResult;
   } catch (err) {
     console.error("[Groq] Stage 1 (interpret) failed:", err);
     return null;
@@ -311,55 +314,67 @@ export async function geminiGenerateApp(
     let functionalitySection = "";
 
     if (isDashboard) {
-      architectureSection = `ARCHITECTURE: FUNCTIONAL DASHBOARD APPLICATION
-This is a REAL working dashboard — not a static mockup. It must feel like actual software.
+      architectureSection = `ARCHITECTURE: DOMAIN-SPECIFIC FUNCTIONAL DASHBOARD
+This is a REAL working dashboard for "${interpret.productName}" — not a generic template. Every label, stat card, table column, and chart MUST be specific to this product's domain.
+
+READ THIS CAREFULLY: The user described "${prompt}". You must build a dashboard about EXACTLY THAT — with domain-specific terminology, data, and panels.
+
+EXAMPLES OF DOMAIN-SPECIFIC DASHBOARDS:
+- "F1 dashboard" → Stat cards: "Total Drivers", "Laps Completed", "Fastest Lap", "DNFs". Table columns: Position, Driver, Team, Gap to Leader, Pit Stops, Status. Data: real F1 driver names (Verstappen, Hamilton, Leclerc, Norris, etc.), real team names (Red Bull, Mercedes, Ferrari, McLaren, etc.)
+- "Sales dashboard" → Stat cards: "Total Revenue", "Orders Today", "Avg Order Value", "Conversion Rate". Table: Order ID, Customer, Product, Amount, Status, Date
+- "HR dashboard" → Stat cards: "Employees", "Open Positions", "Avg Tenure", "Turnover Rate". Table: Name, Department, Role, Start Date, Status
+- "Fitness tracker" → Stat cards: "Workouts This Week", "Calories Burned", "Streak", "Personal Bests". Table: Date, Exercise, Duration, Reps, Weight
+- "Crypto dashboard" → Stat cards: "Portfolio Value", "24h Change", "Top Gainer", "Total Assets". Table: Coin, Price, 24h Change, Holdings, Value
+
+FOLLOW THIS PATTERN: Read the description → identify the domain → use domain-specific labels, columns, and data for EVERYTHING. NEVER use generic labels like "Total Count", "Active Count", "Revenue/Value" unless the domain is actually about revenue.
 
 LAYOUT:
 - Fixed left sidebar (240px wide, full height, dark surface color) with icon + label nav items
-- Top header bar (64px) with search input, notification bell, and user avatar
-- Main content area that changes based on active sidebar item
-- Sidebar items must highlight when active
+- Sidebar nav labels MUST be domain-specific (e.g., for F1: "Race Overview", "Driver Standings", "Lap Analysis", "Settings" — NOT generic "Dashboard", "Data Table", "Analytics")
+- Top header bar (64px) with search input and product name
+- Main content area changes based on active sidebar item
+- Sidebar items highlight when active
 
-DATA & STATE (CRITICAL — this is what makes it real software):
-- Create a global JS state object: window.appState = { currentView: 'dashboard', data: {...}, filters: {...}, user: {...} }
-- Seed with 15-25 realistic data records (use real names, real dates within last 90 days, realistic numbers)
-- ALL data must be stored in appState and rendered dynamically — no hardcoded HTML table rows
-- Use localStorage to persist any user changes: localStorage.setItem('appData', JSON.stringify(appState.data))
-- On load, check localStorage first: const saved = localStorage.getItem('appData'); if(saved) appState.data = JSON.parse(saved);
+DATA & STATE (CRITICAL):
+- window.appState = { currentView: 'dashboard', data: {...}, filters: {...} }
+- Seed with 15-25 realistic records using REAL domain-specific data (real names, real terminology, realistic numbers for this domain)
+- ALL data stored in appState and rendered dynamically — no hardcoded HTML
+- localStorage persistence: save on every change, load on startup
 
-REQUIRED FUNCTIONAL PANELS (implement ALL — each must be a real working view):
-1. DASHBOARD OVERVIEW: Summary cards (total count, active count, revenue/value, growth %) + a CSS bar/line chart showing last 7 data points + recent activity list (last 5 items with timestamps)
-2. DATA TABLE VIEW: Full CRUD table with:
-   - Sortable columns (click header to toggle asc/desc, show arrow indicator)
-   - Search/filter input that filters rows in real-time as you type
-   - Status badges with colors (green=active, yellow=pending, red=inactive)
-   - "Add New" button opens a modal form to create a new record (save to appState + localStorage)
-   - Edit button on each row opens modal pre-filled with that row's data
-   - Delete button with confirmation dialog, then removes from appState + localStorage
-   - Pagination: show 10 rows per page with Previous/Next buttons and "Showing X-Y of Z"
-3. DETAIL/ANALYTICS VIEW: Show aggregated stats, breakdown by category (CSS horizontal bars), and a filterable list
-4. SETTINGS VIEW: Working form with toggle switches, dropdowns, and text inputs that save to localStorage
+REQUIRED PANELS (ALL must use domain-specific labels and data):
+1. OVERVIEW PANEL: 4 stat cards with domain-specific metrics (large number + label + trend indicator) + CSS bar chart showing relevant data + recent activity list
+2. DATA TABLE PANEL: Full interactive table with:
+   - Domain-specific column headers (NOT generic "Name", "Email", "Status")
+   - Sortable columns (click header toggles asc/desc with arrow indicator)
+   - Search/filter that filters rows in real-time
+   - Status badges with domain-appropriate colors and labels
+   - Add/Edit/Delete functionality with modal forms
+   - Pagination: 10 rows per page with Previous/Next
+3. ANALYTICS PANEL: Domain-specific charts and breakdowns (category breakdown with CSS bars, trend data, aggregated stats)
+4. SETTINGS PANEL: Working preferences form that saves to localStorage
 
 CSS CHARTS (no external libraries):
-- Bar chart: Use CSS flexbox with div bars, height proportional to value, hover tooltip showing exact value
-- Stat cards: Large number + label + percentage change indicator (green up arrow or red down arrow)`;
+- Bar chart: CSS flexbox with div bars, height proportional to value, hover tooltip with exact value
+- Stat cards: Large number + descriptive domain label + percentage trend (green ▲ / red ▼)`;
 
       functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — every item must actually work):
-- Clicking sidebar items MUST switch the main content panel (use a renderView() function)
-- Table sorting MUST actually reorder the data array and re-render
+- Clicking sidebar items MUST switch the main content panel (use a renderView() function that rebuilds DOM for active panel)
+- Table sorting MUST actually reorder the data array and re-render — clicking column headers toggles sort direction
 - Search/filter MUST filter the data array in real-time and re-render the table
-- Add/Edit forms MUST validate inputs (required fields, email format, number ranges) and show inline errors
+- Add/Edit forms MUST validate inputs and show inline errors — modal forms with domain-specific fields
 - Delete MUST remove the record from appState.data, save to localStorage, and re-render
 - Pagination MUST work — calculate correct page slice, disable Previous on page 1, Next on last page
-- Charts MUST render from actual data values — not hardcoded CSS heights
+- Charts MUST render from actual data values — not hardcoded CSS heights. Recalculate bar heights from data.
+- Stat cards MUST show computed values from the actual data array (e.g., appState.data.length for count, Math.max(...) for records)
 - Settings toggles MUST persist to localStorage and take effect immediately
-- Notification bell should show a count badge; clicking shows a dropdown with recent notifications
-- Search in header should focus and filter globally or navigate to relevant section`;
+- IMPORTANT: On initial load, call renderView() immediately so the default panel shows content — never show an empty page`;
 
     } else if (isWebApp) {
       architectureSection = `ARCHITECTURE: FULLY FUNCTIONAL WEB APPLICATION
 This MUST be a REAL, FULLY WORKING application — not a mockup, not a template, not a static page.
-The user described "${interpret.productName}" — you must build EXACTLY that product with ALL its features working.
+The user described: "${prompt}"
+Product name: "${interpret.productName}"
+You must build EXACTLY that product with ALL its features working. Read the description above — every word matters.
 
 LAYOUT:
 - Top navigation bar (64px, fixed) with app name/logo, main nav items, and user actions
@@ -539,10 +554,17 @@ CORE REQUIREMENTS:
    - h3: max 1.25rem, font-weight: 600   |   p: 1rem, line-height: 1.7
    - Small text: 0.875rem. NEVER use font sizes above 2.5rem.
 
-6. CONTRAST (CRITICAL):
-   - Background is dark. ALL text: color: var(--color-text) = #f1f5f9
-   - Cards: var(--color-surface) is dark. ALL card text: #f1f5f9 — NEVER dark text on dark bg
-   - Muted text: var(--color-text-muted) = #94a3b8. Buttons: primary bg with contrasting text
+6. CONTRAST & VISIBILITY (CRITICAL — broken contrast = broken app):
+   - Add these CSS variables: :root { --color-text: #f1f5f9; --color-text-muted: #94a3b8; }
+   - body { background: var(--color-bg); color: var(--color-text); }
+   - ALL text everywhere must be light (#f1f5f9 or #e2e8f0) — NEVER use #000, #333, or dark gray text
+   - Cards/surfaces: var(--color-surface) with ALL text inside as var(--color-text) — NEVER dark text on dark bg
+   - Table headers: light text. Table cells: light text. Stat card numbers: light text. Chart labels: light text.
+   - Muted/secondary text: #94a3b8 (still light enough to read on dark backgrounds)
+   - Buttons: primary bg with WHITE or very light text for contrast
+   - Inputs/selects: dark background with light text, visible border (1px solid rgba(255,255,255,0.1))
+   - Sidebar text: light colored, active item has visible highlight
+   - NEVER rely on default browser colors — explicitly set color on every text element
 
 7. LAYOUT:
    - ${isDashboard ? "Sidebar: 240px fixed left. Main: flex-1. Header: 64px fixed top." : "body { padding-top: 70px; margin: 0; } Navbar: 64px fixed, z-index: 100"}
@@ -582,6 +604,12 @@ ${isDashboard || isWebApp ? `✓ State stored in window.appState and rendered dy
 ✓ Toast notifications for user actions (success/error) that auto-dismiss` : `✓ Forms show validation errors inline and success message after valid submit
 ✓ Accordions, sliders, tabs, modals — all interactive components work with JS
 ✓ Mobile menu toggle works`}
+
+INITIALIZATION (CRITICAL — prevents blank/empty pages):
+- At the END of your <script>, add: document.addEventListener('DOMContentLoaded', function() { init(); });
+- ${isDashboard ? "function init() { renderView('dashboard'); } — this calls renderView which populates stat cards, tables, charts from window.appState" : isWebApp ? "function init() { navigate('view-home'); } — or whatever your first view ID is. This must show the main functional view with all content populated" : "function init() { navigate('page-home'); } — this shows the home page with all content rendered"}
+- The page MUST show fully populated content immediately on load — NEVER an empty/blank state
+- ALL dynamic content (tables, stats, charts, lists) must render from data in window.appState on first load
 
 Write at minimum 800 lines of functional code. Prioritize working JavaScript over static HTML content. Start with <!DOCTYPE html> immediately.`;
 
