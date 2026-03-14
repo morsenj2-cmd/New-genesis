@@ -49,7 +49,7 @@ export interface IStorage {
     previousGenomesJson?: string;
     nlCreditsUsed?: number;
   }): Promise<Project | undefined>;
-  incrementNlCredits(id: string, userId: string, limit: number): Promise<number | null>;
+  incrementNlCredits(id: string, userId: string, limit: number, amount?: number): Promise<number | null>;
   deleteProject(id: string, userId: string): Promise<void>;
   getContextByHash(promptHash: string): Promise<ContextKnowledge | undefined>;
   getContextByDomain(domain: string): Promise<ContextKnowledge[]>;
@@ -168,10 +168,11 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async incrementNlCredits(id: string, userId: string, limit: number): Promise<number | null> {
+  async incrementNlCredits(id: string, userId: string, limit: number, amount: number = 1): Promise<number | null> {
+    const safeAmount = Math.max(1, Math.ceil(amount));
     const [result] = await db
       .update(projects)
-      .set({ nlCreditsUsed: sql`${projects.nlCreditsUsed} + 1` })
+      .set({ nlCreditsUsed: sql`LEAST(${projects.nlCreditsUsed} + ${safeAmount}, ${limit})` })
       .where(
         and(
           eq(projects.id, id),

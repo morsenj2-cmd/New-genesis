@@ -184,11 +184,16 @@ function genomeToColorVars(genome: DesignGenome): string {
     --font-body: '${genome.typography.body}', system-ui, sans-serif;`;
 }
 
+export interface ChatResult {
+  content: string;
+  tokensUsed: number;
+}
+
 async function chat(
   systemPrompt: string,
   userContent: string,
   maxTokens = 2048,
-): Promise<string> {
+): Promise<ChatResult> {
   if (!client) throw new Error("GROQ_API_KEY not configured");
 
   let lastError: Error | null = null;
@@ -204,7 +209,9 @@ async function chat(
           max_tokens: maxTokens,
           temperature: 0.7,
         });
-        return completion.choices[0]?.message?.content ?? "";
+        const tokensUsed = completion.usage?.total_tokens ?? 0;
+        const content = completion.choices[0]?.message?.content ?? "";
+        return { content, tokensUsed };
       } catch (err: any) {
         const msg = err?.message ?? "";
         const isRateLimit = msg.includes("429") || msg.includes("rate") || msg.includes("quota");
@@ -263,8 +270,8 @@ Return JSON with exactly these fields:
   "uniqueToken": "one word that captures the unique feel"
 }`;
 
-    const text = await chat(system, user, 1024);
-    const json = extractJson(text);
+    const result = await chat(system, user, 1024);
+    const json = extractJson(result.content);
     const parsed = JSON.parse(json);
     parsed.hasDashboard = parsed.hasDashboard === true || parsed.hasDashboard === "true";
     parsed.hasBackend = parsed.hasBackend === true || parsed.hasBackend === "true";
@@ -291,7 +298,7 @@ export async function geminiGenerateApp(
   logoUrl?: string | null,
   nlInstruction?: string | null,
   integrations?: Integration[] | null,
-): Promise<string | null> {
+): Promise<{ html: string; tokensUsed: number } | null> {
   if (!client) return null;
   try {
     const colorVars = genomeToColorVars(genome);
@@ -304,12 +311,14 @@ export async function geminiGenerateApp(
       : "";
 
     const combinedText = `${prompt} ${nlInstruction ?? ""}`.toLowerCase();
-    const imageKeywords = interpret.productName.toLowerCase().replace(/\s+/g, "+");
+    const stopWords = new Set(["the", "a", "an", "and", "or", "of", "for", "to", "in", "on", "at", "by", "is", "it", "app", "platform", "system", "tool", "website"]);
+    const promptWords = `${interpret.productName} ${interpret.industry} ${interpret.productType}`.toLowerCase().split(/\W+/).filter(w => w.length > 2 && !stopWords.has(w));
+    const imageKeywords = [...new Set(promptWords)].slice(0, 3).join("-");
     const visualTypes = ["ecommerce", "store", "shop", "portfolio", "gallery", "restaurant", "real_estate", "travel", "fashion", "clothing", "food", "hotel", "marketplace", "catalog"];
     const isVisualProduct = visualTypes.some(t => combinedText.includes(t) || (interpret.productType || "").toLowerCase().includes(t) || (interpret.pageType || "").toLowerCase().includes(t));
     const hasImages = isVisualProduct || combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
 
-    const imageInstruction = `IMAGES: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/${imageKeywords}/800/500". Vary seed for each image: seed/${imageKeywords}1, seed/${imageKeywords}2, seed/${imageKeywords}3, etc. Hero images: seed/${imageKeywords}/1200/600. Cards/products: seed/${imageKeywords}1/400/300, seed/${imageKeywords}2/400/300. NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com. ALWAYS use picsum.photos.${hasImages ? " This product is visual — include prominent product/hero images throughout." : ""}`;
+    const imageInstruction = `IMAGES: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/{descriptive-keyword}/width/height". Use unique descriptive seeds for each image context — e.g. seed/${imageKeywords}-hero/1200/600 for hero images, seed/${imageKeywords}-team/400/300 for team photos, seed/${imageKeywords}-product1/400/300, seed/${imageKeywords}-product2/400/300 for cards. Each image should have a DIFFERENT descriptive seed suffix matching its context (e.g. -office, -nature, -portrait, -dashboard, -food). NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com. ALWAYS use picsum.photos.${hasImages ? " This product is visual — include prominent product/hero images throughout." : ""}`;
 
     const system = `You are an elite full-stack web developer. You build production-quality, fully functional applications as single self-contained HTML files. You analyze the user's product description and autonomously decide the best architecture, layout, navigation style, data model, and UI patterns. You never build generic templates — every app is unique to the user's domain. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
@@ -379,9 +388,11 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
     const maxTokens = 12000;
 
     const maxAttempts = 2;
+    let cumulativeTokens = 0;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const text = await chat(system, user, maxTokens);
-      let html = extractHtml(text);
+      const chatResult = await chat(system, user, maxTokens);
+      cumulativeTokens += chatResult.tokensUsed;
+      let html = extractHtml(chatResult.content);
 
       if (!html.includes("</html>") && html.includes("<html")) {
         html += "\n</body>\n</html>";
@@ -406,7 +417,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
         if (lineCount < 200) {
           console.warn(`[Groq] Generated HTML is only ${lineCount} lines (attempt ${attempt}/${maxAttempts}) — accepting anyway`);
         }
-        return injectSafetyScript(html);
+        return { html: injectSafetyScript(html), tokensUsed: cumulativeTokens };
       }
 
       console.warn(`[Groq] Generated HTML too short (${lineCount} lines) or missing critical sections — retrying (attempt ${attempt}/${maxAttempts})`);
@@ -424,7 +435,7 @@ export async function geminiEditApp(
   editInstruction: string,
   brandName: string,
   genome: DesignGenome,
-): Promise<string | null> {
+): Promise<{ html: string; tokensUsed: number } | null> {
   if (!client) return null;
   try {
     const system = `You are an expert HTML/CSS/JS editor. You receive an existing single-file HTML application and an edit instruction. You must apply ONLY the requested change — do NOT rewrite, restructure, or regenerate the app. Preserve all existing functionality, layout, styling, data, and JavaScript logic. Output the COMPLETE modified HTML document starting with <!DOCTYPE html>. No explanation, no markdown fences.`;
@@ -456,8 +467,8 @@ RULES:
 Return the full modified HTML starting with <!DOCTYPE html>.`;
 
     const maxTokens = 12000;
-    const text = await chat(system, user, maxTokens);
-    let html = extractHtml(text);
+    const chatResult = await chat(system, user, maxTokens);
+    let html = extractHtml(chatResult.content);
 
     if (!html.includes("</html>") && html.includes("<html")) {
       html += "\n</body>\n</html>";
@@ -472,7 +483,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
       return null;
     }
 
-    return injectSafetyScript(html);
+    return { html: injectSafetyScript(html), tokensUsed: chatResult.tokensUsed };
   } catch (err) {
     console.error("[Groq] Edit app failed:", err);
     return null;
@@ -505,9 +516,9 @@ Requirements:
 7. Listen on port 3001
 8. Realistic, named demo data — no "test" or "example" entries`;
 
-    const text = await chat(system, user, 4096);
-    const jsBlock = text.match(/```(?:js|javascript)?\s*([\s\S]*?)\s*```/);
-    return jsBlock ? jsBlock[1].trim() : text.trim();
+    const result = await chat(system, user, 4096);
+    const jsBlock = result.content.match(/```(?:js|javascript)?\s*([\s\S]*?)\s*```/);
+    return jsBlock ? jsBlock[1].trim() : result.content.trim();
   } catch (err) {
     console.error("[Groq] Stage 3 (generate backend) failed:", err);
     return null;
@@ -539,8 +550,8 @@ Return JSON:
   "description": "one sentence explaining what will change"
 }`;
 
-    const text = await chat(system, user, 256);
-    const json = extractJson(text);
+    const result = await chat(system, user, 256);
+    const json = extractJson(result.content);
     return JSON.parse(json);
   } catch (err) {
     console.error("[Groq] Edit interpret failed:", err);

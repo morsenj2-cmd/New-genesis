@@ -116,6 +116,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   const MORSE_BLACK_PRICE = 12900;
   const MORSE_BLACK_CREDITS = 4000;
   const FREE_TIER_PER_PROJECT_CREDITS = 500;
+  const TOKENS_PER_CREDIT = 1000;
 
   const razorpayInstance = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
     ? new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET })
@@ -141,7 +142,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const order = await razorpayInstance.orders.create({
         amount: MORSE_BLACK_PRICE,
         currency: "INR",
-        receipt: `morse_black_${userId}_${Date.now()}`,
+        receipt: `mb_${(userId || "u").slice(0, 10)}_${Date.now().toString(36)}`,
         notes: { userId: userId!, plan: "morse_black" },
       });
       res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID });
@@ -455,7 +456,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             const interpret = await geminiInterpret(prompt, name);
             if (!interpret) throw new Error("Interpret returned null");
 
-            const appHtml = await geminiGenerateApp(
+            const appResult = await geminiGenerateApp(
               prompt,
               name,
               brandNameForAI,
@@ -464,7 +465,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               resolvedFontUrl,
               logoUrl ?? null,
             );
-            if (!appHtml) throw new Error("App generation returned null");
+            if (!appResult) throw new Error("App generation returned null");
 
             const serverJs = await geminiGenerateBackend(prompt, name, interpret);
 
@@ -473,7 +474,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const settings = parseSettings(currentProject.settingsJson);
             (settings as any).geminiStatus = "ready";
-            (settings as any).geminiAppHtml = appHtml;
+            (settings as any).geminiAppHtml = appResult.html;
             (settings as any).geminiInterpret = interpret;
             if (serverJs) (settings as any).geminiServerJs = serverJs;
 
@@ -539,7 +540,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const genSettings = parseSettings(project.settingsJson);
           const integrations: Integration[] = (genSettings as any).integrations ?? [];
 
-          const appHtml = await geminiGenerateApp(
+          const appResult = await geminiGenerateApp(
             project.prompt,
             project.name,
             brandName,
@@ -550,7 +551,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             null,
             integrations,
           );
-          if (!appHtml) throw new Error("App generation returned null");
+          if (!appResult) throw new Error("App generation returned null");
 
           const serverJs = await geminiGenerateBackend(project.prompt, project.name, interpret);
 
@@ -558,7 +559,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           if (!latestProject) return;
           const latestSettings = parseSettings(latestProject.settingsJson);
           (latestSettings as any).geminiStatus = "ready";
-          (latestSettings as any).geminiAppHtml = appHtml;
+          (latestSettings as any).geminiAppHtml = appResult.html;
           (latestSettings as any).geminiInterpret = interpret;
           if (serverJs) (latestSettings as any).geminiServerJs = serverJs;
 
@@ -802,10 +803,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         (async () => {
           try {
             let appHtml: string | null = null;
+            let totalTokensUsed = 0;
 
             if (existingHtml && existingHtml.length > 200) {
               console.log(`[Groq] NL targeted edit for project ${project.id}: "${commands}"`);
-              appHtml = await geminiEditApp(existingHtml, commands, brandNameForNL, genomeCopy);
+              const editResult = await geminiEditApp(existingHtml, commands, brandNameForNL, genomeCopy);
+              if (editResult) {
+                appHtml = editResult.html;
+                totalTokensUsed += editResult.tokensUsed;
+              }
             }
 
             let usedInterpret = existingInterpret;
@@ -817,7 +823,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               const nlSettings = parseSettings(project.settingsJson);
               const nlIntegrations: Integration[] = (nlSettings as any).integrations ?? [];
 
-              appHtml = await geminiGenerateApp(
+              const genResult = await geminiGenerateApp(
                 project.prompt,
                 project.name,
                 brandNameForNL,
@@ -828,8 +834,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
                 commands,
                 nlIntegrations,
               );
+              if (genResult) {
+                appHtml = genResult.html;
+                totalTokensUsed += genResult.tokensUsed;
+              }
             }
             if (!appHtml) throw new Error("App generation returned null");
+
+            const tokenCredits = Math.max(0, Math.ceil(totalTokensUsed / TOKENS_PER_CREDIT) - 1);
+            if (tokenCredits > 0) {
+              await storage.incrementNlCredits(project.id, userId!, perProjectLimit, tokenCredits);
+              console.log(`[Groq] Deducted ${tokenCredits} additional token credits (${totalTokensUsed} tokens) for project ${project.id}`);
+            }
 
             const latestProject = await storage.getProject(project.id);
             if (!latestProject) return;
@@ -1032,7 +1048,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
             if (!interpret) throw new Error("Interpret returned null");
 
-            const appHtml = await geminiGenerateApp(
+            const appResult = await geminiGenerateApp(
               project.prompt,
               project.name,
               regenBrand,
@@ -1043,13 +1059,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               null,
               regenIntegrations,
             );
-            if (!appHtml) throw new Error("App generation returned null");
+            if (!appResult) throw new Error("App generation returned null");
 
             const latestProject = await storage.getProject(project.id);
             if (!latestProject) return;
             const latestSettings = parseSettings(latestProject.settingsJson);
             (latestSettings as any).geminiStatus = "ready";
-            (latestSettings as any).geminiAppHtml = appHtml;
+            (latestSettings as any).geminiAppHtml = appResult.html;
             (latestSettings as any).geminiInterpret = interpret;
 
             await storage.updateProject(project.id, userId!, {
@@ -1171,7 +1187,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
             if (!interpret) throw new Error("Interpret returned null");
 
-            const appHtml = await geminiGenerateApp(
+            const appResult = await geminiGenerateApp(
               project.prompt,
               project.name,
               layoutRegenBrand,
@@ -1182,13 +1198,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               null,
               layoutRegenIntegrations,
             );
-            if (!appHtml) throw new Error("App generation returned null");
+            if (!appResult) throw new Error("App generation returned null");
 
             const latestProject = await storage.getProject(project.id);
             if (!latestProject) return;
             const latestSettings = parseSettings(latestProject.settingsJson);
             (latestSettings as any).geminiStatus = "ready";
-            (latestSettings as any).geminiAppHtml = appHtml;
+            (latestSettings as any).geminiAppHtml = appResult.html;
             (latestSettings as any).geminiInterpret = interpret;
 
             await storage.updateProject(project.id, userId!, {
