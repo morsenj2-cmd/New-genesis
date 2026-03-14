@@ -196,12 +196,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  app.get("/api/user/credits", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const credits = await storage.getUserCredits(userId!);
+      res.json({ credits });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get credits" });
+    }
+  });
+
   app.post("/api/project/create", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
       const parsed = createProjectSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
+      }
+
+      const credits = await storage.getUserCredits(userId!);
+      if (credits < 1) {
+        return res.status(403).json({ message: "You have run out of credits. Each project creation costs 1 credit." });
       }
 
       let { name, prompt, brandName: explicitBrandName, font, fontUrl, themeColor, logoUrl } = parsed.data;
@@ -348,9 +363,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const layoutJson = JSON.stringify(layout);
 
-      // Mark gemini as pending if API key is available
+      let aiSucceeded = false;
       if (isGeminiAvailable()) {
-        (initialSettings as any).geminiStatus = "pending";
+        const resolvedFontUrl = fontUrl ?? null;
+        const brandNameForAI = resolvedBrandName ?? name;
+        const genomeCopy = JSON.parse(genomeJson);
+
+        try {
+          console.log(`[Groq] Starting pipeline (sync) for new project`);
+          const interpret = await geminiInterpret(prompt, name);
+          if (!interpret) throw new Error("Interpret returned null");
+
+          const appHtml = await geminiGenerateApp(
+            prompt,
+            name,
+            brandNameForAI,
+            genomeCopy,
+            interpret,
+            resolvedFontUrl,
+            logoUrl ?? null,
+          );
+          if (!appHtml) throw new Error("App generation returned null");
+
+          const serverJs = await geminiGenerateBackend(prompt, name, interpret);
+
+          (initialSettings as any).geminiStatus = "ready";
+          (initialSettings as any).geminiAppHtml = appHtml;
+          (initialSettings as any).geminiInterpret = interpret;
+          if (serverJs) (initialSettings as any).geminiServerJs = serverJs;
+          aiSucceeded = true;
+
+          console.log(`[Groq] Pipeline complete (sync) — saving project with AI content`);
+        } catch (err) {
+          console.error(`[Gemini] Pipeline failed (sync):`, err);
+          (initialSettings as any).geminiStatus = "failed";
+        }
       }
 
       const settingsJson = JSON.stringify(initialSettings);
@@ -370,58 +417,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: intent.productType ?? undefined,
       });
 
-      // Fire off AI pipeline async — doesn't block the response
-      if (isGeminiAvailable()) {
-        const resolvedFontUrl = fontUrl ?? null;
-        const brandNameForAI = resolvedBrandName ?? name;
-        const genomeCopy = JSON.parse(genomeJson);
-
-        (async () => {
-          try {
-            console.log(`[Groq] Starting pipeline for project ${project.id}`);
-            const interpret = await geminiInterpret(prompt, name);
-            if (!interpret) throw new Error("Interpret returned null");
-
-            const appHtml = await geminiGenerateApp(
-              prompt,
-              name,
-              brandNameForAI,
-              genomeCopy,
-              interpret,
-              resolvedFontUrl,
-              logoUrl ?? null,
-            );
-            if (!appHtml) throw new Error("App generation returned null");
-
-            const serverJs = await geminiGenerateBackend(prompt, name, interpret);
-
-            const currentProject = await storage.getProject(project.id);
-            if (!currentProject) return;
-
-            const settings = parseSettings(currentProject.settingsJson);
-            (settings as any).geminiStatus = "ready";
-            (settings as any).geminiAppHtml = appHtml;
-            (settings as any).geminiInterpret = interpret;
-            if (serverJs) (settings as any).geminiServerJs = serverJs;
-
-            await storage.updateProject(project.id, userId!, {
-              settingsJson: JSON.stringify(settings),
-            });
-            console.log(`[Groq] Pipeline complete for project ${project.id}`);
-          } catch (err) {
-            console.error(`[Gemini] Pipeline failed for project ${project.id}:`, err);
-            try {
-              const currentProject = await storage.getProject(project.id);
-              if (currentProject) {
-                const settings = parseSettings(currentProject.settingsJson);
-                (settings as any).geminiStatus = "failed";
-                await storage.updateProject(project.id, userId!, {
-                  settingsJson: JSON.stringify(settings),
-                });
-              }
-            } catch {}
-          }
-        })();
+      if (aiSucceeded) {
+        await storage.deductCredits(userId!, 1);
       }
 
       res.status(201).json(project);
@@ -439,6 +436,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
+      const genCredits = await storage.getUserCredits(userId!);
+      if (genCredits < 1) {
+        return res.status(403).json({ message: "You have run out of credits." });
+      }
+
       if (!isGeminiAvailable()) {
         return res.status(503).json({ message: "AI API not configured" });
       }
@@ -450,14 +452,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         try { return (parseSettings(project.settingsJson) as any).brandName ?? project.name; } catch { return project.name; }
       })();
 
-      // Mark as pending immediately
       const settings = parseSettings(project.settingsJson);
       (settings as any).geminiStatus = "pending";
       await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
 
       res.json({ status: "pending", message: "AI generation started" });
 
-      // Run async after responding
       (async () => {
         try {
           const interpret = await geminiInterpret(project.prompt, project.name);
@@ -492,6 +492,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           await storage.updateProject(project.id, userId!, {
             settingsJson: JSON.stringify(latestSettings),
           });
+          await storage.deductCredits(userId!, 1);
           console.log(`[Groq] Regeneration complete for project ${project.id}`);
         } catch (err) {
           console.error(`[Groq] Regeneration failed for project ${project.id}:`, err);
@@ -541,6 +542,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const nlCredits = await storage.getUserCredits(userId!);
+      if (nlCredits < 1) {
+        return res.status(403).json({ message: "You have run out of credits." });
+      }
 
       const { commands } = req.body;
       if (!commands || typeof commands !== "string") {
@@ -749,6 +755,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, userId!, {
               settingsJson: JSON.stringify(latestSettings),
             });
+            await storage.deductCredits(userId!, 1);
             console.log(`[Groq] NL re-generation complete for project ${project.id}`);
           } catch (err) {
             console.error(`[Groq] NL re-generation failed for project ${project.id}:`, err);
@@ -797,6 +804,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const styleCredits = await storage.getUserCredits(userId!);
+      if (styleCredits < 1) {
+        return res.status(403).json({ message: "You have run out of credits." });
+      }
 
       const previousGenomes: string[] = project.previousGenomesJson
         ? JSON.parse(project.previousGenomesJson)
@@ -963,6 +975,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, userId!, {
               settingsJson: JSON.stringify(latestSettings),
             });
+            await storage.deductCredits(userId!, 1);
             console.log(`[Groq] Style re-generation complete for project ${project.id}`);
           } catch (err) {
             console.error(`[Groq] Style re-generation failed for project ${project.id}:`, err);
@@ -990,6 +1003,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
       if (project.layoutLocked) return res.status(400).json({ message: "Layout is locked" });
+
+      const layoutCredits = await storage.getUserCredits(userId!);
+      if (layoutCredits < 1) {
+        return res.status(403).json({ message: "You have run out of credits." });
+      }
 
       const regenSeed = createHash("sha256")
         .update(`${project.seed}-layout-regen-${Date.now()}-${randomUUID()}`)
@@ -1102,6 +1120,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, userId!, {
               settingsJson: JSON.stringify(latestSettings),
             });
+            await storage.deductCredits(userId!, 1);
             console.log(`[Groq] Layout re-generation complete for project ${project.id}`);
           } catch (err) {
             console.error(`[Groq] Layout re-generation failed for project ${project.id}:`, err);

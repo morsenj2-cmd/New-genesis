@@ -842,6 +842,7 @@ function LeftPanel({
   onToggleLayoutLock,
   onNLApplied,
   integrations,
+  credits,
 }: {
   project: Project;
   activeGenome: DesignGenome | null;
@@ -856,17 +857,23 @@ function LeftPanel({
   onToggleLayoutLock: () => void;
   onNLApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch | Record<string, string>) => void;
   integrations: IntegrationItem[];
+  credits: number;
 }) {
   const [showTokens, setShowTokens] = useState(false);
   const isLocked = !!project.layoutLocked;
+  const outOfCredits = credits < 1;
 
   return (
     <div className="w-72 border-r border-border flex flex-col overflow-hidden bg-background">
       <div className="p-4 border-b border-border space-y-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-muted-foreground" data-testid="text-credits">Credits: {credits}</span>
+          {outOfCredits && <span className="text-xs text-destructive font-medium">No credits left</span>}
+        </div>
         <Button
           className="w-full gap-2 font-medium"
           onClick={onRegenerateStyle}
-          disabled={isRegenerating || isRegeneratingLayout}
+          disabled={isRegenerating || isRegeneratingLayout || outOfCredits}
           data-testid="button-regenerate-style"
           variant="default"
         >
@@ -877,7 +884,7 @@ function LeftPanel({
           <Button
             className="flex-1 gap-1.5 font-medium text-xs"
             onClick={onRegenerateLayout}
-            disabled={isLocked || isRegenerating || isRegeneratingLayout}
+            disabled={isLocked || isRegenerating || isRegeneratingLayout || outOfCredits}
             data-testid="button-regenerate-layout"
             variant="outline"
             size="sm"
@@ -1099,6 +1106,11 @@ export default function ProjectPage() {
     enabled: !!params.id,
   });
 
+  const { data: creditsData } = useQuery<{ credits: number }>({
+    queryKey: ["/api/user/credits"],
+  });
+  const userCredits = creditsData?.credits ?? 0;
+
   useEffect(() => {
     if (!project?.fontUrl) return;
     const style = document.createElement("style");
@@ -1234,11 +1246,17 @@ export default function ProjectPage() {
   }, [project?.settingsJson]);
 
   // Parse AI status, generated HTML, and integrations from settingsJson
+  const prevGeminiStatusRef = useRef<string>("none");
   useEffect(() => {
     if (project?.settingsJson) {
       try {
         const s = JSON.parse(project.settingsJson);
-        setGeminiStatus(s.geminiStatus ?? "none");
+        const newStatus = s.geminiStatus ?? "none";
+        if (prevGeminiStatusRef.current === "pending" && newStatus === "ready") {
+          queryClient.invalidateQueries({ queryKey: ["/api/user/credits"] });
+        }
+        prevGeminiStatusRef.current = newStatus;
+        setGeminiStatus(newStatus);
         if (s.geminiAppHtml) {
           setGeminiAppHtml(s.geminiAppHtml);
           setLocalHtml(s.geminiAppHtml);
@@ -1644,6 +1662,7 @@ export default function ProjectPage() {
                 onToggleLayoutLock={() => layoutLockMutation.mutate(!project.layoutLocked)}
                 onNLApplied={handleNLApplied}
                 integrations={projectIntegrations}
+                credits={userCredits}
               />
 
               <main className="flex-1 overflow-hidden bg-muted/10 flex flex-col" data-testid="section-website-preview">
