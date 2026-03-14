@@ -803,7 +803,7 @@ export function CanvasEditor({
             contentOverrides={contentOverrides}
             onStateChange={setElementState}
           />
-        ) : geminiAppHtml && !isCanvasMode ? (
+        ) : geminiAppHtml ? (
           <iframe
             srcDoc={geminiAppHtml}
             sandbox="allow-scripts allow-forms allow-popups"
