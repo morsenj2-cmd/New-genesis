@@ -1113,13 +1113,56 @@ or use Morse to regenerate a new variation.
 `;
 }
 
+function genPackageJsonWithBackend(project: Project): string {
+  const pkg = safeName(project.name);
+  return JSON.stringify({
+    name: pkg,
+    version: "1.0.0",
+    private: true,
+    scripts: {
+      dev: "vite",
+      build: "vite build",
+      preview: "vite preview",
+      server: "node server.js",
+    },
+    dependencies: {
+      react: "^18.3.1",
+      "react-dom": "^18.3.1",
+      express: "^4.18.2",
+      cors: "^2.8.5",
+    },
+    devDependencies: {
+      "@vitejs/plugin-react": "^4.3.4",
+      autoprefixer: "^10.4.20",
+      postcss: "^8.4.47",
+      tailwindcss: "^3.4.14",
+      vite: "^5.4.10",
+    },
+  }, null, 2);
+}
+
 export function generateExportFiles(
   project: Project,
   genome: DesignGenome,
   layout: LayoutGraph
 ): Array<{ path: string; content: string }> {
-  return [
-    { path: "package.json", content: genPackageJson(project) },
+  // Check for Gemini-generated content in settingsJson
+  let geminiAppJsx: string | null = null;
+  let geminiServerJs: string | null = null;
+  try {
+    if (project.settingsJson) {
+      const settings = JSON.parse(project.settingsJson);
+      if (settings.geminiStatus === "ready" && settings.geminiAppJsx) {
+        geminiAppJsx = settings.geminiAppJsx;
+      }
+      if (settings.geminiServerJs) {
+        geminiServerJs = settings.geminiServerJs;
+      }
+    }
+  } catch {}
+
+  const files: Array<{ path: string; content: string }> = [
+    { path: "package.json", content: geminiServerJs ? genPackageJsonWithBackend(project) : genPackageJson(project) },
     { path: "vite.config.js", content: genViteConfig() },
     { path: "tailwind.config.js", content: genTailwindConfig(genome) },
     { path: "postcss.config.cjs", content: genPostcssConfig() },
@@ -1136,9 +1179,17 @@ export function generateExportFiles(
     { path: "components/GenomeTestimonial.jsx", content: genTestimonialJsx() },
     { path: "components/GenomeCTA.jsx", content: genCTAJsx() },
     { path: "components/GenomeFooter.jsx", content: genFooterJsx() },
-    { path: "pages/index.jsx", content: genIndexPageJsx(project, genome, layout) },
+    // Use Gemini-generated app if available, otherwise fall back to local engine
+    { path: "pages/index.jsx", content: geminiAppJsx ?? genIndexPageJsx(project, genome, layout) },
     { path: "README.md", content: genReadme(project) },
   ];
+
+  // Add Gemini-generated backend if present
+  if (geminiServerJs) {
+    files.push({ path: "server.js", content: geminiServerJs });
+  }
+
+  return files;
 }
 
 export { safeName };

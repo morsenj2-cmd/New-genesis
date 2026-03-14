@@ -45,6 +45,12 @@ import { classifyInterface, categoryToPageType, categoryIsDashboard } from "../a
 import { extractFullWorkflows } from "../ai/context/workflowExtractor";
 import { validateInterfaceLayout, fixLayoutForCategory } from "../ai/context/interfaceValidator";
 import { improveLayout } from "../ai/layout/layoutImprover";
+import {
+  geminiInterpret,
+  geminiGenerateApp,
+  geminiGenerateBackend,
+  isGeminiAvailable,
+} from "./gemini";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -307,6 +313,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const layoutJson = JSON.stringify(layout);
+
+      // Mark gemini as pending if API key is available
+      if (isGeminiAvailable()) {
+        (initialSettings as any).geminiStatus = "pending";
+      }
+
       const settingsJson = JSON.stringify(initialSettings);
 
       const project = await storage.createProject({
@@ -323,10 +335,138 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         settingsJson,
         productType: intent.productType ?? undefined,
       });
+
+      // Fire off Gemini pipeline async — doesn't block the response
+      if (isGeminiAvailable()) {
+        const resolvedFontUrl = fontUrl ?? null;
+        const brandNameForGemini = resolvedBrandName ?? name;
+        const genomeCopy = JSON.parse(genomeJson);
+
+        (async () => {
+          try {
+            console.log(`[Gemini] Starting pipeline for project ${project.id}`);
+            const interpret = await geminiInterpret(prompt, name);
+            if (!interpret) throw new Error("Interpret returned null");
+
+            const appJsx = await geminiGenerateApp(
+              prompt,
+              name,
+              brandNameForGemini,
+              genomeCopy,
+              interpret,
+              resolvedFontUrl,
+            );
+            if (!appJsx) throw new Error("App generation returned null");
+
+            const serverJs = await geminiGenerateBackend(prompt, name, interpret);
+
+            const currentProject = await storage.getProject(project.id);
+            if (!currentProject) return;
+
+            const settings = parseSettings(currentProject.settingsJson);
+            (settings as any).geminiStatus = "ready";
+            (settings as any).geminiAppJsx = appJsx;
+            (settings as any).geminiInterpret = interpret;
+            if (serverJs) (settings as any).geminiServerJs = serverJs;
+
+            await storage.updateProject(project.id, userId!, {
+              settingsJson: JSON.stringify(settings),
+            });
+            console.log(`[Gemini] Pipeline complete for project ${project.id}`);
+          } catch (err) {
+            console.error(`[Gemini] Pipeline failed for project ${project.id}:`, err);
+            try {
+              const currentProject = await storage.getProject(project.id);
+              if (currentProject) {
+                const settings = parseSettings(currentProject.settingsJson);
+                (settings as any).geminiStatus = "failed";
+                await storage.updateProject(project.id, userId!, {
+                  settingsJson: JSON.stringify(settings),
+                });
+              }
+            } catch {}
+          }
+        })();
+      }
+
       res.status(201).json(project);
     } catch (err) {
       console.error("Error creating project:", err);
       res.status(500).json({ message: "Failed to create project" });
+    }
+  });
+
+  // On-demand Gemini app generation (or regeneration) for an existing project
+  app.post("/api/project/:id/generate-app", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      if (!isGeminiAvailable()) {
+        return res.status(503).json({ message: "Gemini API not configured" });
+      }
+
+      const genome = project.genomeJson ? JSON.parse(project.genomeJson) : null;
+      if (!genome) return res.status(400).json({ message: "Project has no genome" });
+
+      const brandName = (() => {
+        try { return (parseSettings(project.settingsJson) as any).brandName ?? project.name; } catch { return project.name; }
+      })();
+
+      // Mark as pending immediately
+      const settings = parseSettings(project.settingsJson);
+      (settings as any).geminiStatus = "pending";
+      await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
+
+      res.json({ status: "pending", message: "Gemini generation started" });
+
+      // Run async after responding
+      (async () => {
+        try {
+          const interpret = await geminiInterpret(project.prompt, project.name);
+          if (!interpret) throw new Error("Interpret returned null");
+
+          const appJsx = await geminiGenerateApp(
+            project.prompt,
+            project.name,
+            brandName,
+            genome,
+            interpret,
+            project.fontUrl,
+          );
+          if (!appJsx) throw new Error("App generation returned null");
+
+          const serverJs = await geminiGenerateBackend(project.prompt, project.name, interpret);
+
+          const latestProject = await storage.getProject(project.id);
+          if (!latestProject) return;
+          const latestSettings = parseSettings(latestProject.settingsJson);
+          (latestSettings as any).geminiStatus = "ready";
+          (latestSettings as any).geminiAppJsx = appJsx;
+          (latestSettings as any).geminiInterpret = interpret;
+          if (serverJs) (latestSettings as any).geminiServerJs = serverJs;
+
+          await storage.updateProject(project.id, userId!, {
+            settingsJson: JSON.stringify(latestSettings),
+          });
+          console.log(`[Gemini] Regeneration complete for project ${project.id}`);
+        } catch (err) {
+          console.error(`[Gemini] Regeneration failed for project ${project.id}:`, err);
+          try {
+            const latestProject = await storage.getProject(project.id);
+            if (latestProject) {
+              const latestSettings = parseSettings(latestProject.settingsJson);
+              (latestSettings as any).geminiStatus = "failed";
+              await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+            }
+          } catch {}
+        }
+      })();
+    } catch (err) {
+      console.error("Error in generate-app:", err);
+      res.status(500).json({ message: "Failed to start generation" });
     }
   });
 

@@ -47,6 +47,8 @@ import {
   LayoutTemplate as LayoutIcon,
   Wand2,
   PenLine,
+  Loader2,
+  Bot,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -997,6 +999,7 @@ export default function ProjectPage() {
   const [isRegeneratingLayout, setIsRegeneratingLayout] = useState(false);
   const [canvasMode, setCanvasMode] = useState(false);
   const [contentOverrides, setContentOverrides] = useState<ContentOverrides>({});
+  const [geminiStatus, setGeminiStatus] = useState<"none" | "pending" | "ready" | "failed">("none");
 
   useEffect(() => {
     if (project?.seed && baseGenome && baseLayout) {
@@ -1037,6 +1040,55 @@ export default function ProjectPage() {
       } catch {}
     }
   }, [project?.settingsJson]);
+
+  // Parse geminiStatus from settingsJson
+  useEffect(() => {
+    if (project?.settingsJson) {
+      try {
+        const s = JSON.parse(project.settingsJson);
+        setGeminiStatus(s.geminiStatus ?? "none");
+      } catch {}
+    }
+  }, [project?.settingsJson]);
+
+  // Poll while Gemini is pending
+  useEffect(() => {
+    if (geminiStatus !== "pending" || !params.id) return;
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [geminiStatus, params.id]);
+
+  const generateAppMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      const res = await fetch(`/api/project/${params.id}/generate-app`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Generation failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setGeminiStatus("pending");
+      toast({ title: "AI generation started", description: "Your app is being generated. This takes about 30 seconds." });
+    },
+    onError: (err) => {
+      toast({
+        title: "Generation failed",
+        description: err instanceof Error ? err.message : "Something went wrong",
+        variant: "destructive",
+      });
+    },
+  });
 
   const effectiveProductType = useMemo<string | null>(() => {
     if (!project) return null;
@@ -1250,6 +1302,35 @@ export default function ProjectPage() {
                     <PenLine className="h-3.5 w-3.5" />
                     {canvasMode ? "Exit Canvas" : "Canvas"}
                   </Button>
+                  {geminiStatus === "pending" && (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="gemini-status-pending">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Generating AI app…
+                    </span>
+                  )}
+                  {geminiStatus === "ready" && (
+                    <Badge variant="outline" className="gap-1 text-xs border-emerald-500/40 text-emerald-400" data-testid="gemini-status-ready">
+                      <Bot className="h-3 w-3" />
+                      AI Ready
+                    </Badge>
+                  )}
+                  {(geminiStatus === "none" || geminiStatus === "failed") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs h-8"
+                      onClick={() => generateAppMutation.mutate()}
+                      disabled={generateAppMutation.isPending}
+                      data-testid="button-generate-ai-app"
+                    >
+                      {generateAppMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Bot className="h-3.5 w-3.5" />
+                      )}
+                      {geminiStatus === "failed" ? "Retry AI" : "Generate AI App"}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -1258,7 +1339,7 @@ export default function ProjectPage() {
                     data-testid="button-export-project"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Export
+                    {geminiStatus === "ready" ? "Export AI App" : "Export"}
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
