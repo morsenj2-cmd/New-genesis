@@ -213,18 +213,17 @@ export async function geminiGenerateApp(
     const system = `You are an expert web developer. Generate complete, self-contained HTML applications. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary before or after the HTML.`;
 
     const layoutSection = isDashboard
-      ? `LAYOUT: This is a DASHBOARD application — NOT a marketing landing page. Build a full dashboard UI:
-- Fixed top navbar with logo/brand on the left and user/nav items on the right
-- Fixed left sidebar with navigation links to each section (use icons or emoji as icons)
-- Main content area on the right showing the active section
-- Default to the first/overview section being visible on load
-- NO hero sections, NO marketing copy, NO CTAs for "Get Started"
-- Every section is a live data view: tables, charts (use CSS bars/charts), metric cards, filters, forms`
-      : `LAYOUT: This is a landing/marketing page. Include:
-- Fixed top navbar
-- Hero section with headline + CTA
-- Feature sections
-- Footer`;
+      ? `LAYOUT: DASHBOARD UI with fixed left sidebar + main content area. Each sidebar item shows a different panel. NO hero/marketing sections.`
+      : `LAYOUT: MULTI-PAGE SPA. Each nav item is a separate "page" (full viewport, not a scrollable section). Structure:
+  <nav class="navbar">...</nav>
+  <div class="pages-container">
+    <section id="page-home" class="page active">Home content</section>
+    <section id="page-[name]" class="page">Page content</section>
+    ... one <section class="page"> per nav item ...
+  </div>
+CSS: .page { display:none; min-height:calc(100vh - 70px); padding: 3rem 2rem; } .page.active { display:block; }
+JS router (REQUIRED): function navigate(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
+Each nav link calls navigate('page-name') — do NOT use href="#..."  for page switching`;
 
     const hasImages = prompt.toLowerCase().includes("picture") || prompt.toLowerCase().includes("photo") || prompt.toLowerCase().includes("image") || prompt.toLowerCase().includes("gallery");
     const imageKeywords = interpret.productName.toLowerCase().replace(/\s+/g, "+");
@@ -267,41 +266,62 @@ ${logoInstruction}
 ${imageInstruction}
 
 REQUIREMENTS:
-1. Complete single HTML file — all CSS in <style>, all JS in <script> tags
-2. Load fonts from Google Fonts: <link href="${googleFontsUrl}" rel="stylesheet">
-3. Define and use these CSS custom properties in :root { ${colorVars} }
-4. Dark background (use --color-bg for body background)
-5. LOGO IN NAV (CRITICAL): ${logoUrl
-      ? `You MUST place this logo image tag in the navbar: <img src="${logoUrl}" alt="${brandName}" style="height:36px;width:auto;object-fit:contain;"> — do not omit it, do not use text instead`
-      : `Show the brand name "${brandName}" as styled bold text in the navbar`}
 
-6. NAVIGATION — CRITICAL RULES:
-   a. Nav link labels MUST be specific to this product's content (e.g. "Gallery", "Stories", "Conservation", "Take Action" for a rainforest site — NOT generic "Features", "Solutions", "Resources")
-   b. ALL nav links MUST use href="#sectionId" AND be handled by this exact JS (add to your script):
-      document.querySelectorAll('a[href^="#"]').forEach(a => {
-        a.addEventListener('click', function(e) {
-          e.preventDefault();
-          const target = document.querySelector(this.getAttribute('href'));
-          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-      });
-   c. NEVER use window.location.href to navigate to external placeholder URLs like "example.com"
-   d. Add body { padding-top: 70px; } to prevent content hiding behind fixed navbar
+1. STRUCTURE: Complete single HTML file — all CSS in <style>, all JS in <script>. Load fonts: <link href="${googleFontsUrl}" rel="stylesheet">
 
-7. INTERNAL PAGES — ANY call-to-action that says "Donate", "Take Action", "Get Started", "Sign Up" etc. MUST:
-   a. Be a hidden <section> in the HTML (e.g. <section id="donate-page" style="display:none">)
-   b. Be shown/hidden by JavaScript when the button is clicked: document.getElementById('donate-page').style.display = 'block'; document.getElementById('donate-page').scrollIntoView({behavior:'smooth'})
-   c. Contain a COMPLETE, FUNCTIONAL form (name, email, amount fields with validation and a submit handler that shows a success message)
-   d. NEVER redirect to an external URL
+2. DESIGN TOKENS: Add to :root { ${colorVars} }
 
-8. ALL interactive features must work: accordions open/close, tabs switch content, modals open/close, forms validate and show success
-9. Realistic pre-loaded demo data: use specific names, numbers, dates — NO Lorem ipsum, no placeholder text
-10. NO layout overlap: sections must not overlap each other; fixed navbar needs body padding-top
-11. Professional, polished visual design — not generic
-12. Mobile responsive using CSS flexbox/grid
-13. Use only vanilla HTML, CSS, and JavaScript — no external libraries or frameworks
+3. LOGO IN NAV: ${logoUrl
+      ? `Place EXACTLY this img tag on the left of the navbar: <img src="${logoUrl}" alt="${brandName}" style="height:36px;width:auto;object-fit:contain;display:block;"> — never replace with text`
+      : `Show "${brandName}" as bold text on the left of the navbar`}
 
-Write at minimum 600 lines of code. Start with <!DOCTYPE html> immediately.`;
+4. MULTI-PAGE NAVIGATION (CRITICAL):
+   - Nav labels must be specific to this product — e.g. for a defence company: "Company Story", "Products", "Philanthropy", "News", "About" — NEVER generic "Features", "Solutions", "Resources"
+   - Use the page router pattern from the LAYOUT section above
+   - Every nav button calls navigate('page-id') — no href="#..." for page switching
+   - Active nav link highlighted with border-bottom or background
+
+5. TYPOGRAPHY SCALE (STRICT — do not exceed these sizes):
+   - Page/section title h1: max 2.5rem, font-weight: 700, line-height: 1.2
+   - Sub-headings h2: max 1.75rem, font-weight: 600, line-height: 1.3
+   - Card titles h3: max 1.25rem, font-weight: 600
+   - Body text p: 1rem, line-height: 1.7
+   - Small/meta text: 0.875rem
+   - All text must have adequate breathing room (margin-bottom: 1rem on paragraphs)
+   - NEVER use font sizes above 2.5rem for headings (avoid oversized text)
+
+6. CONTRAST (CRITICAL — poor contrast is a failure):
+   - Background: var(--color-bg) which is dark. ALL text on this background: color: var(--color-text) = #f1f5f9 (light)
+   - Cards/surfaces: var(--color-surface) which is also dark. ALL text on cards: color: var(--color-text) = #f1f5f9, NEVER a dark color
+   - Muted/secondary text: var(--color-text-muted) = #94a3b8 (light gray) — acceptable on dark backgrounds
+   - Buttons: use var(--color-primary) background with white or #000 text, whichever has better contrast
+   - NEVER put dark text on dark backgrounds. NEVER use the same or similar color for text and its background.
+   - Test rule: if background is dark (starts with hsl with low L%), text MUST be light (#f1f5f9 or similar)
+
+7. LAYOUT SPACING:
+   - body { padding-top: 70px; margin: 0; } — for fixed navbar
+   - Navbar height: 64px, fixed, z-index: 100
+   - Page padding: 3rem 4rem on desktop, 2rem 1rem on mobile
+   - Card gap: 1.5rem between cards, 1rem internal padding minimum
+   - Max content width: 1100px, margin: 0 auto — prevents wide text blocks
+
+8. CALL-TO-ACTION PAGES (any "Donate", "Take Action", "Sign Up", "Contact" button):
+   - Must navigate to a dedicated page (use navigate() function) — NOT a redirect to example.com
+   - That page must contain a COMPLETE working form with fields, validation, and a success message on submit
+
+9. IMAGES: ${hasImages
+      ? `Use Unsplash for real photos: <img src="https://source.unsplash.com/featured/800x500?${imageKeywords}" style="width:100%;height:300px;object-fit:cover;border-radius:var(--radius-md);">. Vary keywords for gallery: add +wildlife, +nature, +2, etc.`
+      : `Use CSS gradients or solid colored placeholder blocks for any image areas — no broken img tags`}
+
+10. INTERACTIVITY: All tabs, accordions, modals, forms must work. Show success state on form submit.
+
+11. REALISTIC CONTENT: Use specific names, real-sounding data, real dates — NO lorem ipsum, NO "Test User"
+
+12. RESPONSIVE: Use CSS grid/flex. Works on mobile screens.
+
+13. NO EXTERNAL LIBRARIES: Vanilla HTML, CSS, JS only.
+
+Write at minimum 700 lines. Start with <!DOCTYPE html> immediately.`;
 
     const text = await chat(system, user, 8000);
     const html = extractHtml(text);
