@@ -1002,6 +1002,22 @@ export default function ProjectPage() {
   const [geminiStatus, setGeminiStatus] = useState<"none" | "pending" | "ready" | "failed">("none");
   const [geminiAppHtml, setGeminiAppHtml] = useState<string | null>(null);
 
+  // Inject navigation interceptor so anchor links scroll within the iframe
+  // instead of navigating the parent Morse page
+  const safeGeminiHtml = useMemo(() => {
+    if (!geminiAppHtml) return null;
+    if (geminiAppHtml.includes("__safeNav")) return geminiAppHtml; // already injected
+    const script = `<script>
+(function(){function initNav(){document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();var t=document.querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'});});});}
+try{Object.defineProperty(window,'__safeNav',{value:true,writable:false});}catch(e){}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initNav);}else{initNav();}
+var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,subtree:true});
+})();
+</script>`;
+    if (geminiAppHtml.includes("</body>")) return geminiAppHtml.replace("</body>", script + "\n</body>");
+    return geminiAppHtml + script;
+  }, [geminiAppHtml]);
+
   useEffect(() => {
     if (project?.seed && baseGenome && baseLayout) {
       setActiveSeed(project.seed);
@@ -1441,10 +1457,10 @@ export default function ProjectPage() {
                       ))}
                     </div>
                   </div>
-                ) : geminiStatus === "ready" && geminiAppHtml ? (
+                ) : geminiStatus === "ready" && safeGeminiHtml ? (
                   <iframe
-                    srcDoc={geminiAppHtml}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    srcDoc={safeGeminiHtml}
+                    sandbox="allow-scripts allow-forms allow-popups"
                     className="flex-1 w-full border-0"
                     title="AI Generated App"
                     data-testid="ai-app-preview"

@@ -54,6 +54,46 @@ function extractHtml(text: string): string {
   return text.trim();
 }
 
+// Inject safety script into generated HTML to fix navigation, external redirects, etc.
+function injectSafetyScript(html: string): string {
+  const safetyScript = `
+<script>
+// Morse safety: intercept all anchor clicks and handle in-page navigation
+(function() {
+  function initNavigation() {
+    document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+      a.addEventListener('click', function(e) {
+        e.preventDefault();
+        var href = a.getAttribute('href');
+        if (!href || href === '#') return;
+        var target = document.querySelector(href);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  }
+  // Prevent window.location navigation to external placeholder URLs
+  var _origAssign = window.location.assign.bind(window.location);
+  try {
+    Object.defineProperty(window, '__safeNav', { value: true, writable: false });
+  } catch(e) {}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initNavigation);
+  } else {
+    initNavigation();
+  }
+  // Re-run after any dynamic content changes
+  var observer = new MutationObserver(function() { initNavigation(); });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>`;
+
+  // Inject before </body>
+  if (html.includes("</body>")) {
+    return html.replace("</body>", safetyScript + "\n</body>");
+  }
+  return html + safetyScript;
+}
+
 function genomeToColorVars(genome: DesignGenome): string {
   return `--color-primary: ${genome.colors.primary};
     --color-secondary: ${genome.colors.secondary};
@@ -186,6 +226,16 @@ export async function geminiGenerateApp(
 - Feature sections
 - Footer`;
 
+    const hasImages = prompt.toLowerCase().includes("picture") || prompt.toLowerCase().includes("photo") || prompt.toLowerCase().includes("image") || prompt.toLowerCase().includes("gallery");
+    const imageKeywords = interpret.productName.toLowerCase().replace(/\s+/g, "+");
+
+    const imageInstruction = hasImages
+      ? `IMAGES: This product requires real photos. Use Unsplash source URLs to fetch relevant images:
+  - Use this exact format for images: <img src="https://source.unsplash.com/featured/800x500?${imageKeywords}" ...>
+  - For gallery sections with multiple images, vary the keyword by appending numbers or synonyms: ?${imageKeywords}+1, ?${imageKeywords}+nature, ?${imageKeywords}+wildlife, etc.
+  - Always set width="100%" and appropriate height on images. Never leave image src empty.`
+      : "";
+
     const user = `Generate a complete, fully functional single-page web application as a self-contained HTML file.
 
 BRAND: ${brandName}
@@ -214,28 +264,48 @@ Body font: ${bodyFont}
 
 ${logoInstruction}
 
+${imageInstruction}
+
 REQUIREMENTS:
 1. Complete single HTML file — all CSS in <style>, all JS in <script> tags
 2. Load fonts from Google Fonts: <link href="${googleFontsUrl}" rel="stylesheet">
-3. Define and use these CSS custom properties in :root:
-   :root {
-     ${colorVars}
-   }
+3. Define and use these CSS custom properties in :root { ${colorVars} }
 4. Dark background (use --color-bg for body background)
 5. LOGO IN NAV (CRITICAL): ${logoUrl
       ? `You MUST place this logo image tag in the navbar: <img src="${logoUrl}" alt="${brandName}" style="height:36px;width:auto;object-fit:contain;"> — do not omit it, do not use text instead`
       : `Show the brand name "${brandName}" as styled bold text in the navbar`}
-6. ALL interactive features must actually work: sidebar nav switches sections, tabs switch content, modals open/close, forms submit, filters filter
-7. Realistic pre-loaded demo data: use specific names, numbers, dates — NO Lorem ipsum, no "Test User", no placeholder text
-8. Hover effects on all interactive elements
-9. Professional, polished visual design — not generic
-10. Mobile responsive using CSS flexbox/grid
-11. Use only vanilla HTML, CSS, and JavaScript — no external libraries or frameworks
+
+6. NAVIGATION — CRITICAL RULES:
+   a. Nav link labels MUST be specific to this product's content (e.g. "Gallery", "Stories", "Conservation", "Take Action" for a rainforest site — NOT generic "Features", "Solutions", "Resources")
+   b. ALL nav links MUST use href="#sectionId" AND be handled by this exact JS (add to your script):
+      document.querySelectorAll('a[href^="#"]').forEach(a => {
+        a.addEventListener('click', function(e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute('href'));
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+   c. NEVER use window.location.href to navigate to external placeholder URLs like "example.com"
+   d. Add body { padding-top: 70px; } to prevent content hiding behind fixed navbar
+
+7. INTERNAL PAGES — ANY call-to-action that says "Donate", "Take Action", "Get Started", "Sign Up" etc. MUST:
+   a. Be a hidden <section> in the HTML (e.g. <section id="donate-page" style="display:none">)
+   b. Be shown/hidden by JavaScript when the button is clicked: document.getElementById('donate-page').style.display = 'block'; document.getElementById('donate-page').scrollIntoView({behavior:'smooth'})
+   c. Contain a COMPLETE, FUNCTIONAL form (name, email, amount fields with validation and a submit handler that shows a success message)
+   d. NEVER redirect to an external URL
+
+8. ALL interactive features must work: accordions open/close, tabs switch content, modals open/close, forms validate and show success
+9. Realistic pre-loaded demo data: use specific names, numbers, dates — NO Lorem ipsum, no placeholder text
+10. NO layout overlap: sections must not overlap each other; fixed navbar needs body padding-top
+11. Professional, polished visual design — not generic
+12. Mobile responsive using CSS flexbox/grid
+13. Use only vanilla HTML, CSS, and JavaScript — no external libraries or frameworks
 
 Write at minimum 600 lines of code. Start with <!DOCTYPE html> immediately.`;
 
     const text = await chat(system, user, 8000);
-    return extractHtml(text);
+    const html = extractHtml(text);
+    return injectSafetyScript(html);
   } catch (err) {
     console.error("[Groq] Stage 2 (generate app) failed:", err);
     return null;
