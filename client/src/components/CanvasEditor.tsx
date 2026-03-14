@@ -21,6 +21,8 @@ import {
   AlignRight,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   MousePointer2,
   Lock,
   Unlock,
@@ -165,6 +167,7 @@ const IFRAME_EDITOR_SCRIPT = `
   // drag to move
   document.addEventListener('mousedown', function(e) {
     if (!selected || e.target.id === '__morse_overlay') return;
+    if (e.target.classList && e.target.classList.contains('__morse_handle')) return;
     if (e.target !== selected && !selected.contains(e.target)) return;
     e.preventDefault();
     isDragging = true;
@@ -280,6 +283,7 @@ const IFRAME_EDITOR_SCRIPT = `
     }
     if (e.data.cmd === 'getHtml') {
       if (overlay) overlay.remove();
+      document.querySelectorAll('.__morse_handle').forEach(function(h){h.remove();});
       document.querySelectorAll('[contenteditable]').forEach(function(el) { el.removeAttribute('contenteditable'); });
       document.querySelectorAll('[style]').forEach(function(el) {
         var s = el.style;
@@ -299,9 +303,92 @@ const IFRAME_EDITOR_SCRIPT = `
       positionOverlay(selected);
       sendState();
     }
+    if (e.data.cmd === 'resize' && selected) {
+      saveUndo();
+      if (e.data.width !== undefined) selected.style.width = e.data.width + 'px';
+      if (e.data.height !== undefined) selected.style.height = e.data.height + 'px';
+      if (e.data.width !== undefined || e.data.height !== undefined) {
+        selected.style.boxSizing = 'border-box';
+        selected.style.overflow = 'hidden';
+      }
+      positionOverlay(selected);
+      sendState();
+    }
+    if (e.data.cmd === 'resizeDelta' && selected) {
+      saveUndo();
+      var cr = selected.getBoundingClientRect();
+      var nw = Math.max(20, cr.width + (e.data.dw || 0));
+      var nh = Math.max(20, cr.height + (e.data.dh || 0));
+      selected.style.width = nw + 'px';
+      selected.style.height = nh + 'px';
+      selected.style.boxSizing = 'border-box';
+      selected.style.overflow = 'hidden';
+      positionOverlay(selected);
+      sendState();
+    }
+  });
+
+  // resize handles on overlay
+  function createResizeHandles() {
+    if (!overlay) return;
+    var positions = ['se','e','s'];
+    positions.forEach(function(pos) {
+      var h = document.createElement('div');
+      h.className = '__morse_handle';
+      h.dataset.pos = pos;
+      h.style.cssText = 'position:absolute;width:10px;height:10px;background:#3b82f6;border:1px solid #fff;border-radius:2px;pointer-events:auto;z-index:1000000;';
+      if (pos === 'se') { h.style.right = '-5px'; h.style.bottom = '-5px'; h.style.cursor = 'nwse-resize'; }
+      if (pos === 'e')  { h.style.right = '-5px'; h.style.top = '50%'; h.style.transform = 'translateY(-50%)'; h.style.cursor = 'ew-resize'; }
+      if (pos === 's')  { h.style.bottom = '-5px'; h.style.left = '50%'; h.style.transform = 'translateX(-50%)'; h.style.cursor = 'ns-resize'; }
+      overlay.appendChild(h);
+    });
+  }
+
+  var resizing = false;
+  var resizeHandle = null;
+  var resizeStartX = 0, resizeStartY = 0, resizeStartW = 0, resizeStartH = 0;
+
+  document.addEventListener('mousedown', function(e) {
+    if (!e.target.classList || !e.target.classList.contains('__morse_handle')) return;
+    if (!selected) return;
+    e.preventDefault();
+    e.stopPropagation();
+    resizing = true;
+    resizeHandle = e.target.dataset.pos;
+    resizeStartX = e.clientX;
+    resizeStartY = e.clientY;
+    var cr = selected.getBoundingClientRect();
+    resizeStartW = cr.width;
+    resizeStartH = cr.height;
+    saveUndo();
+  }, true);
+
+  document.addEventListener('mousemove', function(e) {
+    if (!resizing || !selected) return;
+    e.preventDefault();
+    var dx = e.clientX - resizeStartX;
+    var dy = e.clientY - resizeStartY;
+    if (resizeHandle === 'e' || resizeHandle === 'se') {
+      selected.style.width = Math.max(20, resizeStartW + dx) + 'px';
+    }
+    if (resizeHandle === 's' || resizeHandle === 'se') {
+      selected.style.height = Math.max(20, resizeStartH + dy) + 'px';
+    }
+    selected.style.boxSizing = 'border-box';
+    selected.style.overflow = 'hidden';
+    positionOverlay(selected);
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (resizing) {
+      resizing = false;
+      resizeHandle = null;
+      if (selected) { positionOverlay(selected); sendState(); }
+    }
   });
 
   createOverlay();
+  createResizeHandles();
   overlay.style.display = 'none';
   window.parent.postMessage({ type: 'morse-editor-ready' }, '*');
 })();
@@ -851,8 +938,6 @@ export function CanvasEditor({
                   {([
                     { label: "X", val: iframeSelectedEl.x },
                     { label: "Y", val: iframeSelectedEl.y },
-                    { label: "W", val: iframeSelectedEl.width },
-                    { label: "H", val: iframeSelectedEl.height },
                   ]).map(({ label, val }) => (
                     <label key={label} className="flex flex-col gap-1">
                       <span className="text-[10px] uppercase text-muted-foreground">{label}</span>
@@ -865,6 +950,72 @@ export function CanvasEditor({
                       />
                     </label>
                   ))}
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase text-muted-foreground">W</span>
+                    <Input
+                      type="number"
+                      value={iframeSelectedEl.width}
+                      min={20}
+                      step={10}
+                      onChange={e => sendEditorCmd("resize", { width: Number(e.target.value) })}
+                      className="h-7 text-xs"
+                      data-testid="input-iframe-width"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase text-muted-foreground">H</span>
+                    <Input
+                      type="number"
+                      value={iframeSelectedEl.height}
+                      min={20}
+                      step={10}
+                      onChange={e => sendEditorCmd("resize", { height: Number(e.target.value) })}
+                      className="h-7 text-xs"
+                      data-testid="input-iframe-height"
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase text-muted-foreground block mb-1.5">Quick Resize</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("resizeDelta", { dw: 20, dh: 0 })}
+                      data-testid="button-iframe-wider"
+                    >
+                      <ChevronRight className="h-3 w-3" /> Wider
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("resizeDelta", { dw: -20, dh: 0 })}
+                      data-testid="button-iframe-narrower"
+                    >
+                      <ChevronLeft className="h-3 w-3" /> Narrower
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("resizeDelta", { dw: 0, dh: 20 })}
+                      data-testid="button-iframe-taller"
+                    >
+                      <ChevronDown className="h-3 w-3" /> Taller
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("resizeDelta", { dw: 0, dh: -20 })}
+                      data-testid="button-iframe-shorter"
+                    >
+                      <ChevronUp className="h-3 w-3" /> Shorter
+                    </Button>
+                  </div>
                 </div>
 
                 {iframeSelectedEl.text && (
