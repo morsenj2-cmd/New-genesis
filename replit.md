@@ -42,7 +42,9 @@ Key features:
 - Canvas Editor: rebuilt with 3-tab mode toggle (Auto | Canvas | Elements):
   - **Auto Design mode**: AI-managed layout, read-only GenomePreview
   - **Canvas mode**: drag-and-drop section reordering (HTML5 drag API), section selection with visual highlight overlay (colored border + label badge), delete section, add section dropdown (Feature Grid, Card List, Stats Bar, Testimonials, CTA), column count selector, inline content editing for hero/featureGrid/cardList/CTA; clicking sections in preview selects them
-  - **Elements mode** (Canva-like editor, `client/src/components/ElementCanvas.tsx`):
+  - **Elements mode** — two sub-modes depending on whether AI HTML exists:
+    - **AI iframe visual editor** (when `geminiAppHtml` is present): injects an editing script into the AI-generated HTML iframe via `IFRAME_EDITOR_SCRIPT`. Click any DOM element to select (blue overlay), drag to move, double-click to edit text inline, Delete/Backspace to remove elements. Sidebar shows element tag, position/size readouts, text editing textarea. Undo/Redo via Ctrl+Z/Y. Save button extracts cleaned HTML (strips editor artifacts) and persists via `update-html` endpoint. Communication between parent and iframe uses `postMessage` with source validation (`e.source === iframeEditorRef.current.contentWindow`).
+    - **ElementCanvas fallback** (when no AI HTML): Canva-like editor using `client/src/components/ElementCanvas.tsx`
     - Renders each section as a relative container with absolutely positioned element nodes
     - Virtual 1200px canvas scaled to fit container (zoom slider 30%-120%)
     - Element types: badge, headline, subheadline, paragraph, button_primary, button_secondary, section_title, card_icon, card_title, card_description, stat_value, stat_label, testimonial_text, testimonial_author

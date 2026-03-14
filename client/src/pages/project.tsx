@@ -1768,6 +1768,7 @@ export default function ProjectPage() {
                     creditLimit={subscription?.perProjectLimit ?? 500}
                     userPlan={subscription?.plan ?? "free"}
                     geminiAppHtml={safeGeminiHtml}
+                    onSaveHtml={(html) => updateHtmlMutation.mutate(html)}
                   />
                 ) : geminiStatus === "pending" ? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8" data-testid="ai-generating-state">

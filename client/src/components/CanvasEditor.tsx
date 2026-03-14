@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { GenomePreview } from "@/components/genome-ui";
@@ -32,6 +32,281 @@ import {
   Crown,
 } from "lucide-react";
 
+interface IframeSelectedElement {
+  tag: string;
+  text: string;
+  xpath: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const IFRAME_EDITOR_SCRIPT = `
+<script data-morse-editor>
+(function(){
+  var selected = null;
+  var overlay = null;
+  var isDragging = false;
+  var dragOffX = 0, dragOffY = 0;
+  var hasChanges = false;
+  var undoStack = [];
+  var redoStack = [];
+
+  function getXPath(el) {
+    if (!el || el === document.body) return '/body';
+    var sib = el.parentNode ? el.parentNode.children : [];
+    var idx = 0;
+    for (var i = 0; i < sib.length; i++) {
+      if (sib[i] === el) { idx = i + 1; break; }
+    }
+    return getXPath(el.parentNode) + '/' + el.tagName.toLowerCase() + '[' + idx + ']';
+  }
+
+  function elFromXPath(xpath) {
+    try {
+      var r = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      return r.singleNodeValue;
+    } catch(e) { return null; }
+  }
+
+  function createOverlay() {
+    if (overlay) overlay.remove();
+    overlay = document.createElement('div');
+    overlay.id = '__morse_overlay';
+    overlay.style.cssText = 'position:absolute;pointer-events:none;border:2px solid #3b82f6;background:rgba(59,130,246,0.08);z-index:999999;transition:all 0.15s ease;';
+    document.body.appendChild(overlay);
+  }
+
+  function positionOverlay(el) {
+    if (!overlay || !el) return;
+    var r = el.getBoundingClientRect();
+    overlay.style.left = (r.left + window.scrollX) + 'px';
+    overlay.style.top = (r.top + window.scrollY) + 'px';
+    overlay.style.width = r.width + 'px';
+    overlay.style.height = r.height + 'px';
+  }
+
+  function sendState() {
+    if (!selected) {
+      window.parent.postMessage({ type: 'morse-editor-select', element: null, hasChanges: hasChanges }, '*');
+      return;
+    }
+    var r = selected.getBoundingClientRect();
+    window.parent.postMessage({
+      type: 'morse-editor-select',
+      element: {
+        tag: selected.tagName.toLowerCase(),
+        text: selected.textContent ? selected.textContent.substring(0, 200) : '',
+        xpath: getXPath(selected),
+        x: Math.round(r.left + window.scrollX),
+        y: Math.round(r.top + window.scrollY),
+        width: Math.round(r.width),
+        height: Math.round(r.height)
+      },
+      hasChanges: hasChanges
+    }, '*');
+  }
+
+  function saveUndo() {
+    undoStack.push(document.body.innerHTML);
+    if (undoStack.length > 30) undoStack.shift();
+    redoStack = [];
+    hasChanges = true;
+    window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: false }, '*');
+  }
+
+  function selectEl(el) {
+    if (!el || el === document.body || el === document.documentElement || el.id === '__morse_overlay') return;
+    // skip tiny/invisible elements
+    var r = el.getBoundingClientRect();
+    if (r.width < 10 || r.height < 10) { el = el.parentElement; if(!el) return; }
+    selected = el;
+    if (!overlay) createOverlay();
+    positionOverlay(el);
+    overlay.style.display = 'block';
+    sendState();
+  }
+
+  function deselectEl() {
+    selected = null;
+    if (overlay) overlay.style.display = 'none';
+    sendState();
+  }
+
+  // hover highlight
+  var hoverEl = null;
+  document.addEventListener('mousemove', function(e) {
+    if (isDragging) return;
+    var el = e.target;
+    if (el.id === '__morse_overlay' || el === document.body || el === document.documentElement) return;
+    if (el !== hoverEl) {
+      if (hoverEl && hoverEl !== selected) hoverEl.style.outline = '';
+      hoverEl = el;
+      if (hoverEl !== selected) hoverEl.style.outline = '1px dashed rgba(59,130,246,0.4)';
+    }
+  });
+
+  document.addEventListener('mouseleave', function() {
+    if (hoverEl && hoverEl !== selected) hoverEl.style.outline = '';
+    hoverEl = null;
+  });
+
+  // click to select
+  document.addEventListener('click', function(e) {
+    if (isDragging) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var el = e.target;
+    if (el.id === '__morse_overlay') return;
+    selectEl(el);
+  }, true);
+
+  // drag to move
+  document.addEventListener('mousedown', function(e) {
+    if (!selected || e.target.id === '__morse_overlay') return;
+    if (e.target !== selected && !selected.contains(e.target)) return;
+    e.preventDefault();
+    isDragging = true;
+    var r = selected.getBoundingClientRect();
+    dragOffX = e.clientX - r.left;
+    dragOffY = e.clientY - r.top;
+    saveUndo();
+    selected.style.position = selected.style.position || 'relative';
+    if (!selected.style.position || selected.style.position === 'static') selected.style.position = 'relative';
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!isDragging || !selected) return;
+    e.preventDefault();
+    var cs = getComputedStyle(selected);
+    var curLeft = parseFloat(cs.left) || 0;
+    var curTop = parseFloat(cs.top) || 0;
+    var r = selected.getBoundingClientRect();
+    var dx = e.clientX - (r.left + dragOffX);
+    var dy = e.clientY - (r.top + dragOffY);
+    selected.style.left = (curLeft + dx) + 'px';
+    selected.style.top = (curTop + dy) + 'px';
+    positionOverlay(selected);
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (isDragging) {
+      isDragging = false;
+      if (selected) { positionOverlay(selected); sendState(); }
+    }
+  });
+
+  // double click to edit text
+  document.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var el = e.target;
+    if (el.id === '__morse_overlay') el = selected;
+    if (!el || el === document.body) return;
+    selectEl(el);
+    if (el.children.length === 0 || (el.children.length <= 2 && el.textContent.length < 500)) {
+      saveUndo();
+      el.contentEditable = 'true';
+      el.focus();
+      el.style.outline = '2px solid #3b82f6';
+      el.style.minHeight = '1em';
+      var done = function() {
+        el.contentEditable = 'false';
+        el.style.outline = '';
+        hasChanges = true;
+        sendState();
+      };
+      el.addEventListener('blur', done, { once: true });
+      el.addEventListener('keydown', function(ke) {
+        if (ke.key === 'Escape' || ke.key === 'Enter') { ke.preventDefault(); el.blur(); }
+      });
+    }
+  }, true);
+
+  // delete key
+  document.addEventListener('keydown', function(e) {
+    if (document.querySelector('[contenteditable="true"]')) return;
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+      e.preventDefault();
+      saveUndo();
+      selected.remove();
+      selected = null;
+      if (overlay) overlay.style.display = 'none';
+      sendState();
+    }
+    if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey && undoStack.length > 0) {
+      e.preventDefault();
+      redoStack.push(document.body.innerHTML);
+      document.body.innerHTML = undoStack.pop();
+      createOverlay();
+      selected = null;
+      sendState();
+      window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
+    }
+    if (((e.key === 'y' && (e.ctrlKey || e.metaKey)) || (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey)) && redoStack.length > 0) {
+      e.preventDefault();
+      undoStack.push(document.body.innerHTML);
+      document.body.innerHTML = redoStack.pop();
+      createOverlay();
+      selected = null;
+      sendState();
+      window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
+    }
+  });
+
+  // listen for parent commands
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.source !== 'morse-editor-cmd') return;
+    if (e.data.cmd === 'undo' && undoStack.length > 0) {
+      redoStack.push(document.body.innerHTML);
+      document.body.innerHTML = undoStack.pop();
+      createOverlay(); selected = null; sendState();
+      window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
+    }
+    if (e.data.cmd === 'redo' && redoStack.length > 0) {
+      undoStack.push(document.body.innerHTML);
+      document.body.innerHTML = redoStack.pop();
+      createOverlay(); selected = null; sendState();
+      window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
+    }
+    if (e.data.cmd === 'delete' && selected) {
+      saveUndo(); selected.remove(); selected = null;
+      if (overlay) overlay.style.display = 'none'; sendState();
+    }
+    if (e.data.cmd === 'select' && e.data.xpath) {
+      var el = elFromXPath(e.data.xpath);
+      if (el) selectEl(el);
+    }
+    if (e.data.cmd === 'getHtml') {
+      if (overlay) overlay.remove();
+      document.querySelectorAll('[contenteditable]').forEach(function(el) { el.removeAttribute('contenteditable'); });
+      document.querySelectorAll('[style]').forEach(function(el) {
+        var s = el.style;
+        if (s.outline) s.outline = '';
+        if (s.minHeight === '1em') s.minHeight = '';
+        if (!el.getAttribute('style')) el.removeAttribute('style');
+      });
+      var scripts = document.querySelectorAll('script[data-morse-editor]');
+      scripts.forEach(function(s){s.remove();});
+      var html = '<!DOCTYPE html>' + document.documentElement.outerHTML;
+      createOverlay();
+      window.parent.postMessage({ type: 'morse-editor-html', html: html }, '*');
+    }
+    if (e.data.cmd === 'updateText' && selected && e.data.text !== undefined) {
+      saveUndo();
+      selected.textContent = e.data.text;
+      positionOverlay(selected);
+      sendState();
+    }
+  });
+
+  createOverlay();
+  overlay.style.display = 'none';
+  window.parent.postMessage({ type: 'morse-editor-ready' }, '*');
+})();
+</script>`;
+
 export interface ContentOverrides {
   headline?: string;
   subheadline?: string;
@@ -57,6 +332,7 @@ interface CanvasEditorProps {
   creditLimit?: number;
   userPlan?: string;
   geminiAppHtml?: string | null;
+  onSaveHtml?: (html: string) => void;
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -324,6 +600,7 @@ export function CanvasEditor({
   creditLimit = 500,
   userPlan = "free",
   geminiAppHtml,
+  onSaveHtml,
 }: CanvasEditorProps) {
   const [mode, setMode] = useState<EditorMode>("canvas");
   const [selectedSectionIdx, setSelectedSectionIdx] = useState<number | null>(null);
@@ -331,6 +608,53 @@ export function CanvasEditor({
   const elementCanvasRef = useRef<ElementCanvasHandle>(null);
   const [elementState, setElementState] = useState<ElementCanvasState>({ selectedEl: null, scale: 0.65, hasChanges: false, canUndo: false, canRedo: false });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  const isElementsMode = mode === "elements";
+
+  const iframeEditorRef = useRef<HTMLIFrameElement>(null);
+  const [iframeSelectedEl, setIframeSelectedEl] = useState<IframeSelectedElement | null>(null);
+  const [iframeHasChanges, setIframeHasChanges] = useState(false);
+  const [iframeCanUndo, setIframeCanUndo] = useState(false);
+  const [iframeCanRedo, setIframeCanRedo] = useState(false);
+  const [iframeEditText, setIframeEditText] = useState("");
+  const htmlSaveResolve = useRef<((html: string) => void) | null>(null);
+
+  const editableHtml = useMemo(() => {
+    if (!geminiAppHtml || !isElementsMode) return null;
+    let html = geminiAppHtml;
+    html = html.replace(/<script\s+data-morse-editor[\s\S]*?<\/script>/g, "");
+    if (html.includes("</body>")) {
+      return html.replace("</body>", IFRAME_EDITOR_SCRIPT + "\n</body>");
+    }
+    return html + IFRAME_EDITOR_SCRIPT;
+  }, [geminiAppHtml, isElementsMode]);
+
+  useEffect(() => {
+    function handleMessage(e: MessageEvent) {
+      if (!e.data || typeof e.data.type !== "string") return;
+      if (iframeEditorRef.current && e.source !== iframeEditorRef.current.contentWindow) return;
+      if (e.data.type === "morse-editor-select") {
+        setIframeSelectedEl(e.data.element || null);
+        if (e.data.element) setIframeEditText(e.data.element.text || "");
+        if (e.data.hasChanges !== undefined) setIframeHasChanges(e.data.hasChanges);
+      }
+      if (e.data.type === "morse-editor-changes") {
+        setIframeHasChanges(e.data.hasChanges ?? false);
+        setIframeCanUndo(e.data.canUndo ?? false);
+        setIframeCanRedo(e.data.canRedo ?? false);
+      }
+      if (e.data.type === "morse-editor-html" && htmlSaveResolve.current) {
+        htmlSaveResolve.current(e.data.html);
+        htmlSaveResolve.current = null;
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  const sendEditorCmd = useCallback((cmd: string, data?: Record<string, unknown>) => {
+    iframeEditorRef.current?.contentWindow?.postMessage({ source: "morse-editor-cmd", cmd, ...data }, "*");
+  }, []);
 
   // HTML5 drag-and-drop state
   const dragIdx = useRef<number | null>(null);
@@ -386,7 +710,6 @@ export function CanvasEditor({
   }, [layout, onLayoutChange]);
 
   const isCanvasMode   = mode === "canvas";
-  const isElementsMode = mode === "elements";
 
   return (
     <div className="flex h-full min-h-0 flex-1 overflow-hidden">
@@ -475,7 +798,134 @@ export function CanvasEditor({
           </div>
         </div>
 
-        {isElementsMode && (
+        {isElementsMode && geminiAppHtml && (
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="px-3 py-2 border-b border-border space-y-2 shrink-0">
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!iframeCanUndo}
+                  onClick={() => sendEditorCmd("undo")}
+                  title="Undo (Ctrl+Z)"
+                  data-testid="button-iframe-undo"
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!iframeCanRedo}
+                  onClick={() => sendEditorCmd("redo")}
+                  title="Redo (Ctrl+Y)"
+                  data-testid="button-iframe-redo"
+                >
+                  <Redo2 className="h-3.5 w-3.5" />
+                </Button>
+                <div className="flex-1" />
+                {iframeSelectedEl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1 px-2 text-destructive hover:text-destructive"
+                    onClick={() => sendEditorCmd("delete")}
+                    title="Delete element"
+                    data-testid="button-iframe-delete"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {iframeSelectedEl ? (
+              <div className="p-3 space-y-3 flex-1 overflow-y-auto" data-testid="iframe-element-panel">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  &lt;{iframeSelectedEl.tag}&gt;
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { label: "X", val: iframeSelectedEl.x },
+                    { label: "Y", val: iframeSelectedEl.y },
+                    { label: "W", val: iframeSelectedEl.width },
+                    { label: "H", val: iframeSelectedEl.height },
+                  ]).map(({ label, val }) => (
+                    <label key={label} className="flex flex-col gap-1">
+                      <span className="text-[10px] uppercase text-muted-foreground">{label}</span>
+                      <Input
+                        type="number"
+                        value={val}
+                        readOnly
+                        className="h-7 text-xs bg-muted/50"
+                        data-testid={`text-iframe-${label.toLowerCase()}`}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                {iframeSelectedEl.text && (
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground block mb-1">Text Content</span>
+                    <Textarea
+                      value={iframeEditText}
+                      onChange={e => setIframeEditText(e.target.value)}
+                      onBlur={() => sendEditorCmd("updateText", { text: iframeEditText })}
+                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendEditorCmd("updateText", { text: iframeEditText }); }}}
+                      rows={3}
+                      className="text-xs resize-y"
+                      data-testid="input-iframe-text"
+                    />
+                  </div>
+                )}
+
+                <div className="text-[10px] text-muted-foreground leading-relaxed">
+                  <strong className="text-foreground">Tips:</strong> Drag to move. Double-click to edit text inline. Press Delete to remove.
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 text-center text-muted-foreground mt-2 space-y-2">
+                <MousePointer2 className="h-6 w-6 mx-auto opacity-20" />
+                <p className="text-xs leading-relaxed">
+                  <strong className="text-foreground">Visual editor active.</strong>
+                  <br />
+                  Click any element in the preview to select it.
+                  <br />
+                  Drag to move. Double-click to edit text.
+                  <br />
+                  Press Delete or Backspace to remove.
+                </p>
+              </div>
+            )}
+
+            {iframeHasChanges && (
+              <div className="p-3 border-t border-border shrink-0">
+                <Button
+                  size="sm"
+                  className="w-full gap-1.5 text-xs"
+                  onClick={() => {
+                    sendEditorCmd("getHtml");
+                    htmlSaveResolve.current = (html: string) => {
+                      onSaveHtml?.(html);
+                      setIframeHasChanges(false);
+                      setSaveMessage("Changes saved");
+                      setTimeout(() => setSaveMessage(null), 2000);
+                    };
+                  }}
+                  data-testid="button-save-iframe-changes"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {saveMessage || "Save Changes"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isElementsMode && !geminiAppHtml && (
           <div className="flex flex-col flex-1 min-h-0">
             <div className="px-3 py-2 border-b border-border space-y-2 shrink-0">
               <div className="flex items-center gap-2">
@@ -795,7 +1245,16 @@ export function CanvasEditor({
         data-testid="canvas-preview-area"
         onClick={() => { if (showAddMenu) setShowAddMenu(false); }}
       >
-        {geminiAppHtml ? (
+        {geminiAppHtml && isElementsMode && editableHtml ? (
+          <iframe
+            ref={iframeEditorRef}
+            srcDoc={editableHtml}
+            sandbox="allow-scripts allow-forms allow-popups"
+            className="h-full w-full border-0"
+            title="AI Generated App – Edit Mode"
+            data-testid="canvas-ai-editor"
+          />
+        ) : geminiAppHtml ? (
           <iframe
             srcDoc={geminiAppHtml}
             sandbox="allow-scripts allow-forms allow-popups"
