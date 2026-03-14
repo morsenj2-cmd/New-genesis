@@ -7,7 +7,6 @@ const client = apiKey
   ? new OpenAI({ apiKey, baseURL: "https://api.groq.com/openai/v1" })
   : null;
 
-// Models in preference order (fastest + largest context first)
 const MODEL_PREFERENCE = [
   "llama-3.3-70b-versatile",
   "mixtral-8x7b-32768",
@@ -43,30 +42,32 @@ function extractJson(text: string): string {
   return text;
 }
 
-function extractCode(text: string): string {
-  const jsxBlock = text.match(/```(?:jsx?|tsx?|javascript|react)?\s*([\s\S]*?)\s*```/);
-  if (jsxBlock) return jsxBlock[1].trim();
+function extractHtml(text: string): string {
+  const htmlBlock = text.match(/```html\s*([\s\S]*?)\s*```/);
+  if (htmlBlock) return htmlBlock[1].trim();
+  const start = text.indexOf("<!DOCTYPE html>");
+  if (start === -1) {
+    const altStart = text.indexOf("<html");
+    if (altStart !== -1) return text.slice(altStart).trim();
+  }
+  if (start !== -1) return text.slice(start).trim();
   return text.trim();
 }
 
-function genomeToTokenString(genome: DesignGenome): string {
-  return `--color-primary: ${genome.colors.primary}
---color-secondary: ${genome.colors.secondary}
---color-accent: ${genome.colors.accent}
---color-bg: ${genome.colors.background}
---color-surface: ${genome.colors.surface}
---radius-sm: ${genome.radius.sm}
---radius-md: ${genome.radius.md}
---radius-lg: ${genome.radius.lg}
---font-heading: '${genome.typography.heading}', sans-serif
---font-body: '${genome.typography.body}', sans-serif
---spacing-xs: ${genome.spacing.xs}
---spacing-sm: ${genome.spacing.sm}
---spacing-md: ${genome.spacing.md}
---spacing-lg: ${genome.spacing.lg}
---spacing-xl: ${genome.spacing.xl}
---duration-base: ${genome.motion.duration.base}
---easing: ${genome.motion.easing}`;
+function genomeToColorVars(genome: DesignGenome): string {
+  return `--color-primary: ${genome.colors.primary};
+    --color-secondary: ${genome.colors.secondary};
+    --color-accent: ${genome.colors.accent};
+    --color-bg: ${genome.colors.background};
+    --color-surface: ${genome.colors.surface};
+    --color-text: #f1f5f9;
+    --color-text-muted: #94a3b8;
+    --color-border: rgba(255,255,255,0.08);
+    --radius-sm: ${genome.radius.sm};
+    --radius-md: ${genome.radius.md};
+    --radius-lg: ${genome.radius.lg};
+    --font-heading: '${genome.typography.heading}', system-ui, sans-serif;
+    --font-body: '${genome.typography.body}', system-ui, sans-serif;`;
 }
 
 async function chat(
@@ -92,7 +93,6 @@ async function chat(
     } catch (err: any) {
       console.warn(`[Groq] Model ${model} failed:`, err?.message?.slice(0, 80));
       lastError = err;
-      // Only continue on rate-limit / model-unavailable errors
       const msg = err?.message ?? "";
       if (!msg.includes("429") && !msg.includes("rate") && !msg.includes("quota") && !msg.includes("model")) {
         throw err;
@@ -153,14 +153,14 @@ export async function geminiGenerateApp(
 ): Promise<string | null> {
   if (!client) return null;
   try {
-    const tokens = genomeToTokenString(genome);
-    const fontFaceNote = fontUrl
-      ? `\nNote: The heading/body font is a custom uploaded font already declared via @font-face. Use 'var(--font-heading)' and 'var(--font-body)' for all font-family values.`
-      : "";
+    const colorVars = genomeToColorVars(genome);
+    const headingFont = genome.typography.heading;
+    const bodyFont = genome.typography.body;
+    const googleFontsUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(headingFont)}:wght@400;600;700&family=${encodeURIComponent(bodyFont)}:wght@400;500&display=swap`;
 
-    const system = `You are an expert React developer. Generate complete, production-quality single-page React applications. Output ONLY valid JSX code — no explanation, no markdown fences, no commentary.`;
+    const system = `You are an expert web developer. Generate complete, self-contained HTML applications. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary before or after the HTML.`;
 
-    const user = `Generate a complete, fully functional React single-page application for the following product.
+    const user = `Generate a complete, fully functional single-page web application as a self-contained HTML file.
 
 BRAND: ${brandName}
 PRODUCT: ${interpret.productName}
@@ -169,29 +169,43 @@ DESCRIPTION: ${prompt}
 FEATURES: ${interpret.features.join(", ")}
 AUDIENCE: ${interpret.targetAudience}
 KEY BENEFIT: ${interpret.keyBenefit}
-STYLE: ${interpret.style} / ${interpret.personality}
+STYLE: ${interpret.style} — ${interpret.personality}
 
-DESIGN TOKENS (CSS variables already defined in globals.css — use for all styling):
-${tokens}
-${fontFaceNote}
+DESIGN TOKENS (use these exact values for ALL colors and typography):
+Primary color: ${genome.colors.primary}
+Secondary: ${genome.colors.secondary}
+Accent: ${genome.colors.accent}
+Background: ${genome.colors.background}
+Surface/cards: ${genome.colors.surface}
+Border radius small: ${genome.radius.sm}
+Border radius medium: ${genome.radius.md}
+Border radius large: ${genome.radius.lg}
+Heading font: ${headingFont}
+Body font: ${bodyFont}
 
-STRICT REQUIREMENTS:
-1. Single file, default export function named "Home"
-2. Import ONLY from 'react': import React, { useState, useEffect, useRef } from 'react'
-3. Use inline styles for all styling. Reference design tokens like: style={{ color: 'var(--color-primary)', fontFamily: 'var(--font-heading)', borderRadius: 'var(--radius-md)' }}
-4. Background: 'var(--color-bg)', surfaces/cards: 'var(--color-surface)'
-5. ALL interactive features must work: forms submit, filters filter, tabs switch, modals open/close
-6. Realistic pre-loaded demo data with specific names and numbers — no Lorem ipsum, no placeholders
-7. Complete navigation bar with brand name "${brandName}" and relevant nav links that scroll to sections
-8. Compelling hero section with a headline specific to this product
-9. Dark theme throughout (globals.css sets dark backgrounds)
-10. Include all relevant sections for this product type
-11. Write at least 400 lines of meaningful, complete JSX
+REQUIREMENTS:
+1. Complete single HTML file — all CSS in <style>, all JS in <script> tags
+2. Load fonts from Google Fonts: <link href="${googleFontsUrl}" rel="stylesheet">
+3. Define and use these CSS custom properties in :root:
+   :root {
+     ${colorVars}
+   }
+4. Dark background (use --color-bg for body background)
+5. Navigation bar: brand name "${brandName}" on the left, relevant nav links on the right
+6. Hero section: compelling headline + subheadline + CTA button specific to this product
+7. ALL interactive features must actually work: tabs switch content, modals open/close, forms submit, filters filter, accordions open/close
+8. Realistic pre-loaded demo data: use specific names, numbers, dates — NO Lorem ipsum, no "Test User", no placeholder text
+9. Smooth scroll between sections
+10. Hover effects on all interactive elements
+11. Minimum 5 distinct sections relevant to this specific product type
+12. Professional, polished visual design — not generic
+13. Mobile responsive using CSS flexbox/grid
+14. Use only vanilla HTML, CSS, and JavaScript — no external libraries or frameworks
 
-Start the output immediately with: import React, { useState`;
+Write at minimum 500 lines of code. Start with <!DOCTYPE html> immediately.`;
 
     const text = await chat(system, user, 8000);
-    return extractCode(text);
+    return extractHtml(text);
   } catch (err) {
     console.error("[Groq] Stage 2 (generate app) failed:", err);
     return null;
@@ -225,7 +239,8 @@ Requirements:
 8. Realistic, named demo data — no "test" or "example" entries`;
 
     const text = await chat(system, user, 4096);
-    return extractCode(text);
+    const jsBlock = text.match(/```(?:js|javascript)?\s*([\s\S]*?)\s*```/);
+    return jsBlock ? jsBlock[1].trim() : text.trim();
   } catch (err) {
     console.error("[Groq] Stage 3 (generate backend) failed:", err);
     return null;
@@ -243,7 +258,7 @@ export async function geminiInterpretEdit(
 } | null> {
   if (!client) return null;
   try {
-    const system = `You are classifying a user's edit command for a generated web application. Return ONLY valid JSON.`;
+    const system = `You are classifying a user's edit command. Return ONLY valid JSON.`;
     const user = `Classify this edit command.
 
 Original product type: ${productType}
@@ -255,14 +270,7 @@ Return JSON:
   "intent": "style_change | layout_modification | content_change | regenerate | compound",
   "shouldRegenerate": true or false,
   "description": "one sentence explaining what will change"
-}
-
-Guidelines:
-- style_change: color, font, spacing, radius → shouldRegenerate = false
-- layout_modification: add/remove sections → shouldRegenerate = true
-- content_change: update text, headlines → shouldRegenerate = false
-- regenerate: "redo", "start over" → shouldRegenerate = true
-- compound: multiple types → shouldRegenerate = true if layout changes included`;
+}`;
 
     const text = await chat(system, user, 256);
     const json = extractJson(text);

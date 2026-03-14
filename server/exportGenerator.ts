@@ -1146,14 +1146,14 @@ export function generateExportFiles(
   genome: DesignGenome,
   layout: LayoutGraph
 ): Array<{ path: string; content: string }> {
-  // Check for Gemini-generated content in settingsJson
-  let geminiAppJsx: string | null = null;
+  // Check for AI-generated content in settingsJson
+  let geminiAppHtml: string | null = null;
   let geminiServerJs: string | null = null;
   try {
     if (project.settingsJson) {
       const settings = JSON.parse(project.settingsJson);
-      if (settings.geminiStatus === "ready" && settings.geminiAppJsx) {
-        geminiAppJsx = settings.geminiAppJsx;
+      if (settings.geminiStatus === "ready" && settings.geminiAppHtml) {
+        geminiAppHtml = settings.geminiAppHtml;
       }
       if (settings.geminiServerJs) {
         geminiServerJs = settings.geminiServerJs;
@@ -1161,8 +1161,30 @@ export function generateExportFiles(
     }
   } catch {}
 
+  // If AI generated a complete HTML app, export it as a simple HTML project
+  if (geminiAppHtml) {
+    const files: Array<{ path: string; content: string }> = [
+      { path: "index.html", content: geminiAppHtml },
+      { path: "README.md", content: genReadme(project) },
+    ];
+    if (geminiServerJs) {
+      files.push({ path: "server.js", content: geminiServerJs });
+      files.push({
+        path: "package.json",
+        content: JSON.stringify({
+          name: safeName(project.name),
+          version: "1.0.0",
+          scripts: { start: "node server.js" },
+          dependencies: { express: "^4.18.2", cors: "^2.8.5" },
+        }, null, 2),
+      });
+    }
+    return files;
+  }
+
+  // Fallback: export as Vite/React project using genome engine
   const files: Array<{ path: string; content: string }> = [
-    { path: "package.json", content: geminiServerJs ? genPackageJsonWithBackend(project) : genPackageJson(project) },
+    { path: "package.json", content: genPackageJson(project) },
     { path: "vite.config.js", content: genViteConfig() },
     { path: "tailwind.config.js", content: genTailwindConfig(genome) },
     { path: "postcss.config.cjs", content: genPostcssConfig() },
@@ -1179,15 +1201,9 @@ export function generateExportFiles(
     { path: "components/GenomeTestimonial.jsx", content: genTestimonialJsx() },
     { path: "components/GenomeCTA.jsx", content: genCTAJsx() },
     { path: "components/GenomeFooter.jsx", content: genFooterJsx() },
-    // Use Gemini-generated app if available, otherwise fall back to local engine
-    { path: "pages/index.jsx", content: geminiAppJsx ?? genIndexPageJsx(project, genome, layout) },
+    { path: "pages/index.jsx", content: genIndexPageJsx(project, genome, layout) },
     { path: "README.md", content: genReadme(project) },
   ];
-
-  // Add Gemini-generated backend if present
-  if (geminiServerJs) {
-    files.push({ path: "server.js", content: geminiServerJs });
-  }
 
   return files;
 }

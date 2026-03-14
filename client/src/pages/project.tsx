@@ -1000,6 +1000,7 @@ export default function ProjectPage() {
   const [canvasMode, setCanvasMode] = useState(false);
   const [contentOverrides, setContentOverrides] = useState<ContentOverrides>({});
   const [geminiStatus, setGeminiStatus] = useState<"none" | "pending" | "ready" | "failed">("none");
+  const [geminiAppHtml, setGeminiAppHtml] = useState<string | null>(null);
 
   useEffect(() => {
     if (project?.seed && baseGenome && baseLayout) {
@@ -1041,12 +1042,13 @@ export default function ProjectPage() {
     }
   }, [project?.settingsJson]);
 
-  // Parse geminiStatus from settingsJson
+  // Parse AI status and generated HTML from settingsJson
   useEffect(() => {
     if (project?.settingsJson) {
       try {
         const s = JSON.parse(project.settingsJson);
         setGeminiStatus(s.geminiStatus ?? "none");
+        if (s.geminiAppHtml) setGeminiAppHtml(s.geminiAppHtml);
       } catch {}
     }
   }, [project?.settingsJson]);
@@ -1413,7 +1415,41 @@ export default function ProjectPage() {
               />
 
               <main className="flex-1 overflow-hidden bg-muted/10 flex flex-col" data-testid="section-website-preview">
-                {displayGenome && activeLayout ? (
+                {geminiStatus === "pending" ? (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8" data-testid="ai-generating-state">
+                    <div className="relative">
+                      <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center">
+                        <Bot className="h-10 w-10 text-primary" />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-background flex items-center justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      </div>
+                    </div>
+                    <div className="text-center max-w-xs">
+                      <h3 className="font-semibold text-foreground text-lg mb-1">Building your app…</h3>
+                      <p className="text-sm text-muted-foreground">
+                        AI is generating a fully interactive application from your prompt. This takes about 30–60 seconds.
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className="h-1.5 w-6 rounded-full bg-primary/30 animate-pulse"
+                          style={{ animationDelay: `${i * 0.15}s` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : geminiStatus === "ready" && geminiAppHtml ? (
+                  <iframe
+                    srcDoc={geminiAppHtml}
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    className="flex-1 w-full border-0"
+                    title="AI Generated App"
+                    data-testid="ai-app-preview"
+                  />
+                ) : displayGenome && activeLayout ? (
                   canvasMode ? (
                     <CanvasEditor
                       genome={displayGenome}

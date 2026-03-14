@@ -336,27 +336,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: intent.productType ?? undefined,
       });
 
-      // Fire off Gemini pipeline async — doesn't block the response
+      // Fire off AI pipeline async — doesn't block the response
       if (isGeminiAvailable()) {
         const resolvedFontUrl = fontUrl ?? null;
-        const brandNameForGemini = resolvedBrandName ?? name;
+        const brandNameForAI = resolvedBrandName ?? name;
         const genomeCopy = JSON.parse(genomeJson);
 
         (async () => {
           try {
-            console.log(`[Gemini] Starting pipeline for project ${project.id}`);
+            console.log(`[Groq] Starting pipeline for project ${project.id}`);
             const interpret = await geminiInterpret(prompt, name);
             if (!interpret) throw new Error("Interpret returned null");
 
-            const appJsx = await geminiGenerateApp(
+            const appHtml = await geminiGenerateApp(
               prompt,
               name,
-              brandNameForGemini,
+              brandNameForAI,
               genomeCopy,
               interpret,
               resolvedFontUrl,
             );
-            if (!appJsx) throw new Error("App generation returned null");
+            if (!appHtml) throw new Error("App generation returned null");
 
             const serverJs = await geminiGenerateBackend(prompt, name, interpret);
 
@@ -365,14 +365,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const settings = parseSettings(currentProject.settingsJson);
             (settings as any).geminiStatus = "ready";
-            (settings as any).geminiAppJsx = appJsx;
+            (settings as any).geminiAppHtml = appHtml;
             (settings as any).geminiInterpret = interpret;
             if (serverJs) (settings as any).geminiServerJs = serverJs;
 
             await storage.updateProject(project.id, userId!, {
               settingsJson: JSON.stringify(settings),
             });
-            console.log(`[Gemini] Pipeline complete for project ${project.id}`);
+            console.log(`[Groq] Pipeline complete for project ${project.id}`);
           } catch (err) {
             console.error(`[Gemini] Pipeline failed for project ${project.id}:`, err);
             try {
@@ -396,7 +396,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // On-demand Gemini app generation (or regeneration) for an existing project
+  // On-demand AI app generation (or regeneration) for an existing project
   app.post("/api/project/:id/generate-app", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
@@ -405,7 +405,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
       if (!isGeminiAvailable()) {
-        return res.status(503).json({ message: "Gemini API not configured" });
+        return res.status(503).json({ message: "AI API not configured" });
       }
 
       const genome = project.genomeJson ? JSON.parse(project.genomeJson) : null;
@@ -420,7 +420,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       (settings as any).geminiStatus = "pending";
       await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
 
-      res.json({ status: "pending", message: "Gemini generation started" });
+      res.json({ status: "pending", message: "AI generation started" });
 
       // Run async after responding
       (async () => {
@@ -428,7 +428,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const interpret = await geminiInterpret(project.prompt, project.name);
           if (!interpret) throw new Error("Interpret returned null");
 
-          const appJsx = await geminiGenerateApp(
+          const appHtml = await geminiGenerateApp(
             project.prompt,
             project.name,
             brandName,
@@ -436,7 +436,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             interpret,
             project.fontUrl,
           );
-          if (!appJsx) throw new Error("App generation returned null");
+          if (!appHtml) throw new Error("App generation returned null");
 
           const serverJs = await geminiGenerateBackend(project.prompt, project.name, interpret);
 
@@ -444,16 +444,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           if (!latestProject) return;
           const latestSettings = parseSettings(latestProject.settingsJson);
           (latestSettings as any).geminiStatus = "ready";
-          (latestSettings as any).geminiAppJsx = appJsx;
+          (latestSettings as any).geminiAppHtml = appHtml;
           (latestSettings as any).geminiInterpret = interpret;
           if (serverJs) (latestSettings as any).geminiServerJs = serverJs;
 
           await storage.updateProject(project.id, userId!, {
             settingsJson: JSON.stringify(latestSettings),
           });
-          console.log(`[Gemini] Regeneration complete for project ${project.id}`);
+          console.log(`[Groq] Regeneration complete for project ${project.id}`);
         } catch (err) {
-          console.error(`[Gemini] Regeneration failed for project ${project.id}:`, err);
+          console.error(`[Groq] Regeneration failed for project ${project.id}:`, err);
           try {
             const latestProject = await storage.getProject(project.id);
             if (latestProject) {
