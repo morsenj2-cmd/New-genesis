@@ -175,7 +175,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (razorpayInstance) {
         try {
           const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
-          if (payment.status !== "captured" || Number(payment.amount) !== MORSE_BLACK_PRICE || payment.currency !== "INR") {
+          const validStatuses = ["captured", "authorized"];
+          if (!validStatuses.includes(payment.status) || Number(payment.amount) !== MORSE_BLACK_PRICE || payment.currency !== "INR") {
+            console.error(`[Payment] Invalid state: status=${payment.status}, amount=${payment.amount}, currency=${payment.currency}`);
             return res.status(400).json({ message: "Payment verification failed: invalid payment state" });
           }
           if (payment.order_id !== razorpay_order_id) {

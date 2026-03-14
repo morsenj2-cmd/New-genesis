@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ interface UpgradeDialogProps {
 export function UpgradeDialog({ trigger, open: controlledOpen, onOpenChange }: UpgradeDialogProps) {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const [isPending, setIsPending] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
@@ -96,15 +98,36 @@ export function UpgradeDialog({ trigger, open: controlledOpen, onOpenChange }: U
             queryClient.invalidateQueries({ queryKey: ["/api/user/subscription"] });
             queryClient.invalidateQueries({ queryKey: ["/api/project"] });
             setIsOpen(false);
+            setIsPending(false);
+            navigate("/dashboard");
           } catch (err) {
+            setIsPending(false);
             toast({ title: "Verification failed", description: err instanceof Error ? err.message : "Please contact support.", variant: "destructive" });
           }
         },
         theme: { color: "#000000" },
-        modal: { ondismiss: () => setIsPending(false) },
+        modal: {
+          ondismiss: () => setIsPending(false),
+          escape: true,
+          backdropclose: false,
+        },
       };
 
       const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", (response: any) => {
+        setIsPending(false);
+        const errorDesc = response?.error?.description || "Payment could not be completed.";
+        const errorReason = response?.error?.reason || "";
+        let userMessage = errorDesc;
+        if (errorReason === "payment_failed" || errorDesc.includes("website")) {
+          userMessage = "Payment was declined. Please try again or contact support if the issue persists.";
+        }
+        toast({
+          title: "Payment Failed",
+          description: userMessage,
+          variant: "destructive",
+        });
+      });
       rzp.open();
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Something went wrong", variant: "destructive" });
