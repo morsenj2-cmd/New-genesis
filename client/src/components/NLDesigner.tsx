@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Wand2, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph } from "@shared/layoutEngine";
@@ -22,6 +22,7 @@ interface NLDesignerProps {
 
 export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
   const { getToken } = useAuth();
+  const queryClient = useQueryClient();
   const [command, setCommand] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [result, setResult] = useState<{
@@ -59,6 +60,9 @@ export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
         const contentPatch: NLContentPatch = data.contentPatch ?? {};
         onApplied(newGenome, newLayout, contentPatch);
       }
+      // Invalidate project query so the new geminiStatus:"pending" is picked up
+      // and the AI re-generation polling starts
+      queryClient.invalidateQueries({ queryKey: ["/api/project", projectId] });
       setCommand("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -73,7 +77,7 @@ export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
         <Wand2 className="h-3 w-3" /> Edit with natural language
       </p>
       <Textarea
-        placeholder='Try: "use blue and make it minimal" or "round the corners and increase spacing"'
+        placeholder='Try: "make it minimalist with white text" or "add a pricing section" or "use more rounded corners"'
         value={command}
         onChange={(e) => setCommand(e.target.value)}
         className="text-xs resize-none min-h-[72px]"
@@ -104,19 +108,14 @@ export function NLDesigner({ projectId, onApplied }: NLDesignerProps) {
         >
           {result.description.map((line, i) => (
             <div key={i} className="flex items-start gap-1.5 text-xs">
-              {result.patchCount > 0 ? (
-                <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
-              ) : (
-                <AlertCircle className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-              )}
+              <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
               <span className="text-foreground">{line}</span>
             </div>
           ))}
-          {result.patchCount > 0 && (
-            <Badge variant="outline" className="text-xs mt-1">
-              {result.patchCount} patch{result.patchCount !== 1 ? "es" : ""} applied
-            </Badge>
-          )}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+            <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+            <span>AI is rebuilding your app with this change…</span>
+          </div>
         </div>
       )}
 

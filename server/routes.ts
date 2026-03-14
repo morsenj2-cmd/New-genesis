@@ -355,6 +355,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               genomeCopy,
               interpret,
               resolvedFontUrl,
+              logoUrl ?? null,
             );
             if (!appHtml) throw new Error("App generation returned null");
 
@@ -435,6 +436,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             genome,
             interpret,
             project.fontUrl,
+            project.logoUrl,
           );
           if (!appHtml) throw new Error("App generation returned null");
 
@@ -629,6 +631,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: newProductType,
       });
 
+      // If AI is available, mark as pending so a new HTML is generated reflecting the NL change
+      if (isGeminiAvailable()) {
+        (currentSettings as any).geminiStatus = "pending";
+      }
+
       const updated = await storage.updateProject(project.id, userId!, {
         genomeJson: JSON.stringify(currentGenome),
         layoutJson: JSON.stringify(currentLayout),
@@ -647,6 +654,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         intents,
         contentPatch,
       });
+
+      // Fire AI re-generation async with the NL instruction applied
+      if (isGeminiAvailable()) {
+        const genomeCopy = JSON.parse(JSON.stringify(currentGenome));
+        const savedSettings = parseSettings(project.settingsJson);
+        const existingInterpret = (savedSettings as any).geminiInterpret ?? null;
+        const brandNameForNL = (currentSettings as any).brandName ?? project.name;
+
+        (async () => {
+          try {
+            console.log(`[Groq] NL re-generation for project ${project.id}: "${commands}"`);
+            const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
+            if (!interpret) throw new Error("Interpret returned null");
+
+            const appHtml = await geminiGenerateApp(
+              project.prompt,
+              project.name,
+              brandNameForNL,
+              genomeCopy,
+              interpret,
+              project.fontUrl,
+              project.logoUrl,
+              commands,
+            );
+            if (!appHtml) throw new Error("App generation returned null");
+
+            const latestProject = await storage.getProject(project.id);
+            if (!latestProject) return;
+            const latestSettings = parseSettings(latestProject.settingsJson);
+            (latestSettings as any).geminiStatus = "ready";
+            (latestSettings as any).geminiAppHtml = appHtml;
+            (latestSettings as any).geminiInterpret = interpret;
+
+            await storage.updateProject(project.id, userId!, {
+              settingsJson: JSON.stringify(latestSettings),
+            });
+            console.log(`[Groq] NL re-generation complete for project ${project.id}`);
+          } catch (err) {
+            console.error(`[Groq] NL re-generation failed for project ${project.id}:`, err);
+            try {
+              const latestProject = await storage.getProject(project.id);
+              if (latestProject) {
+                const latestSettings = parseSettings(latestProject.settingsJson);
+                (latestSettings as any).geminiStatus = "failed";
+                await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+              }
+            } catch {}
+          }
+        })();
+      }
 
       try {
         if (intents.length > 0) {

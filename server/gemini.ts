@@ -150,6 +150,8 @@ export async function geminiGenerateApp(
   genome: DesignGenome,
   interpret: GeminiInterpretResult,
   fontUrl?: string | null,
+  logoUrl?: string | null,
+  nlInstruction?: string | null,
 ): Promise<string | null> {
   if (!client) return null;
   try {
@@ -157,6 +159,14 @@ export async function geminiGenerateApp(
     const headingFont = genome.typography.heading;
     const bodyFont = genome.typography.body;
     const googleFontsUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(headingFont)}:wght@400;600;700&family=${encodeURIComponent(bodyFont)}:wght@400;500&display=swap`;
+
+    const logoInstruction = logoUrl
+      ? `LOGO: The brand has an uploaded logo image. Use this exact URL in an <img> tag inside the navigation bar (left side, height 36px): ${logoUrl}`
+      : `LOGO: No logo image. Show the brand name "${brandName}" as styled text in the navigation bar.`;
+
+    const nlSection = nlInstruction
+      ? `\nUSER EDIT REQUEST: The user has requested the following change to the design: "${nlInstruction}"\nMake sure this change is clearly applied in the generated application.`
+      : "";
 
     const system = `You are an expert web developer. Generate complete, self-contained HTML applications. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary before or after the HTML.`;
 
@@ -170,6 +180,7 @@ FEATURES: ${interpret.features.join(", ")}
 AUDIENCE: ${interpret.targetAudience}
 KEY BENEFIT: ${interpret.keyBenefit}
 STYLE: ${interpret.style} — ${interpret.personality}
+${nlSection}
 
 DESIGN TOKENS (use these exact values for ALL colors and typography):
 Primary color: ${genome.colors.primary}
@@ -183,6 +194,8 @@ Border radius large: ${genome.radius.lg}
 Heading font: ${headingFont}
 Body font: ${bodyFont}
 
+${logoInstruction}
+
 REQUIREMENTS:
 1. Complete single HTML file — all CSS in <style>, all JS in <script> tags
 2. Load fonts from Google Fonts: <link href="${googleFontsUrl}" rel="stylesheet">
@@ -191,7 +204,7 @@ REQUIREMENTS:
      ${colorVars}
    }
 4. Dark background (use --color-bg for body background)
-5. Navigation bar: brand name "${brandName}" on the left, relevant nav links on the right
+5. Navigation bar: ${logoUrl ? `show the logo image (src="${logoUrl}", height="36") on the left` : `show brand name "${brandName}" as text on the left`}, relevant nav links on the right
 6. Hero section: compelling headline + subheadline + CTA button specific to this product
 7. ALL interactive features must actually work: tabs switch content, modals open/close, forms submit, filters filter, accordions open/close
 8. Realistic pre-loaded demo data: use specific names, numbers, dates — NO Lorem ipsum, no "Test User", no placeholder text
