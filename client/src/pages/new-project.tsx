@@ -20,7 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ArrowRight, Upload, Check, X, Type, Crown } from "lucide-react";
 import { UpgradeDialog } from "@/components/UpgradeDialog";
-import logoPath from "@assets/--._1772868829725.png";
+import logoPath from "../assets/logo.png";
 import type { Project } from "@shared/schema";
 
 const FONTS = [

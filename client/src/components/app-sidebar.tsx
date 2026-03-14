@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Plus, LogIn, BookOpen, Info } from "lucide-react";
-import logoPath from "@assets/--._1772868829725.png";
+import logoPath from "../assets/logo.png";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },

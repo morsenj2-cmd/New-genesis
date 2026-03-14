@@ -4,7 +4,7 @@ import {
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { usePageTitle } from "@/hooks/use-page-title";
-import spiralBg from "@assets/image_1772970592054.png";
+import spiralBg from "../assets/spiral-bg.png";
 
 export default function AboutPage() {
   usePageTitle("About Us");

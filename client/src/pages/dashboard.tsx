@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Hash, Clock, ChevronRight, X, Info } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import type { Project } from "@shared/schema";
-import spiralBg from "@assets/image_1772970592054.png";
+import spiralBg from "../assets/spiral-bg.png";
 
 function ProjectCard({ project }: { project: Project }) {
   const fontLabel = project.font || "Arimo";

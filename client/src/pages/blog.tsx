@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { BlogPost } from "@shared/schema";
-import spiralBg from "@assets/image_1772970592054.png";
+import spiralBg from "../assets/spiral-bg.png";
 
 export default function BlogPage() {
   usePageTitle("Blog");

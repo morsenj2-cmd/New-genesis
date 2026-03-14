@@ -1,5 +1,5 @@
 import { SignUp } from "@clerk/react";
-import logoPath from "@assets/--._1772868829725.png";
+import logoPath from "../assets/logo.png";
 
 export default function SignUpPage() {
   const searchParams = new URLSearchParams(window.location.search);
