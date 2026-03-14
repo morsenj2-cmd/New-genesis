@@ -724,6 +724,10 @@ function IntegrationsDialog({
   const [integrations, setIntegrations] = useState<IntegrationItem[]>(initialIntegrations);
   const { toast } = useToast();
 
+  useEffect(() => {
+    setIntegrations(initialIntegrations);
+  }, [initialIntegrations]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", `/api/project/${projectId}/integrations`, { integrations });
@@ -850,7 +854,7 @@ function LeftPanel({
   onRegenerateStyle: () => void;
   onRegenerateLayout: () => void;
   onToggleLayoutLock: () => void;
-  onNLApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: Record<string, string>) => void;
+  onNLApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch | Record<string, string>) => void;
   integrations: IntegrationItem[];
 }) {
   const [showTokens, setShowTokens] = useState(false);
@@ -1144,12 +1148,45 @@ export default function ProjectPage() {
   // instead of navigating the parent Morse page
   const safeGeminiHtml = useMemo(() => {
     if (!geminiAppHtml) return null;
-    if (geminiAppHtml.includes("__safeNav")) return geminiAppHtml; // already injected
+    if (geminiAppHtml.includes("__safeNav")) return geminiAppHtml; // already injected server-side
+    // Client-side fallback safety injection for older generated HTML
     const script = `<script>
-(function(){function initNav(){document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();var t=document.querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'});});});}
-try{Object.defineProperty(window,'__safeNav',{value:true,writable:false});}catch(e){}
-if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initNav);}else{initNav();}
-var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,subtree:true});
+(function(){
+  try{Object.defineProperty(window,'__safeNav',{value:true,writable:false});}catch(e){}
+  window.open=function(){return null;};
+  document.addEventListener('click',function(e){
+    var el=e.target;
+    for(var i=0;i<6&&el&&el!==document.body;i++,el=el.parentElement){
+      if(!el||!el.tagName)continue;
+      var tag=el.tagName.toUpperCase();
+      if(tag==='A'){
+        var href=el.getAttribute&&el.getAttribute('href');
+        if(href&&!href.startsWith('#')&&!href.startsWith('javascript')){
+          e.preventDefault();e.stopImmediatePropagation();
+          var dest=document.getElementById('contact-page')||document.getElementById('donate-page')||document.querySelector('.page:not(.active)');
+          if(dest){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});dest.classList.add('active');dest.scrollIntoView({behavior:'smooth'});}
+          return;
+        }
+      }
+      if(tag==='BUTTON'||tag==='A'||tag==='INPUT'){
+        var oc=el.getAttribute&&el.getAttribute('onclick');
+        if(oc&&(oc.includes('window.location')||oc.includes('location.href')||oc.includes('window.open'))){
+          e.preventDefault();e.stopImmediatePropagation();
+          var s=document.querySelector('[id*="donate"],[id*="contact"],[id*="signup"],[id*="action"]');
+          if(s){s.style.display='block';s.scrollIntoView({behavior:'smooth'});}
+          return;
+        }
+      }
+    }
+  },true);
+  function initNav(){
+    document.querySelectorAll('a[href^="#"]').forEach(function(a){
+      a.addEventListener('click',function(e){e.preventDefault();var t=document.querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'});});
+    });
+    document.querySelectorAll('a[href^="http"],a[href^="//"]').forEach(function(a){a.removeAttribute('href');a.style.cursor='pointer';});
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initNav);}else{initNav();}
+  var ob=new MutationObserver(initNav);if(document.body)ob.observe(document.body,{childList:true,subtree:true});
 })();
 </script>`;
     if (geminiAppHtml.includes("</body>")) return geminiAppHtml.replace("</body>", script + "\n</body>");
@@ -1638,7 +1675,7 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
                   </div>
                 ) : geminiStatus === "ready" && safeGeminiHtml ? (
                   showCodeView ? (
-                    <div className="flex-1 flex flex-col overflow-hidden" data-testid="code-editor-view">
+                    <div className="flex-1 flex flex-col overflow-hidden min-h-0" data-testid="code-editor-view">
                       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 shrink-0">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Code2 className="h-3.5 w-3.5" />
@@ -1669,12 +1706,13 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
                           </Button>
                         </div>
                       </div>
-                      <Textarea
+                      <textarea
                         value={localHtml}
                         onChange={e => setLocalHtml(e.target.value)}
-                        className="flex-1 font-mono text-xs resize-none rounded-none border-0 focus-visible:ring-0 bg-[#0d1117] text-[#e6edf3] leading-relaxed"
+                        className="flex-1 w-full font-mono text-xs resize-none border-0 outline-none bg-[#0d1117] text-[#e6edf3] leading-relaxed p-4 min-h-0"
                         spellCheck={false}
                         data-testid="textarea-html-editor"
+                        style={{ fontFamily: "'Fira Code', 'Cascadia Code', monospace" }}
                       />
                     </div>
                   ) : (

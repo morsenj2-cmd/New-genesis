@@ -58,8 +58,60 @@ function extractHtml(text: string): string {
 function injectSafetyScript(html: string): string {
   const safetyScript = `
 <script>
-// Morse safety: intercept all anchor clicks and handle in-page navigation
+// Morse safety layer — keeps generated app self-contained inside the iframe
 (function() {
+  try { Object.defineProperty(window, '__safeNav', { value: true, writable: false }); } catch(e) {}
+
+  // --- Override window.open to block popup windows ---
+  window.open = function() { return null; };
+
+  // --- Intercept ALL clicks that would navigate externally ---
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    for (var i = 0; i < 6 && el && el !== document.body; i++, el = el.parentElement) {
+      if (!el || !el.tagName) continue;
+      var tag = el.tagName.toUpperCase();
+
+      // External anchor links → scroll to matching section
+      if (tag === 'A') {
+        var href = el.getAttribute ? el.getAttribute('href') : null;
+        if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          // Try to find a contact/donate/action section to show
+          var dest = document.getElementById('contact-page') ||
+                     document.getElementById('donate-page') ||
+                     document.getElementById('page-contact') ||
+                     document.getElementById('page-donate') ||
+                     document.querySelector('.page:not(.active)');
+          if (dest) {
+            document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+            dest.classList.add('active');
+            dest.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          return;
+        }
+      }
+
+      // Buttons/links with onclick containing window.location or location.href
+      if (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT') {
+        var onclick = el.getAttribute ? el.getAttribute('onclick') : null;
+        if (onclick && (onclick.includes('window.location') || onclick.includes('location.href') || onclick.includes('location.assign') || onclick.includes('window.open'))) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          // Show the first hidden section (donate/contact/CTA page)
+          var ctaSection = document.querySelector('[id*="donate"], [id*="contact"], [id*="signup"], [id*="action"]');
+          if (ctaSection) {
+            ctaSection.style.display = 'block';
+            ctaSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          return;
+        }
+      }
+    }
+  }, true);
+
+  // --- Anchor scroll navigation ---
   function initNavigation() {
     document.querySelectorAll('a[href^="#"]').forEach(function(a) {
       a.addEventListener('click', function(e) {
@@ -70,20 +122,20 @@ function injectSafetyScript(html: string): string {
         if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
+    // Neutralize external hrefs to prevent navigation
+    document.querySelectorAll('a[href^="http"], a[href^="//"], a[href^="www"]').forEach(function(a) {
+      a.removeAttribute('href');
+      a.style.cursor = 'pointer';
+    });
   }
-  // Prevent window.location navigation to external placeholder URLs
-  var _origAssign = window.location.assign.bind(window.location);
-  try {
-    Object.defineProperty(window, '__safeNav', { value: true, writable: false });
-  } catch(e) {}
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initNavigation);
   } else {
     initNavigation();
   }
-  // Re-run after any dynamic content changes
   var observer = new MutationObserver(function() { initNavigation(); });
-  observer.observe(document.body, { childList: true, subtree: true });
+  if (document.body) observer.observe(document.body, { childList: true, subtree: true });
 })();
 </script>`;
 
@@ -237,10 +289,11 @@ Each nav link calls navigate('page-name') — do NOT use href="#..."  for page s
     const imageKeywords = interpret.productName.toLowerCase().replace(/\s+/g, "+");
 
     const imageInstruction = hasImages
-      ? `IMAGES: This product requires real photos. Use Unsplash source URLs to fetch relevant images:
-  - Use this exact format for images: <img src="https://source.unsplash.com/featured/800x500?${imageKeywords}" ...>
-  - For gallery sections with multiple images, vary the keyword by appending numbers or synonyms: ?${imageKeywords}+1, ?${imageKeywords}+nature, ?${imageKeywords}+wildlife, etc.
-  - Always set width="100%" and appropriate height on images. Never leave image src empty.`
+      ? `IMAGES: This product requires real photos. Use picsum.photos for guaranteed-loading images:
+  - Use this exact format: <img src="https://picsum.photos/seed/${imageKeywords}/800/500" alt="..." style="width:100%;height:300px;object-fit:cover;border-radius:var(--radius-md);">
+  - For gallery sections, vary the seed: seed/${imageKeywords}1/800/500, seed/${imageKeywords}2/800/500, seed/${imageKeywords}3/800/500, etc.
+  - For hero/banner images use larger dimensions: seed/${imageKeywords}/1200/600
+  - picsum.photos is always available and images always load — use it for every image.`
       : "";
 
     const user = `Generate a complete, fully functional single-page web application as a self-contained HTML file.
@@ -313,13 +366,17 @@ REQUIREMENTS:
    - Card gap: 1.5rem between cards, 1rem internal padding minimum
    - Max content width: 1100px, margin: 0 auto — prevents wide text blocks
 
-8. CALL-TO-ACTION PAGES (any "Donate", "Take Action", "Sign Up", "Contact" button):
-   - Must navigate to a dedicated page (use navigate() function) — NOT a redirect to example.com
-   - That page must contain a COMPLETE working form with fields, validation, and a success message on submit
+8. CALL-TO-ACTION & EXTERNAL LINKS (CRITICAL — violations break the app):
+   - NEVER use window.location.href, location.assign(), window.open(), or any external URL anywhere in JS code
+   - NEVER put http:// or https:// URLs in onclick handlers or button actions
+   - ALL buttons must call navigate('page-id') or toggle in-page elements — no exceptions
+   - Any "Donate", "Sign Up", "Get Started", "Contact", "Take Action" button MUST navigate to a dedicated page using navigate()
+   - That dedicated page must have a COMPLETE working form (name, email, etc.) with JS validation and success message
+   - Forms must never submit to external URLs — use e.preventDefault() and show a success message on submit
 
 9. IMAGES: ${hasImages
-      ? `Use Unsplash for real photos: <img src="https://source.unsplash.com/featured/800x500?${imageKeywords}" style="width:100%;height:300px;object-fit:cover;border-radius:var(--radius-md);">. Vary keywords for gallery: add +wildlife, +nature, +2, etc.`
-      : `Use CSS gradients or solid colored placeholder blocks for any image areas — no broken img tags`}
+      ? `Use picsum.photos for all images: <img src="https://picsum.photos/seed/${imageKeywords}/800/500" style="width:100%;height:300px;object-fit:cover;border-radius:var(--radius-md);">. For gallery use varied seeds: seed/${imageKeywords}1/800/500, seed/${imageKeywords}2/800/500, etc. picsum.photos ALWAYS loads — never use source.unsplash.com (deprecated).`
+      : `No images needed — use CSS gradient backgrounds for any hero/banner areas. No <img> tags.`}
 
 10. INTERACTIVITY: All tabs, accordions, modals, forms must work. Show success state on form submit.
 
