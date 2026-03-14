@@ -1719,6 +1719,7 @@ export default function ProjectPage() {
                     creditsUsed={project.nlCreditsUsed ?? 0}
                     creditLimit={subscription?.perProjectLimit ?? 500}
                     userPlan={subscription?.plan ?? "free"}
+                    geminiAppHtml={safeGeminiHtml}
                   />
                 ) : geminiStatus === "pending" ? (
                   <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8" data-testid="ai-generating-state">

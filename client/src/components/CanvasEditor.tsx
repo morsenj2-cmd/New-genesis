@@ -56,6 +56,7 @@ interface CanvasEditorProps {
   creditsUsed?: number;
   creditLimit?: number;
   userPlan?: string;
+  geminiAppHtml?: string | null;
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -322,6 +323,7 @@ export function CanvasEditor({
   creditsUsed = 0,
   creditLimit = 500,
   userPlan = "free",
+  geminiAppHtml,
 }: CanvasEditorProps) {
   const [mode, setMode] = useState<EditorMode>("canvas");
   const [selectedSectionIdx, setSelectedSectionIdx] = useState<number | null>(null);
@@ -800,6 +802,14 @@ export function CanvasEditor({
             layout={layout}
             contentOverrides={contentOverrides}
             onStateChange={setElementState}
+          />
+        ) : geminiAppHtml && !isCanvasMode ? (
+          <iframe
+            srcDoc={geminiAppHtml}
+            sandbox="allow-scripts allow-forms allow-popups"
+            className="h-full w-full border-0"
+            title="AI Generated App"
+            data-testid="canvas-ai-preview"
           />
         ) : (
           <div className="h-full overflow-y-auto">
