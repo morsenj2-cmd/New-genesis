@@ -300,7 +300,13 @@ Morse uses Groq (llama-3.3-70b-versatile) to generate complete, fully functional
 - Quality check: validates line count ≥200, has `<style>`/`<script>`, has init/render functions
 - Retry: up to 2 attempts if validation fails
 
-Key files: `server/gemini.ts` (generation engine), interpret → generate pipeline.
+**NL Edit (Targeted)**:
+- `geminiEditApp()` in `server/gemini.ts` — sends existing HTML + edit instruction to AI, asks for ONLY the requested change
+- Preserves all existing functionality, layout, data, and JS logic
+- Falls back to full `geminiGenerateApp()` regeneration if edit result is too short or no existing HTML exists
+- Safety script is stripped before sending to AI, then re-injected after edit
+
+Key files: `server/gemini.ts` (generation engine + edit engine), interpret → generate pipeline.
 Safety: `injectSafetyScript()` blocks external navigation, window.open, external hrefs (http/https/www). Client-side fallback in `project.tsx` `safeGeminiHtml` useMemo (synced selectors).
 Images: Always picsum.photos with seeded URLs. Auto-detected visual product types (ecommerce, fashion, restaurant, etc.) get prominent image instructions. NEVER via.placeholder.com, source.unsplash.com, or placehold.co.
 Regeneration: Both `regenerate-style` and `regenerate-layout` routes trigger async AI HTML regeneration.

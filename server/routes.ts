@@ -48,6 +48,7 @@ import { improveLayout } from "../ai/layout/layoutImprover";
 import {
   geminiInterpret,
   geminiGenerateApp,
+  geminiEditApp,
   geminiGenerateBackend,
   isGeminiAvailable,
   type Integration,
@@ -661,33 +662,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         contentPatch,
       });
 
-      // Fire AI re-generation async with the NL instruction applied
+      // Fire AI edit (or re-generation) async with the NL instruction applied
       if (isGeminiAvailable()) {
         const genomeCopy = JSON.parse(JSON.stringify(currentGenome));
         const savedSettings = parseSettings(project.settingsJson);
         const existingInterpret = (savedSettings as any).geminiInterpret ?? null;
+        const existingHtml: string | null = (savedSettings as any).geminiAppHtml ?? null;
         const brandNameForNL = (currentSettings as any).brandName ?? project.name;
 
         (async () => {
           try {
-            console.log(`[Groq] NL re-generation for project ${project.id}: "${commands}"`);
-            const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
-            if (!interpret) throw new Error("Interpret returned null");
+            let appHtml: string | null = null;
 
-            const nlSettings = parseSettings(project.settingsJson);
-            const nlIntegrations: Integration[] = (nlSettings as any).integrations ?? [];
+            if (existingHtml && existingHtml.length > 200) {
+              console.log(`[Groq] NL targeted edit for project ${project.id}: "${commands}"`);
+              appHtml = await geminiEditApp(existingHtml, commands, brandNameForNL, genomeCopy);
+            }
 
-            const appHtml = await geminiGenerateApp(
-              project.prompt,
-              project.name,
-              brandNameForNL,
-              genomeCopy,
-              interpret,
-              project.fontUrl,
-              project.logoUrl,
-              commands,
-              nlIntegrations,
-            );
+            let usedInterpret = existingInterpret;
+            if (!appHtml) {
+              console.log(`[Groq] NL full re-generation for project ${project.id}: "${commands}"`);
+              usedInterpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
+              if (!usedInterpret) throw new Error("Interpret returned null");
+
+              const nlSettings = parseSettings(project.settingsJson);
+              const nlIntegrations: Integration[] = (nlSettings as any).integrations ?? [];
+
+              appHtml = await geminiGenerateApp(
+                project.prompt,
+                project.name,
+                brandNameForNL,
+                genomeCopy,
+                usedInterpret,
+                project.fontUrl,
+                project.logoUrl,
+                commands,
+                nlIntegrations,
+              );
+            }
             if (!appHtml) throw new Error("App generation returned null");
 
             const latestProject = await storage.getProject(project.id);
@@ -695,14 +707,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             const latestSettings = parseSettings(latestProject.settingsJson);
             (latestSettings as any).geminiStatus = "ready";
             (latestSettings as any).geminiAppHtml = appHtml;
-            (latestSettings as any).geminiInterpret = interpret;
+            if (usedInterpret) (latestSettings as any).geminiInterpret = usedInterpret;
 
             await storage.updateProject(project.id, userId!, {
               settingsJson: JSON.stringify(latestSettings),
             });
-            console.log(`[Groq] NL re-generation complete for project ${project.id}`);
+            console.log(`[Groq] NL edit complete for project ${project.id}`);
           } catch (err) {
-            console.error(`[Groq] NL re-generation failed for project ${project.id}:`, err);
+            console.error(`[Groq] NL edit failed for project ${project.id}:`, err);
             try {
               const latestProject = await storage.getProject(project.id);
               if (latestProject) {

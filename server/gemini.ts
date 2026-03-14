@@ -395,6 +395,64 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
   }
 }
 
+export async function geminiEditApp(
+  existingHtml: string,
+  editInstruction: string,
+  brandName: string,
+  genome: DesignGenome,
+): Promise<string | null> {
+  if (!client) return null;
+  try {
+    const system = `You are an expert HTML/CSS/JS editor. You receive an existing single-file HTML application and an edit instruction. You must apply ONLY the requested change — do NOT rewrite, restructure, or regenerate the app. Preserve all existing functionality, layout, styling, data, and JavaScript logic. Output the COMPLETE modified HTML document starting with <!DOCTYPE html>. No explanation, no markdown fences.`;
+
+    const trimmedHtml = existingHtml
+      .replace(/<script>\s*\/\/\s*Morse safety layer[\s\S]*?<\/script>/g, "")
+      .trim();
+
+    const user = `Here is the existing HTML application:
+
+\`\`\`html
+${trimmedHtml}
+\`\`\`
+
+EDIT INSTRUCTION: "${editInstruction}"
+
+RULES:
+1. Apply ONLY the requested change. Do NOT remove, restructure, or rewrite other parts.
+2. Keep ALL existing JavaScript functions, event handlers, state management, and data intact.
+3. Keep ALL existing CSS styles unless the edit specifically asks to change styling.
+4. Keep ALL existing HTML structure unless the edit specifically asks to change layout.
+5. If the edit asks for a color change, update the CSS variables or specific color values.
+6. If the edit asks for content changes, update only the relevant text/data.
+7. If the edit asks to add a section, insert it in a logical position without removing existing sections.
+8. Preserve the dark theme with light text (#f1f5f9) on dark backgrounds.
+9. Keep all images using picsum.photos URLs.
+10. Output the COMPLETE HTML document — not a diff, not a fragment.
+
+Return the full modified HTML starting with <!DOCTYPE html>.`;
+
+    const maxTokens = 12000;
+    const text = await chat(system, user, maxTokens);
+    let html = extractHtml(text);
+
+    if (!html.includes("</html>") && html.includes("<html")) {
+      html += "\n</body>\n</html>";
+    }
+
+    const lineCount = html.split("\n").length;
+    const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
+    if (lineCount < 50 || !hasBasicStructure) {
+      console.warn(`[Groq] Edit result invalid (${lineCount} lines, structure=${hasBasicStructure}), falling back to full regeneration`);
+      return null;
+    }
+
+    return injectSafetyScript(html);
+  } catch (err) {
+    console.error("[Groq] Edit app failed:", err);
+    return null;
+  }
+}
+
 export async function geminiGenerateBackend(
   prompt: string,
   projectName: string,
