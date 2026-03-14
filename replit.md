@@ -35,8 +35,6 @@ Key features:
   - Accessibility: "more readable", "accessible"
   - Content: "change headline to X", "set CTA to Y"
   - Smart fallback: context-aware suggestions when nothing matches
-  - Apply pipeline safety: deepMerge for genome patches (never shallow overwrite), isValidGenome/isValidLayout validation before save, auto-revert to original on invalid patch, logged warnings for rejected patches
-- GenomePreview defensive rendering: `safeGenome()` fills missing fields with GENOME_DEFAULTS, `lastValidLayoutRef` falls back to previous valid layout if new layout breaks, null guards on all genome field access in navbar/button/icon components
 - Branding tokens: `genome.branding.logoColor/logoFont/logoWeight` — GenomeNavbar applies these to logo text and icon color
 - Design Source Priority: user's uploaded logo, selected font, selected primary color always override generator output via `mergeDesignSources()` in `shared/designMerger.ts`
 - Content Generator: category-specific headlines, subheadlines, CTA labels, features, stats, testimonials, CTA copy, and footer taglines from `shared/contentGenerator.ts` — 14 product types each with realistic copy, each with a distinct `brandName` (Vault, Relay, Lens, Shopbase, Sprint, Pipeline, Pulse, Flowbase, Devkit, Streamly, Clair, Medi, Coursify, Tempo)
@@ -63,7 +61,6 @@ Key features:
 - **Liquid glass sidebar**: Navigation sidebar (`AppSidebar`) uses frosted glass design — semi-transparent background (`rgba(12,12,12,0.65)`), `backdrop-filter: blur(20px) saturate(1.4)`, subtle inner glow border, active items have glassmorphic highlight; CSS class `.liquid-glass-sidebar` applied to `<Sidebar>` wrapper
 - Multi-page navigation: GenomePreview manages `activePage` state, navbar links navigate between home/features/pricing/about/blog/contact; full page components for each: GenomeFeaturesPage, GenomePricingPage (3-tier with FAQs), GenomeAboutPage (mission+stats+testimonials), GenomeBlogPage, GenomeContactPage; footer links also navigate
 - Context-driven layout generation: `shared/layoutEngine.ts` has `SITE_TYPE_POOLS` per page type (landing_page, marketing_site, web_app, dashboard, blog, portfolio, social_platform, ecommerce_store); `generateLayout` uses the correct section pool when `pageType` is provided in design context; `server/routes.ts` passes `intent.pageType` to `generateLayout`
-- **Credits System**: `users.credits` column (integer, default 1000). Credit check before every AI operation (project creation, generate-app, regenerate-style, regenerate-layout, apply-nl). Credit deducted only after successful AI generation (atomic conditional UPDATE — `WHERE credits >= amount`). `GET /api/user/credits` returns `{credits}`. Dashboard header shows credits badge. Project sidebar shows credits count with disabled buttons when out of credits. Cache invalidated on status transitions and after project creation.
 - **Generation Refactor (v2)**:
   - **Strict page type enforcement**: `landing_page` prompts always use `generateLayout` (never `generateContextualLayout`) — dashboard/analytics components are fully blocked from landing pages
   - **Landing page pool**: `featureGrid, cardList, testimonial, cta` only — no stats, no dashboard-only components

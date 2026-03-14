@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph, LayoutSection, SectionType } from "@shared/layoutEngine";
 import { renderProductSection } from "./ProductComponents";
@@ -43,34 +43,12 @@ export interface GenomeTokens {
   onNavigate?: (page: PreviewPage) => void;
 }
 
-const GENOME_DEFAULTS = {
-  colors: { primary: "#6366F1", secondary: "#818CF8", accent: "#F59E0B", background: "#09090b", surface: "#18181b", hues: { primary: 239, secondary: 239, accent: 38 } },
-  typography: { heading: "Inter", body: "Inter", mono: "JetBrains Mono", scaleRatio: 1.25, sizes: { xs: "0.75rem", sm: "0.875rem", base: "1rem", lg: "1.125rem", xl: "1.25rem", "2xl": "1.5rem", "3xl": "2rem" } },
-  spacing: { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px", "2xl": "48px", base: 8, ratio: 1.5 },
-  radius: { sm: "4px", md: "8px", lg: "12px", xl: "16px", full: "9999px" },
-  iconStyle: { strokeWidth: 1.5, cornerRoundness: 0.5, geometryBias: "geometric" as const, variant: "outline" as const },
-  motion: { duration: { fast: "150ms", base: "250ms", slow: "400ms" }, easing: "ease-out", easingName: "ease-out" },
-};
-
-function safeGenome(genome: DesignGenome): DesignGenome {
-  if (!genome) return GENOME_DEFAULTS as unknown as DesignGenome;
-  return {
-    ...genome,
-    colors: { ...GENOME_DEFAULTS.colors, ...genome.colors },
-    typography: { ...GENOME_DEFAULTS.typography, ...genome.typography, sizes: { ...GENOME_DEFAULTS.typography.sizes, ...(genome.typography?.sizes ?? {}) } },
-    spacing: { ...GENOME_DEFAULTS.spacing, ...genome.spacing },
-    radius: { ...GENOME_DEFAULTS.radius, ...genome.radius },
-    iconStyle: { ...GENOME_DEFAULTS.iconStyle, ...genome.iconStyle },
-    motion: { ...GENOME_DEFAULTS.motion, ...genome.motion, duration: { ...GENOME_DEFAULTS.motion.duration, ...(genome.motion?.duration ?? {}) } },
-  } as DesignGenome;
-}
-
 function toIconStyle(genome: DesignGenome): GenomeIconStyle {
   return {
-    strokeWidth: genome.iconStyle?.strokeWidth ?? 1.5,
-    cornerRoundness: genome.iconStyle?.cornerRoundness ?? 0.5,
-    geometryBias: genome.iconStyle?.geometryBias ?? "geometric",
-    variant: genome.iconStyle?.variant ?? "outline",
+    strokeWidth: genome.iconStyle.strokeWidth,
+    cornerRoundness: genome.iconStyle.cornerRoundness,
+    geometryBias: genome.iconStyle.geometryBias,
+    variant: genome.iconStyle.variant,
   };
 }
 
@@ -114,9 +92,9 @@ function GenomeButton({
   children: string;
   variant?: "primary" | "outline";
 }) {
-  const bg = variant === "primary" ? (genome.colors?.primary ?? "#6366F1") : "transparent";
-  const border = `1.5px solid ${genome.colors?.primary ?? "#6366F1"}`;
-  const color = variant === "primary" ? "#fff" : (genome.colors?.primary ?? "#6366F1");
+  const bg = variant === "primary" ? genome.colors.primary : "transparent";
+  const border = `1.5px solid ${genome.colors.primary}`;
+  const color = variant === "primary" ? "#fff" : genome.colors.primary;
   return (
     <span
       style={{
@@ -124,10 +102,10 @@ function GenomeButton({
         backgroundColor: bg,
         border,
         color,
-        borderRadius: genome.radius?.md ?? "8px",
-        padding: `${genome.spacing?.xs ?? "4px"} ${genome.spacing?.md ?? "16px"}`,
-        fontFamily: `'${genome.typography?.heading ?? "Inter"}', sans-serif`,
-        fontSize: genome.typography?.sizes?.sm ?? "0.875rem",
+        borderRadius: genome.radius.md,
+        padding: `${genome.spacing.xs} ${genome.spacing.md}`,
+        fontFamily: `'${genome.typography.heading}', sans-serif`,
+        fontSize: genome.typography.sizes.sm,
         fontWeight: 600,
         cursor: "pointer",
         whiteSpace: "nowrap",
@@ -149,8 +127,8 @@ const PAGE_NAV_LINKS: { label: string; page: PreviewPage }[] = [
 export function GenomeNavbar({ tokens }: { tokens: GenomeTokens }) {
   const { genome, projectName, projectLogoUrl, productType, contentOverrides, activePage, onNavigate } = tokens;
   const content = getProductContent(productType);
-  const logoColor = (genome as any).branding?.logoColor ?? genome.colors?.primary ?? "#6366F1";
-  const logoFont = (genome as any).branding?.logoFont ?? genome.typography?.heading ?? "Inter";
+  const logoColor = (genome as any).branding?.logoColor ?? genome.colors.primary;
+  const logoFont = (genome as any).branding?.logoFont ?? genome.typography.heading;
   const logoWeight = (genome as any).branding?.logoWeight ?? 700;
   const displayBrandName = contentOverrides?.brandName || projectName || content.brandName;
   return (
@@ -1129,8 +1107,8 @@ function useGenomeFonts(genome: DesignGenome) {
 }
 
 export function GenomePreview({
-  genome: rawGenome,
-  layout: rawLayout,
+  genome,
+  layout,
   projectName,
   projectPrompt,
   projectLogoUrl,
@@ -1149,12 +1127,6 @@ export function GenomePreview({
   selectedSectionIdx?: number | null;
   onSectionClick?: (idx: number) => void;
 }) {
-  const genome = safeGenome(rawGenome);
-  const lastValidLayoutRef = useRef<LayoutGraph>(rawLayout);
-  const layout = (rawLayout?.sections?.length > 0 && rawLayout?.metadata) ? rawLayout : lastValidLayoutRef.current;
-  if (rawLayout?.sections?.length > 0 && rawLayout?.metadata) {
-    lastValidLayoutRef.current = rawLayout;
-  }
   const [activePage, setActivePage] = useState<PreviewPage>("home");
   const tokens: GenomeTokens = { genome, projectName, projectPrompt, projectLogoUrl, productType, contentOverrides, activePage, onNavigate: setActivePage };
   useGenomeFonts(genome);

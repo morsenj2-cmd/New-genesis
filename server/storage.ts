@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import { users, projects, promptLogs, contextKnowledge, blogPosts, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost } from "@shared/schema";
 
@@ -43,8 +43,6 @@ export interface IStorage {
     previousGenomesJson?: string;
   }): Promise<Project | undefined>;
   deleteProject(id: string, userId: string): Promise<void>;
-  getUserCredits(userId: string): Promise<number>;
-  deductCredits(userId: string, amount: number): Promise<boolean>;
   getContextByHash(promptHash: string): Promise<ContextKnowledge | undefined>;
   getContextByDomain(domain: string): Promise<ContextKnowledge[]>;
   storeContext(data: InsertContextKnowledge): Promise<ContextKnowledge>;
@@ -151,16 +149,6 @@ export class DatabaseStorage implements IStorage {
     const data: Partial<PromptLog> = { feedbackSignal: signal };
     if (correctedIntent) data.correctedIntentJson = correctedIntent;
     await db.update(promptLogs).set(data).where(eq(promptLogs.id, id));
-  }
-
-  async getUserCredits(userId: string): Promise<number> {
-    const [user] = await db.select({ credits: users.credits }).from(users).where(eq(users.id, userId));
-    return user?.credits ?? 0;
-  }
-
-  async deductCredits(userId: string, amount: number): Promise<boolean> {
-    const result = await db.update(users).set({ credits: sql`${users.credits} - ${amount}` }).where(and(eq(users.id, userId), gte(users.credits, amount)));
-    return (result as any).rowCount === 1;
   }
 
   async getContextByHash(promptHash: string): Promise<ContextKnowledge | undefined> {

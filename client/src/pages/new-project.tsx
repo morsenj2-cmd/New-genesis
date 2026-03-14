@@ -182,7 +182,6 @@ export default function NewProjectPage() {
     },
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ["/api/project/list"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/credits"] });
       navigate(`/project/${project.id}`);
     },
     onError: (err: Error) => {

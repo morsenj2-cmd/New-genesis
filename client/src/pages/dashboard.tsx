@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Hash, Clock, ChevronRight, X, Info, Zap } from "lucide-react";
+import { Plus, Hash, Clock, ChevronRight, X, Info } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import type { Project } from "@shared/schema";
 import spiralBg from "@assets/image_1772970592054.png";
@@ -180,11 +180,6 @@ export default function DashboardPage() {
     enabled: !!isSignedIn,
   });
 
-  const { data: creditsData } = useQuery<{ credits: number }>({
-    queryKey: ["/api/user/credits"],
-    enabled: !!isSignedIn,
-  });
-
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   const handleCreateClick = () => {
@@ -280,22 +275,14 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {isSignedIn && creditsData && (
-                <Badge variant="outline" className="gap-1.5 text-xs border-white/[0.08] text-white/60" data-testid="text-dashboard-credits">
-                  <Zap className="h-3 w-3" />
-                  {creditsData.credits} credits
-                </Badge>
-              )}
-              <Button
-                onClick={handleCreateClick}
-                data-testid="button-new-project"
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                New Project
-              </Button>
-            </div>
+            <Button
+              onClick={handleCreateClick}
+              data-testid="button-new-project"
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
           </header>
 
           <main className="flex-1 overflow-y-auto p-6 relative">
