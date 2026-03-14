@@ -4,9 +4,38 @@ import type { DesignGenome } from "@shared/genomeGenerator";
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-function getModel(modelName = "gemini-2.0-flash") {
+// Try models in order until one works
+const MODEL_PREFERENCE = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+  "gemini-2.0-flash-lite",
+];
+
+function getModel(modelName: string) {
   if (!genAI) throw new Error("GEMINI_API_KEY not configured");
   return genAI.getGenerativeModel({ model: modelName });
+}
+
+async function generateWithFallback(prompt: string, maxOutputTokens?: number): Promise<string> {
+  if (!genAI) throw new Error("GEMINI_API_KEY not configured");
+  let lastError: Error | null = null;
+  for (const model of MODEL_PREFERENCE) {
+    try {
+      const m = getModel(model);
+      const config = maxOutputTokens ? { generationConfig: { maxOutputTokens } } : {};
+      const result = await m.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }], ...config });
+      return result.response.text();
+    } catch (err: any) {
+      console.warn(`[Gemini] Model ${model} failed:`, err?.message?.slice(0, 80));
+      lastError = err;
+      // Only continue on quota/rate-limit errors
+      if (!err?.message?.includes("429") && !err?.message?.includes("quota") && !err?.message?.includes("rate")) {
+        throw err;
+      }
+    }
+  }
+  throw lastError ?? new Error("All Gemini models failed");
 }
 
 export interface GeminiInterpretResult {
@@ -74,7 +103,6 @@ export async function geminiInterpret(
 ): Promise<GeminiInterpretResult | null> {
   if (!genAI) return null;
   try {
-    const model = getModel();
     const systemPrompt = `You are a product analyst interpreting a software product description to guide UI generation. Return ONLY valid JSON, no explanation.
 
 Project name: "${projectName}"
@@ -83,8 +111,8 @@ User prompt: "${prompt}"
 Return a JSON object with exactly these fields:
 {
   "productName": "short product name",
-  "productType": "saas | ecommerce | dashboard | social | productivity | fintech | healthcare | education | other",
-  "industry": "technology | finance | health | education | retail | media | other",
+  "productType": "saas | ecommerce | dashboard | social | productivity | fintech | healthcare | education | cultural | other",
+  "industry": "technology | finance | health | education | retail | media | cultural | museum | art | other",
   "pageType": "landing_page | web_app | dashboard",
   "style": "one adjective like modern | minimal | bold | elegant | playful",
   "personality": "one sentence describing the brand voice",
@@ -100,8 +128,7 @@ Return a JSON object with exactly these fields:
   "uniqueToken": "one word that captures the unique feel of this product"
 }`;
 
-    const result = await model.generateContent(systemPrompt);
-    const text = result.response.text();
+    const text = await generateWithFallback(systemPrompt);
     const json = extractJson(text);
     return JSON.parse(json) as GeminiInterpretResult;
   } catch (err) {
@@ -120,7 +147,6 @@ export async function geminiGenerateApp(
 ): Promise<string | null> {
   if (!genAI) return null;
   try {
-    const model = getModel();
     const tokens = genomeToTokenString(genome);
     const fontFaceNote = fontUrl
       ? `\nNote: The heading/body font is a custom uploaded font already declared via @font-face. Use 'var(--font-heading)' and 'var(--font-body)' CSS variables for all font-family values.`
@@ -156,8 +182,7 @@ STRICT REQUIREMENTS:
 
 OUTPUT: Return ONLY the JSX code starting with the import statement. No explanation, no markdown fences.`;
 
-    const result = await model.generateContent(systemPrompt);
-    const text = result.response.text();
+    const text = await generateWithFallback(systemPrompt, 8192);
     return extractCode(text);
   } catch (err) {
     console.error("[Gemini] Stage 2 (generate app) failed:", err);
@@ -173,7 +198,6 @@ export async function geminiGenerateBackend(
   if (!genAI) return null;
   if (!interpret.hasBackend) return null;
   try {
-    const model = getModel();
     const systemPrompt = `You are an expert Node.js developer generating a complete Express.js backend server.
 
 PRODUCT: ${interpret.productName}
@@ -193,8 +217,7 @@ Requirements:
 
 OUTPUT: Return ONLY the Node.js code. No explanation, no markdown fences.`;
 
-    const result = await model.generateContent(systemPrompt);
-    const text = result.response.text();
+    const text = await generateWithFallback(systemPrompt, 4096);
     return extractCode(text);
   } catch (err) {
     console.error("[Gemini] Stage 3 (generate backend) failed:", err);
@@ -213,7 +236,6 @@ export async function geminiInterpretEdit(
 } | null> {
   if (!genAI) return null;
   try {
-    const model = getModel();
     const systemPrompt = `You are classifying a user's edit command for a generated web application. Return ONLY valid JSON.
 
 Original product type: ${productType}
@@ -234,8 +256,7 @@ Guidelines:
 - regenerate: "redo", "start over", "regenerate" → shouldRegenerate = true
 - compound: multiple types of changes → shouldRegenerate = true if layout changes included`;
 
-    const result = await model.generateContent(systemPrompt);
-    const text = result.response.text();
+    const text = await generateWithFallback(systemPrompt);
     const json = extractJson(text);
     return JSON.parse(json);
   } catch (err) {

@@ -49,6 +49,7 @@ const INDUSTRY_SIGNALS: [string, string[]][] = [
   ["consulting",      ["consulting", "advisory", "strategy", "management consulting", "professional services", "staffing", "recruitment", "outsourcing", "business intelligence", "transformation", "change management"]],
   ["telecom",         ["telecom", "telecommunications", "network", "connectivity", "broadband", "5g", "wireless", "carrier", "isp", "internet provider", "fiber", "infrastructure", "cellular", "mobile network"]],
   ["automotive",      ["automotive", "vehicle", "car", "truck", "fleet", "dealership", "auto", "mobility", "ev", "electric vehicle", "autonomous", "connected car", "telematics"]],
+  ["cultural",        ["museum", "gallery", "art gallery", "art museum", "exhibition", "artifact", "artefact", "collection", "curator", "heritage", "archive", "theatre", "theater", "concert hall", "opera", "ballet", "cultural", "monument", "sculpture", "painting", "renaissance", "rennaisance", "antiquity", "historical", "history museum", "natural history", "science museum", "digital museum", "virtual museum", "artwork", "masterpiece", "fresco", "baroque", "neoclassical", "impressionism"]],
 ];
 
 const GENERIC_CONTEXT_WORDS: Record<string, RegExp[]> = {
@@ -210,6 +211,7 @@ const SEMANTIC_DOMAIN_MAP: Record<string, string> = {
   agriculture:   "agricultural technology",
   hospitality:   "hospitality technology",
   construction:  "construction technology",
+  cultural:      "cultural heritage",
 };
 
 export function extractContextGraph(prompt: string, productType?: string | null): ContextGraph {
@@ -1101,6 +1103,67 @@ const INDUSTRY_LIBRARY: Record<string, IndustryContent> = {
     ],
     aboutMission: "Buildings and infrastructure shape how people live, work, and connect. We bring engineering precision, safety discipline, and project management rigour to every project — because what we build today must serve communities for generations.",
   },
+
+  cultural: {
+    headlines: [
+      "Explore centuries of art and culture",
+      "Discover our world-class collections",
+      "Art, history, and heritage — all in one place",
+      "Your window to world cultural heritage",
+      "Experience history and art like never before",
+      "Where culture comes alive",
+    ],
+    enterpriseHeadlines: [
+      "A world-leading destination for art and cultural heritage",
+      "Preserving and sharing culture for future generations",
+    ],
+    subheadlines: [
+      "Discover thousands of works from ancient civilisations to the present day, curated for curious minds.",
+      "Immerse yourself in masterpieces, artefacts, and stories that span centuries of human creativity.",
+      "From rare manuscripts to iconic sculptures — our collections bring history and art to life.",
+      "Explore our permanent and rotating exhibitions, each telling a unique story of human civilisation.",
+    ],
+    ctaLabels: ["Explore the collection", "Visit now", "Browse exhibitions", "Discover more", "Start exploring"],
+    secondaryCtaLabels: ["Plan your visit", "Learn more", "See all exhibitions"],
+    ctaHeadlines: [
+      "Ready to explore?",
+      "Start your cultural journey today",
+      "Discover something extraordinary",
+      "The collection awaits",
+    ],
+    ctaBodies: [
+      "Whether you're a lifelong enthusiast or discovering art for the first time, our collection has something to inspire everyone. Explore thousands of works online or plan your visit today.",
+      "From guided tours to self-directed exploration, we make cultural heritage accessible and engaging for all audiences.",
+    ],
+    featureGridTitles: ["What we offer", "Explore our collection", "Highlights of our cultural experience"],
+    cardListTitles: ["Featured exhibitions", "Our collections", "Highlights"],
+    footerTaglines: [
+      "Preserving cultural heritage for future generations.",
+      "Art, history, and culture — open to all.",
+      "Connecting people to the world's greatest cultural treasures.",
+    ],
+    navLinks: ["Collections", "Exhibitions", "Visit", "About"],
+    features: [
+      { icon: "grid", title: "Permanent collection", description: "Browse thousands of works spanning ancient history through to contemporary art, permanently on display." },
+      { icon: "sparkles", title: "Special exhibitions", description: "Rotating special exhibitions bring the world's most celebrated artefacts and artworks to our galleries." },
+      { icon: "search", title: "Digital archive", description: "Search and explore our full digital archive of high-resolution works, manuscripts, and historical records." },
+      { icon: "play", title: "Guided tours", description: "Audio and video guided tours bring context and meaning to every work in our collection." },
+      { icon: "settings", title: "Educational programmes", description: "Workshops, lectures, and learning resources designed for schools, families, and lifelong learners." },
+      { icon: "filter", title: "Research resources", description: "Access our library and academic resources for in-depth study of art history and cultural heritage." },
+    ],
+    stats: [
+      { icon: "grid", value: "50,000+", label: "Works in collection" },
+      { icon: "broadcast", value: "1.2M+", label: "Annual visitors" },
+      { icon: "settings", value: "500+", label: "Years of history" },
+      { icon: "filter", value: "120+", label: "Countries represented" },
+    ],
+    testimonials: [
+      { text: "An extraordinary experience. The Renaissance wing alone is worth the visit — the depth of the collection is breathtaking.", author: "Marie D.", role: "Art historian, Sorbonne University" },
+      { text: "The digital archive has transformed my research. I can access high-resolution scans of manuscripts I'd never be able to study in person.", author: "Prof. James R.", role: "Professor of Art History" },
+      { text: "Visiting with my children was magical. The interactive galleries made history feel alive and relevant to them.", author: "Isabelle M.", role: "Primary school teacher" },
+    ],
+    aboutMission: "Our mission is to collect, preserve, and share the world's cultural heritage — making art, history, and human creativity accessible to all. We believe that culture belongs to everyone, and that encountering great works of art and history enriches lives and connects communities across time.",
+  },
 };
 
 // ── Fallback (technology/generic) ────────────────────────────────────────────
@@ -1401,10 +1464,23 @@ export function generateContextContent(
   universalCtx?: UniversalContext,
 ): ProductContent {
   const ctx = extractContextGraph(prompt, productType);
+  // ctx.industry is freshly detected from the prompt
 
   if (universalCtx) {
-    ctx.industry = universalCtx.industry;
-    ctx.semanticDomain = SEMANTIC_DOMAIN_MAP[universalCtx.industry] ?? universalCtx.industry.replace(/_/g, " ");
+    // Only use the locked industry if the fresh detection didn't produce a better match.
+    // If the fresh detection found a specific library entry but the lock has a generic/wrong industry, prefer fresh.
+    const freshIndustry = ctx.industry;
+    const lockedIndustry = universalCtx.industry;
+    const freshHasLibrary = !!INDUSTRY_LIBRARY[freshIndustry] && freshIndustry !== "technology";
+    const lockedHasLibrary = !!INDUSTRY_LIBRARY[lockedIndustry];
+    const useLockedIndustry = !freshHasLibrary || (lockedHasLibrary && lockedIndustry === freshIndustry) || (!freshHasLibrary && lockedHasLibrary);
+    if (useLockedIndustry) {
+      ctx.industry = lockedIndustry;
+      ctx.semanticDomain = SEMANTIC_DOMAIN_MAP[lockedIndustry] ?? lockedIndustry.replace(/_/g, " ");
+    } else {
+      // Fresh detection found a more specific match (e.g., "cultural" vs "manufacturing")
+      ctx.semanticDomain = SEMANTIC_DOMAIN_MAP[freshIndustry] ?? freshIndustry.replace(/_/g, " ");
+    }
     if (universalCtx.coreActivities.length > 0 && ctx.services.length === 0) {
       ctx.services = universalCtx.coreActivities.slice(0, 6);
     }
