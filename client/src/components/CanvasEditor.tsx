@@ -795,21 +795,21 @@ export function CanvasEditor({
         data-testid="canvas-preview-area"
         onClick={() => { if (showAddMenu) setShowAddMenu(false); }}
       >
-        {isElementsMode ? (
-          <ElementCanvas
-            ref={elementCanvasRef}
-            genome={genome}
-            layout={layout}
-            contentOverrides={contentOverrides}
-            onStateChange={setElementState}
-          />
-        ) : geminiAppHtml ? (
+        {geminiAppHtml ? (
           <iframe
             srcDoc={geminiAppHtml}
             sandbox="allow-scripts allow-forms allow-popups"
             className="h-full w-full border-0"
             title="AI Generated App"
             data-testid="canvas-ai-preview"
+          />
+        ) : isElementsMode ? (
+          <ElementCanvas
+            ref={elementCanvasRef}
+            genome={genome}
+            layout={layout}
+            contentOverrides={contentOverrides}
+            onStateChange={setElementState}
           />
         ) : (
           <div className="h-full overflow-y-auto">
