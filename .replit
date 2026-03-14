@@ -45,3 +45,4 @@ DATABASE_URL = "postgresql://neondb_owner:npg_ZS2CBzoqhFn4@ep-divine-salad-a1849
 
 [agent]
 expertMode = true
+integrations = ["github:1.0.0"]
