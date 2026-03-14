@@ -1,42 +1,19 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import type { DesignGenome } from "@shared/genomeGenerator";
 
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+const apiKey = process.env.GROQ_API_KEY;
 
-// Try models in order until one works
+const client = apiKey
+  ? new OpenAI({ apiKey, baseURL: "https://api.groq.com/openai/v1" })
+  : null;
+
+// Models in preference order (fastest + largest context first)
 const MODEL_PREFERENCE = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-8b",
-  "gemini-2.0-flash-lite",
+  "llama-3.3-70b-versatile",
+  "mixtral-8x7b-32768",
+  "llama3-70b-8192",
+  "llama3-8b-8192",
 ];
-
-function getModel(modelName: string) {
-  if (!genAI) throw new Error("GEMINI_API_KEY not configured");
-  return genAI.getGenerativeModel({ model: modelName });
-}
-
-async function generateWithFallback(prompt: string, maxOutputTokens?: number): Promise<string> {
-  if (!genAI) throw new Error("GEMINI_API_KEY not configured");
-  let lastError: Error | null = null;
-  for (const model of MODEL_PREFERENCE) {
-    try {
-      const m = getModel(model);
-      const config = maxOutputTokens ? { generationConfig: { maxOutputTokens } } : {};
-      const result = await m.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }], ...config });
-      return result.response.text();
-    } catch (err: any) {
-      console.warn(`[Gemini] Model ${model} failed:`, err?.message?.slice(0, 80));
-      lastError = err;
-      // Only continue on quota/rate-limit errors
-      if (!err?.message?.includes("429") && !err?.message?.includes("quota") && !err?.message?.includes("rate")) {
-        throw err;
-      }
-    }
-  }
-  throw lastError ?? new Error("All Gemini models failed");
-}
 
 export interface GeminiInterpretResult {
   productName: string;
@@ -55,11 +32,6 @@ export interface GeminiInterpretResult {
   hasDashboard: boolean;
   hasBackend: boolean;
   uniqueToken: string;
-}
-
-export interface GeminiGenerateResult {
-  appJsx: string;
-  serverJs?: string;
 }
 
 function extractJson(text: string): string {
@@ -97,42 +69,76 @@ function genomeToTokenString(genome: DesignGenome): string {
 --easing: ${genome.motion.easing}`;
 }
 
+async function chat(
+  systemPrompt: string,
+  userContent: string,
+  maxTokens = 2048,
+): Promise<string> {
+  if (!client) throw new Error("GROQ_API_KEY not configured");
+
+  let lastError: Error | null = null;
+  for (const model of MODEL_PREFERENCE) {
+    try {
+      const completion = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.7,
+      });
+      return completion.choices[0]?.message?.content ?? "";
+    } catch (err: any) {
+      console.warn(`[Groq] Model ${model} failed:`, err?.message?.slice(0, 80));
+      lastError = err;
+      // Only continue on rate-limit / model-unavailable errors
+      const msg = err?.message ?? "";
+      if (!msg.includes("429") && !msg.includes("rate") && !msg.includes("quota") && !msg.includes("model")) {
+        throw err;
+      }
+    }
+  }
+  throw lastError ?? new Error("All Groq models failed");
+}
+
 export async function geminiInterpret(
   prompt: string,
   projectName: string,
 ): Promise<GeminiInterpretResult | null> {
-  if (!genAI) return null;
+  if (!client) return null;
   try {
-    const systemPrompt = `You are a product analyst interpreting a software product description to guide UI generation. Return ONLY valid JSON, no explanation.
+    const system = `You are a product analyst. Return ONLY valid JSON — no explanation, no markdown.`;
+    const user = `Interpret this product description and return a JSON object.
 
 Project name: "${projectName}"
 User prompt: "${prompt}"
 
-Return a JSON object with exactly these fields:
+Return JSON with exactly these fields:
 {
   "productName": "short product name",
-  "productType": "saas | ecommerce | dashboard | social | productivity | fintech | healthcare | education | cultural | other",
-  "industry": "technology | finance | health | education | retail | media | cultural | museum | art | other",
+  "productType": "saas | ecommerce | dashboard | social | productivity | fintech | healthcare | education | cultural | museum | other",
+  "industry": "technology | finance | health | education | retail | media | cultural | museum | art | hospitality | other",
   "pageType": "landing_page | web_app | dashboard",
-  "style": "one adjective like modern | minimal | bold | elegant | playful",
+  "style": "one adjective: modern | minimal | bold | elegant | playful | luxurious | scholarly",
   "personality": "one sentence describing the brand voice",
-  "primaryColor": "#hexcode that fits the product",
+  "primaryColor": "#hexcode that suits the product",
   "isDarkMode": true,
-  "features": ["3-6 specific features of this product"],
+  "features": ["3 to 6 specific features of this product"],
   "targetAudience": "specific description of who uses this",
   "keyBenefit": "the single clearest value proposition",
   "navigationStyle": "minimal | standard | rich",
   "contentDensity": "minimal | standard | rich",
-  "hasDashboard": true if this is a web app with a dashboard or data views,
-  "hasBackend": true if the app needs API endpoints for real data,
-  "uniqueToken": "one word that captures the unique feel of this product"
+  "hasDashboard": false,
+  "hasBackend": false,
+  "uniqueToken": "one word that captures the unique feel"
 }`;
 
-    const text = await generateWithFallback(systemPrompt);
+    const text = await chat(system, user, 1024);
     const json = extractJson(text);
     return JSON.parse(json) as GeminiInterpretResult;
   } catch (err) {
-    console.error("[Gemini] Stage 1 (interpret) failed:", err);
+    console.error("[Groq] Stage 1 (interpret) failed:", err);
     return null;
   }
 }
@@ -145,14 +151,16 @@ export async function geminiGenerateApp(
   interpret: GeminiInterpretResult,
   fontUrl?: string | null,
 ): Promise<string | null> {
-  if (!genAI) return null;
+  if (!client) return null;
   try {
     const tokens = genomeToTokenString(genome);
     const fontFaceNote = fontUrl
-      ? `\nNote: The heading/body font is a custom uploaded font already declared via @font-face. Use 'var(--font-heading)' and 'var(--font-body)' CSS variables for all font-family values.`
+      ? `\nNote: The heading/body font is a custom uploaded font already declared via @font-face. Use 'var(--font-heading)' and 'var(--font-body)' for all font-family values.`
       : "";
 
-    const systemPrompt = `You are an expert React developer generating a complete, fully functional single-page application. This will be exported as a runnable Vite + React project.
+    const system = `You are an expert React developer. Generate complete, production-quality single-page React applications. Output ONLY valid JSX code — no explanation, no markdown fences, no commentary.`;
+
+    const user = `Generate a complete, fully functional React single-page application for the following product.
 
 BRAND: ${brandName}
 PRODUCT: ${interpret.productName}
@@ -163,29 +171,29 @@ AUDIENCE: ${interpret.targetAudience}
 KEY BENEFIT: ${interpret.keyBenefit}
 STYLE: ${interpret.style} / ${interpret.personality}
 
-DESIGN TOKENS (CSS variables already defined in globals.css — use them for all styling):
+DESIGN TOKENS (CSS variables already defined in globals.css — use for all styling):
 ${tokens}
 ${fontFaceNote}
 
 STRICT REQUIREMENTS:
 1. Single file, default export function named "Home"
 2. Import ONLY from 'react': import React, { useState, useEffect, useRef } from 'react'
-3. Use inline styles everywhere. Reference design tokens like: style={{ color: 'var(--color-primary)', fontFamily: 'var(--font-heading)', borderRadius: 'var(--radius-md)' }}
-4. Background: 'var(--color-bg)', card/surface backgrounds: 'var(--color-surface)'
-5. ALL interactive features must work: forms submit, filters filter, tabs switch, modals open/close, counters count
-6. Realistic pre-loaded demo data with specific names, numbers, and descriptions — no "Lorem ipsum" or placeholders
-7. Complete navigation bar with brand name "${brandName}" and relevant nav links
-8. Proper hero section with a compelling headline specific to this product
-9. Dark theme throughout (the globals.css sets dark backgrounds)
-10. Include sections relevant to this product type (features, pricing, dashboard, testimonials, etc.)
-11. Write at least 300 lines of meaningful JSX — this is a complete product, not a demo
+3. Use inline styles for all styling. Reference design tokens like: style={{ color: 'var(--color-primary)', fontFamily: 'var(--font-heading)', borderRadius: 'var(--radius-md)' }}
+4. Background: 'var(--color-bg)', surfaces/cards: 'var(--color-surface)'
+5. ALL interactive features must work: forms submit, filters filter, tabs switch, modals open/close
+6. Realistic pre-loaded demo data with specific names and numbers — no Lorem ipsum, no placeholders
+7. Complete navigation bar with brand name "${brandName}" and relevant nav links that scroll to sections
+8. Compelling hero section with a headline specific to this product
+9. Dark theme throughout (globals.css sets dark backgrounds)
+10. Include all relevant sections for this product type
+11. Write at least 400 lines of meaningful, complete JSX
 
-OUTPUT: Return ONLY the JSX code starting with the import statement. No explanation, no markdown fences.`;
+Start the output immediately with: import React, { useState`;
 
-    const text = await generateWithFallback(systemPrompt, 8192);
+    const text = await chat(system, user, 8000);
     return extractCode(text);
   } catch (err) {
-    console.error("[Gemini] Stage 2 (generate app) failed:", err);
+    console.error("[Groq] Stage 2 (generate app) failed:", err);
     return null;
   }
 }
@@ -195,10 +203,11 @@ export async function geminiGenerateBackend(
   projectName: string,
   interpret: GeminiInterpretResult,
 ): Promise<string | null> {
-  if (!genAI) return null;
+  if (!client) return null;
   if (!interpret.hasBackend) return null;
   try {
-    const systemPrompt = `You are an expert Node.js developer generating a complete Express.js backend server.
+    const system = `You are an expert Node.js developer. Output ONLY valid JavaScript code — no explanation, no markdown.`;
+    const user = `Generate a complete Express.js backend server for this product.
 
 PRODUCT: ${interpret.productName}
 TYPE: ${interpret.productType}
@@ -207,20 +216,18 @@ FEATURES: ${interpret.features.join(", ")}
 
 Requirements:
 1. Complete Express.js server in a single file (server.js)
-2. Use only: express, cors (add via require)
-3. In-memory data store seeded with realistic demo data (at least 10 records per entity)
+2. Use only: express, cors
+3. In-memory data store seeded with at least 10 realistic records per entity
 4. Full CRUD routes for all relevant entities
 5. Proper error handling and status codes
 6. CORS enabled for localhost
 7. Listen on port 3001
-8. Realistic, named demo data — no "test" or "example" entries
+8. Realistic, named demo data — no "test" or "example" entries`;
 
-OUTPUT: Return ONLY the Node.js code. No explanation, no markdown fences.`;
-
-    const text = await generateWithFallback(systemPrompt, 4096);
+    const text = await chat(system, user, 4096);
     return extractCode(text);
   } catch (err) {
-    console.error("[Gemini] Stage 3 (generate backend) failed:", err);
+    console.error("[Groq] Stage 3 (generate backend) failed:", err);
     return null;
   }
 }
@@ -234,37 +241,38 @@ export async function geminiInterpretEdit(
   shouldRegenerate: boolean;
   description: string;
 } | null> {
-  if (!genAI) return null;
+  if (!client) return null;
   try {
-    const systemPrompt = `You are classifying a user's edit command for a generated web application. Return ONLY valid JSON.
+    const system = `You are classifying a user's edit command for a generated web application. Return ONLY valid JSON.`;
+    const user = `Classify this edit command.
 
 Original product type: ${productType}
 Original product description: "${productPrompt.slice(0, 500)}"
 Edit command: "${editPrompt}"
 
-Classify the edit into one of these intents and return JSON:
+Return JSON:
 {
   "intent": "style_change | layout_modification | content_change | regenerate | compound",
-  "shouldRegenerate": true if the full app needs to be regenerated with Gemini,
+  "shouldRegenerate": true or false,
   "description": "one sentence explaining what will change"
 }
 
 Guidelines:
-- style_change: color, font, spacing, radius changes → shouldRegenerate = false
-- layout_modification: add/remove sections, reorder → shouldRegenerate = true
-- content_change: update text, headlines, features → shouldRegenerate = false
-- regenerate: "redo", "start over", "regenerate" → shouldRegenerate = true
-- compound: multiple types of changes → shouldRegenerate = true if layout changes included`;
+- style_change: color, font, spacing, radius → shouldRegenerate = false
+- layout_modification: add/remove sections → shouldRegenerate = true
+- content_change: update text, headlines → shouldRegenerate = false
+- regenerate: "redo", "start over" → shouldRegenerate = true
+- compound: multiple types → shouldRegenerate = true if layout changes included`;
 
-    const text = await generateWithFallback(systemPrompt);
+    const text = await chat(system, user, 256);
     const json = extractJson(text);
     return JSON.parse(json);
   } catch (err) {
-    console.error("[Gemini] Edit interpret failed:", err);
+    console.error("[Groq] Edit interpret failed:", err);
     return null;
   }
 }
 
 export function isGeminiAvailable(): boolean {
-  return !!genAI;
+  return !!client;
 }
