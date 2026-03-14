@@ -25,6 +25,11 @@ import {
   Lock,
   Unlock,
   Save,
+  Zap,
+  Copy,
+  Undo2,
+  Redo2,
+  Crown,
 } from "lucide-react";
 
 export interface ContentOverrides {
@@ -48,6 +53,9 @@ interface CanvasEditorProps {
   contentOverrides: ContentOverrides;
   onContentChange: (overrides: ContentOverrides) => void;
   onLayoutChange: (layout: LayoutGraph) => void;
+  creditsUsed?: number;
+  creditLimit?: number;
+  userPlan?: string;
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -311,12 +319,15 @@ export function CanvasEditor({
   contentOverrides,
   onContentChange,
   onLayoutChange,
+  creditsUsed = 0,
+  creditLimit = 500,
+  userPlan = "free",
 }: CanvasEditorProps) {
   const [mode, setMode] = useState<EditorMode>("canvas");
   const [selectedSectionIdx, setSelectedSectionIdx] = useState<number | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const elementCanvasRef = useRef<ElementCanvasHandle>(null);
-  const [elementState, setElementState] = useState<ElementCanvasState>({ selectedEl: null, scale: 0.65, hasChanges: false });
+  const [elementState, setElementState] = useState<ElementCanvasState>({ selectedEl: null, scale: 0.65, hasChanges: false, canUndo: false, canRedo: false });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   // HTML5 drag-and-drop state
@@ -422,18 +433,98 @@ export function CanvasEditor({
           </div>
         </div>
 
+        {/* Credit counter */}
+        <div className="px-3 py-2 border-b border-border shrink-0" data-testid="canvas-credit-counter">
+          <div className="flex items-center gap-2">
+            <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Credits</span>
+                {userPlan === "morse_black" && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-yellow-500">
+                    <Crown className="h-2.5 w-2.5" /> Black
+                  </span>
+                )}
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.min(100, (creditsUsed / creditLimit) * 100)}%`,
+                    background: creditsUsed >= creditLimit
+                      ? "#ef4444"
+                      : creditsUsed >= creditLimit * 0.8
+                        ? "#f59e0b"
+                        : "hsl(var(--primary))",
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className={`text-[10px] font-medium ${
+                  creditsUsed >= creditLimit ? "text-red-400" : "text-muted-foreground"
+                }`}>
+                  {creditLimit - creditsUsed} remaining
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {creditsUsed}/{creditLimit}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {isElementsMode && (
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="px-3 py-2 border-b border-border flex items-center gap-2 shrink-0">
-              <span className="text-muted-foreground text-xs shrink-0">Zoom</span>
-              <input
-                type="range" min={0.3} max={1.2} step={0.05}
-                value={elementState.scale}
-                onChange={e => elementCanvasRef.current?.setScale(Number(e.target.value))}
-                className="flex-1 accent-primary h-1"
-                data-testid="input-element-zoom"
-              />
-              <span className="text-xs text-foreground min-w-[36px] text-right">{Math.round(elementState.scale * 100)}%</span>
+            <div className="px-3 py-2 border-b border-border space-y-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs shrink-0">Zoom</span>
+                <input
+                  type="range" min={0.3} max={1.2} step={0.05}
+                  value={elementState.scale}
+                  onChange={e => elementCanvasRef.current?.setScale(Number(e.target.value))}
+                  className="flex-1 accent-primary h-1"
+                  data-testid="input-element-zoom"
+                />
+                <span className="text-xs text-foreground min-w-[36px] text-right">{Math.round(elementState.scale * 100)}%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!elementState.canUndo}
+                  onClick={() => elementCanvasRef.current?.undo()}
+                  title="Undo (Ctrl+Z)"
+                  data-testid="button-undo"
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!elementState.canRedo}
+                  onClick={() => elementCanvasRef.current?.redo()}
+                  title="Redo (Ctrl+Y)"
+                  data-testid="button-redo"
+                >
+                  <Redo2 className="h-3.5 w-3.5" />
+                </Button>
+                <div className="flex-1" />
+                {elementState.selectedEl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1 px-2"
+                    onClick={() => elementState.selectedEl && elementCanvasRef.current?.duplicateElement(elementState.selectedEl.id)}
+                    title="Duplicate (Ctrl+D)"
+                    data-testid="button-duplicate"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Duplicate
+                  </Button>
+                )}
+              </div>
             </div>
 
             {elementState.selectedEl ? (() => {
@@ -479,6 +570,23 @@ export function CanvasEditor({
                       />
                     </div>
                   )}
+
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground block mb-1.5">Opacity</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={el.opacity ?? 1}
+                        onChange={e => elementCanvasRef.current?.updateElement(el.id, { opacity: Number(e.target.value) })}
+                        className="flex-1 accent-primary h-1"
+                        data-testid="input-element-opacity"
+                      />
+                      <span className="text-xs text-foreground min-w-[32px] text-right">{Math.round((el.opacity ?? 1) * 100)}%</span>
+                    </div>
+                  </div>
 
                   <div>
                     <span className="text-[10px] uppercase text-muted-foreground block mb-1.5">Layer Order</span>

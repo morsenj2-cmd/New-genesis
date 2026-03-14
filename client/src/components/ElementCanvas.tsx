@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
 import { Lock, Unlock, Trash2, ChevronUp, ChevronDown, Minus, Plus } from "lucide-react";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph } from "@shared/layoutEngine";
@@ -306,6 +306,8 @@ export interface ElementCanvasState {
   selectedEl: ElementNode | null;
   scale: number;
   hasChanges: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export interface ElementCanvasHandle {
@@ -315,6 +317,9 @@ export interface ElementCanvasHandle {
   setScale: (s: number) => void;
   getChanges: () => { sectionCanvases: SectionCanvas[] };
   resetChanges: () => void;
+  duplicateElement: (id: string) => void;
+  undo: () => void;
+  redo: () => void;
 }
 
 const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(function ElementCanvas({ genome, layout, contentOverrides, onStateChange }, ref) {
@@ -352,6 +357,10 @@ const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(functi
   const [scale, setScale] = useState(0.65);
   const [hasChanges, setHasChanges] = useState(false);
 
+  const undoStack = useRef<SectionCanvas[][]>([]);
+  const redoStack = useRef<SectionCanvas[][]>([]);
+  const clipboard = useRef<ElementNode | null>(null);
+
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // ── Pointer drag/resize state ─────────────────────────────────────────────
@@ -362,6 +371,26 @@ const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(functi
   const resize = useRef<ResizeState | null>(null);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+  const pushUndo = useCallback(() => {
+    undoStack.current.push(JSON.parse(JSON.stringify(sectionCanvases)));
+    if (undoStack.current.length > 50) undoStack.current.shift();
+    redoStack.current = [];
+  }, [sectionCanvases]);
+
+  const undo = useCallback(() => {
+    const prev = undoStack.current.pop();
+    if (!prev) return;
+    redoStack.current.push(JSON.parse(JSON.stringify(sectionCanvases)));
+    setSectionCanvases(prev);
+  }, [sectionCanvases]);
+
+  const redo = useCallback(() => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(JSON.parse(JSON.stringify(sectionCanvases)));
+    setSectionCanvases(next);
+  }, [sectionCanvases]);
+
   const findElement = useCallback((id: string): { el: ElementNode; secIdx: number } | null => {
     for (let si = 0; si < sectionCanvases.length; si++) {
       const el = sectionCanvases[si].elements.find(e => e.id === id);
@@ -378,14 +407,37 @@ const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(functi
     setHasChanges(true);
   }, []);
 
+  const updateElementWithUndo = useCallback((id: string, patch: Partial<ElementNode>) => {
+    pushUndo();
+    updateElement(id, patch);
+  }, [pushUndo, updateElement]);
+
   const deleteElement = useCallback((id: string) => {
+    pushUndo();
     setSectionCanvases(prev => prev.map(sc => ({
       ...sc,
       elements: sc.elements.filter(e => e.id !== id),
     })));
     setSelectedId(null);
     setHasChanges(true);
-  }, []);
+  }, [pushUndo]);
+
+  const duplicateElement = useCallback((id: string) => {
+    const info = findElement(id);
+    if (!info) return;
+    pushUndo();
+    const newEl: ElementNode = {
+      ...JSON.parse(JSON.stringify(info.el)),
+      id: `${info.el.id}-dup-${Date.now()}`,
+      x: info.el.x + 16,
+      y: info.el.y + 16,
+    };
+    setSectionCanvases(prev => prev.map((sc, si) =>
+      si === info.secIdx ? { ...sc, elements: [...sc.elements, newEl] } : sc
+    ));
+    setSelectedId(newEl.id);
+    setHasChanges(true);
+  }, [findElement, pushUndo]);
 
   const selectedInfo = selectedId ? findElement(selectedId) : null;
   const selectedEl = selectedInfo?.el ?? null;
@@ -417,12 +469,70 @@ const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(functi
     return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
   }, [scale, updateElement]);
 
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────
+  const clipboardSecIdx = useRef<number>(0);
+
+  useEffect(() => {
+    function isInputFocused(e: KeyboardEvent) {
+      const t = e.target as HTMLElement;
+      if (!t) return false;
+      const tag = t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (t.isContentEditable) return true;
+      return false;
+    }
+
+    function onKey(e: KeyboardEvent) {
+      if (isInputFocused(e)) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      if (meta && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+      if (meta && e.key === "d" && selectedId) { e.preventDefault(); duplicateElement(selectedId); }
+      if (meta && e.key === "c" && selectedId) {
+        e.preventDefault();
+        const info = findElement(selectedId);
+        if (info) {
+          clipboard.current = JSON.parse(JSON.stringify(info.el));
+          clipboardSecIdx.current = info.secIdx;
+        }
+      }
+      if (meta && e.key === "v" && clipboard.current) {
+        e.preventDefault();
+        const targetSecIdx = clipboardSecIdx.current;
+        const pasteEl: ElementNode = {
+          ...JSON.parse(JSON.stringify(clipboard.current)),
+          id: `${clipboard.current.id}-paste-${Date.now()}`,
+          x: clipboard.current.x + 24,
+          y: clipboard.current.y + 24,
+        };
+        pushUndo();
+        setSectionCanvases(prev => {
+          const newCanvases = [...prev];
+          const idx = targetSecIdx < newCanvases.length ? targetSecIdx : 0;
+          if (newCanvases.length > 0) {
+            newCanvases[idx] = { ...newCanvases[idx], elements: [...newCanvases[idx].elements, pasteEl] };
+          }
+          return newCanvases;
+        });
+        setSelectedId(pasteEl.id);
+        setHasChanges(true);
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedId && !editingId) {
+        e.preventDefault();
+        deleteElement(selectedId);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, editingId, undo, redo, duplicateElement, findElement, pushUndo, deleteElement]);
+
   // ── Element pointer down ──────────────────────────────────────────────────
   function startDrag(e: React.PointerEvent, el: ElementNode, secIdx: number) {
     if (el.locked || editingId) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setSelectedId(el.id);
+    pushUndo();
     drag.current = { id: el.id, secIdx, startMx: e.clientX, startMy: e.clientY, origX: el.x, origY: el.y };
   }
 
@@ -431,6 +541,7 @@ const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(functi
     e.stopPropagation();
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    pushUndo();
     resize.current = {
       id: el.id, secIdx, handle,
       startMx: e.clientX, startMy: e.clientY,
@@ -445,17 +556,23 @@ const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(functi
   }
 
   useImperativeHandle(ref, () => ({
-    updateElement,
+    updateElement: updateElementWithUndo,
     deleteElement,
     nudgeZIndex,
     setScale,
     getChanges: () => ({ sectionCanvases }),
     resetChanges: () => setHasChanges(false),
-  }), [updateElement, deleteElement, sectionCanvases]);
+    duplicateElement,
+    undo,
+    redo,
+  }), [updateElementWithUndo, deleteElement, sectionCanvases, duplicateElement, undo, redo]);
+
+  const canUndo = undoStack.current.length > 0;
+  const canRedo = redoStack.current.length > 0;
 
   useEffect(() => {
-    onStateChange?.({ selectedEl, scale, hasChanges });
-  }, [selectedEl, scale, hasChanges, onStateChange]);
+    onStateChange?.({ selectedEl, scale, hasChanges, canUndo, canRedo });
+  }, [selectedEl, scale, hasChanges, onStateChange, canUndo, canRedo]);
 
   return (
     <div style={{ display: "flex", height: "100%", background: "#0a0a0a", overflow: "hidden" }}>
@@ -568,6 +685,7 @@ function SectionLayer({
               left: el.x, top: el.y,
               width: el.width, height: el.height,
               zIndex: el.zIndex,
+              opacity: el.opacity ?? 1,
               cursor: el.locked ? "default" : isEditing ? "text" : "move",
               outline: isSelected ? `2px solid ${G.colors.primary}` : "none",
               outlineOffset: 2,

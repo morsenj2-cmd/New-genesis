@@ -1791,6 +1791,9 @@ export default function ProjectPage() {
                       contentOverrides={contentOverrides}
                       onContentChange={setContentOverrides}
                       onLayoutChange={(newLayout) => setActiveLayout(newLayout)}
+                      creditsUsed={project.nlCreditsUsed ?? 0}
+                      creditLimit={subscription?.perProjectLimit ?? 500}
+                      userPlan={subscription?.plan ?? "free"}
                     />
                   ) : (
                     <div className="flex-1 overflow-y-auto">

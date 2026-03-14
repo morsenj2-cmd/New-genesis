@@ -26,6 +26,7 @@ export interface ElementNode {
   content?: string;
   zIndex: number;
   locked?: boolean;
+  opacity?: number;
 }
 
 export interface SectionCanvas {

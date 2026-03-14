@@ -109,6 +109,19 @@ export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({
 export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 export type BlogPost = typeof blogPosts.$inferSelect;
 
+export const payments = pgTable("payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull().references(() => users.id),
+  razorpayPaymentId: text("razorpay_payment_id").notNull().unique(),
+  razorpayOrderId: text("razorpay_order_id").notNull(),
+  amount: integer("amount").notNull(),
+  currency: text("currency").default("INR").notNull(),
+  status: text("status").default("captured").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Payment = typeof payments.$inferSelect;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;

@@ -1,6 +1,6 @@
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
-import { users, projects, promptLogs, contextKnowledge, blogPosts, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost } from "@shared/schema";
+import { users, projects, promptLogs, contextKnowledge, blogPosts, payments, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost, type Payment } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -17,6 +17,8 @@ export interface IStorage {
   getUntrainedPromptLogs(limit?: number): Promise<PromptLog[]>;
   markLogsAsTrained(ids: string[]): Promise<void>;
   updatePromptFeedback(id: string, signal: string, correctedIntent?: string): Promise<void>;
+  getPaymentByRazorpayId(razorpayPaymentId: string): Promise<Payment | undefined>;
+  recordPayment(userId: string, razorpayPaymentId: string, razorpayOrderId: string, amount: number, currency: string): Promise<Payment>;
   getBlogPosts(): Promise<BlogPost[]>;
   createBlogPost(data: InsertBlogPost): Promise<BlogPost>;
   deleteBlogPost(id: string): Promise<void>;
@@ -233,6 +235,23 @@ export class DatabaseStorage implements IStorage {
 
   async incrementContextUsage(id: string): Promise<void> {
     await db.update(contextKnowledge).set({ usageCount: sql`${contextKnowledge.usageCount} + 1` }).where(eq(contextKnowledge.id, id));
+  }
+
+  async getPaymentByRazorpayId(razorpayPaymentId: string): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(eq(payments.razorpayPaymentId, razorpayPaymentId));
+    return payment;
+  }
+
+  async recordPayment(userId: string, razorpayPaymentId: string, razorpayOrderId: string, amount: number, currency: string): Promise<Payment> {
+    const [payment] = await db.insert(payments).values({
+      userId,
+      razorpayPaymentId,
+      razorpayOrderId,
+      amount,
+      currency,
+      status: "captured",
+    }).returning();
+    return payment;
   }
 
   async getBlogPosts(): Promise<BlogPost[]> {

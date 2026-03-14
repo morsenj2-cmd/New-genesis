@@ -151,8 +151,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  const processedPayments = new Set<string>();
-
   app.post("/api/payment/verify", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
@@ -161,7 +159,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Missing payment verification fields" });
       }
 
-      if (processedPayments.has(razorpay_payment_id)) {
+      const existingPayment = await storage.getPaymentByRazorpayId(razorpay_payment_id);
+      if (existingPayment) {
         return res.status(400).json({ message: "Payment already processed" });
       }
 
@@ -187,7 +186,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      processedPayments.add(razorpay_payment_id);
+      await storage.recordPayment(userId!, razorpay_payment_id, razorpay_order_id, MORSE_BLACK_PRICE, "INR");
 
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
