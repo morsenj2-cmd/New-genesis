@@ -81,17 +81,18 @@ export function UpgradeDialog({ trigger, open: controlledOpen, onOpenChange }: U
         order_id: orderId,
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
+            const freshToken = await getToken();
             const verifyRes = await fetch("/api/payment/verify", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
               },
               credentials: "include",
               body: JSON.stringify(response),
             });
             if (!verifyRes.ok) {
-              const err = await verifyRes.json();
+              const err = await verifyRes.json().catch(() => ({ message: "Verification failed" }));
               throw new Error(err.message || "Verification failed");
             }
             toast({ title: "Welcome to Morse Black!", description: "Your account has been upgraded. You now have 4,000 credits per project." });
@@ -102,6 +103,7 @@ export function UpgradeDialog({ trigger, open: controlledOpen, onOpenChange }: U
             navigate("/dashboard");
           } catch (err) {
             setIsPending(false);
+            console.error("Payment verification error:", err);
             toast({ title: "Verification failed", description: err instanceof Error ? err.message : "Please contact support.", variant: "destructive" });
           }
         },

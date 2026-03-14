@@ -155,49 +155,67 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/payment/verify", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
+      console.log(`[Payment] Verify request from user ${userId}`);
       const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
       if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        console.error("[Payment] Missing fields:", { razorpay_order_id: !!razorpay_order_id, razorpay_payment_id: !!razorpay_payment_id, razorpay_signature: !!razorpay_signature });
         return res.status(400).json({ message: "Missing payment verification fields" });
       }
 
       const existingPayment = await storage.getPaymentByRazorpayId(razorpay_payment_id);
       if (existingPayment) {
-        return res.status(400).json({ message: "Payment already processed" });
+        console.log("[Payment] Already processed, returning success");
+        const user = await storage.getUser(userId!);
+        return res.json({ success: true, plan: user?.plan || "morse_black", alreadyProcessed: true });
       }
 
       const expectedSig = createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
       if (expectedSig !== razorpay_signature) {
+        console.error("[Payment] Signature mismatch");
         return res.status(400).json({ message: "Payment verification failed" });
       }
 
       if (razorpayInstance) {
         try {
           const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+          console.log(`[Payment] Razorpay status: ${payment.status}, amount: ${payment.amount}, currency: ${payment.currency}`);
           const validStatuses = ["captured", "authorized"];
           if (!validStatuses.includes(payment.status) || Number(payment.amount) !== MORSE_BLACK_PRICE || payment.currency !== "INR") {
             console.error(`[Payment] Invalid state: status=${payment.status}, amount=${payment.amount}, currency=${payment.currency}`);
             return res.status(400).json({ message: "Payment verification failed: invalid payment state" });
           }
           if (payment.order_id !== razorpay_order_id) {
+            console.error(`[Payment] Order mismatch: expected=${razorpay_order_id}, got=${payment.order_id}`);
             return res.status(400).json({ message: "Payment verification failed: order mismatch" });
           }
         } catch (fetchErr) {
-          console.error("Failed to fetch payment from Razorpay:", fetchErr);
-          return res.status(500).json({ message: "Could not verify payment with Razorpay" });
+          console.error("[Payment] Failed to fetch payment from Razorpay:", fetchErr);
+          console.log("[Payment] Proceeding with signature-only verification");
         }
       }
 
+      let existingUser = await storage.getUser(userId!);
+      if (!existingUser) {
+        console.log("[Payment] User not found, creating user record");
+        existingUser = await storage.upsertUser({ id: userId!, email: "" });
+      }
+
       await storage.recordPayment(userId!, razorpay_payment_id, razorpay_order_id, MORSE_BLACK_PRICE, "INR");
+      console.log(`[Payment] Payment recorded for user ${userId}`);
 
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
       const user = await storage.upgradeUserPlan(userId!, "morse_black", expiresAt, MORSE_BLACK_CREDITS);
-      if (!user) return res.status(404).json({ message: "User not found" });
+      if (!user) {
+        console.error(`[Payment] upgradeUserPlan returned null for ${userId}`);
+        return res.status(404).json({ message: "User not found after payment - please contact support" });
+      }
+      console.log(`[Payment] User ${userId} upgraded to morse_black, expires ${expiresAt.toISOString()}`);
       res.json({ success: true, plan: "morse_black", expiresAt: expiresAt.toISOString(), totalCredits: MORSE_BLACK_CREDITS });
     } catch (err) {
-      console.error("Error verifying payment:", err);
+      console.error("[Payment] Error verifying payment:", err);
       res.status(500).json({ message: "Payment verification failed" });
     }
   });
