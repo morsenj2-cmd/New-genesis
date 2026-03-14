@@ -183,6 +183,12 @@ Return JSON with exactly these fields:
   }
 }
 
+export interface Integration {
+  name: string;
+  key: string;
+  value: string;
+}
+
 export async function geminiGenerateApp(
   prompt: string,
   projectName: string,
@@ -192,6 +198,7 @@ export async function geminiGenerateApp(
   fontUrl?: string | null,
   logoUrl?: string | null,
   nlInstruction?: string | null,
+  integrations?: Integration[] | null,
 ): Promise<string | null> {
   if (!client) return null;
   try {
@@ -225,7 +232,8 @@ CSS: .page { display:none; min-height:calc(100vh - 70px); padding: 3rem 2rem; } 
 JS router (REQUIRED): function navigate(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
 Each nav link calls navigate('page-name') — do NOT use href="#..."  for page switching`;
 
-    const hasImages = prompt.toLowerCase().includes("picture") || prompt.toLowerCase().includes("photo") || prompt.toLowerCase().includes("image") || prompt.toLowerCase().includes("gallery");
+    const combinedText = `${prompt} ${nlInstruction ?? ""}`.toLowerCase();
+    const hasImages = combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
     const imageKeywords = interpret.productName.toLowerCase().replace(/\s+/g, "+");
 
     const imageInstruction = hasImages
@@ -320,6 +328,10 @@ REQUIREMENTS:
 12. RESPONSIVE: Use CSS grid/flex. Works on mobile screens.
 
 13. NO EXTERNAL LIBRARIES: Vanilla HTML, CSS, JS only.
+
+${integrations && integrations.length > 0 ? `14. INTEGRATIONS (CRITICAL — include initialization for ALL of these):
+${integrations.map(ig => `   - ${ig.name}: Key = "${ig.value}"
+     Include the full <script> initialization for ${ig.name} using this key/value. Place initialization scripts in <head> before other scripts.`).join("\n")}` : ""}
 
 Write at minimum 700 lines. Start with <!DOCTYPE html> immediately.`;
 

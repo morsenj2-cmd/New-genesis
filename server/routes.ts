@@ -50,6 +50,7 @@ import {
   geminiGenerateApp,
   geminiGenerateBackend,
   isGeminiAvailable,
+  type Integration,
 } from "./gemini";
 
 function requireAuth(req: any, res: any, next: any) {
@@ -429,6 +430,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const interpret = await geminiInterpret(project.prompt, project.name);
           if (!interpret) throw new Error("Interpret returned null");
 
+          const genSettings = parseSettings(project.settingsJson);
+          const integrations: Integration[] = (genSettings as any).integrations ?? [];
+
           const appHtml = await geminiGenerateApp(
             project.prompt,
             project.name,
@@ -437,6 +441,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             interpret,
             project.fontUrl,
             project.logoUrl,
+            null,
+            integrations,
           );
           if (!appHtml) throw new Error("App generation returned null");
 
@@ -668,6 +674,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
             if (!interpret) throw new Error("Interpret returned null");
 
+            const nlSettings = parseSettings(project.settingsJson);
+            const nlIntegrations: Integration[] = (nlSettings as any).integrations ?? [];
+
             const appHtml = await geminiGenerateApp(
               project.prompt,
               project.name,
@@ -677,6 +686,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               project.fontUrl,
               project.logoUrl,
               commands,
+              nlIntegrations,
             );
             if (!appHtml) throw new Error("App generation returned null");
 
@@ -1019,6 +1029,43 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error correcting context:", err);
       res.status(500).json({ message: "Failed to correct context" });
+    }
+  });
+
+  app.post("/api/project/:id/integrations", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const { integrations } = req.body as { integrations: Integration[] };
+      if (!Array.isArray(integrations)) return res.status(400).json({ message: "integrations must be an array" });
+      const settings = parseSettings(project.settingsJson);
+      (settings as any).integrations = integrations;
+      await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Error saving integrations:", err);
+      res.status(500).json({ message: "Failed to save integrations" });
+    }
+  });
+
+  app.post("/api/project/:id/update-html", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const { html } = req.body as { html: string };
+      if (typeof html !== "string") return res.status(400).json({ message: "html must be a string" });
+      const settings = parseSettings(project.settingsJson);
+      (settings as any).geminiAppHtml = html;
+      (settings as any).geminiStatus = "ready";
+      await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Error updating HTML:", err);
+      res.status(500).json({ message: "Failed to update HTML" });
     }
   });
 

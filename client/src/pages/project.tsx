@@ -49,11 +49,27 @@ import {
   PenLine,
   Loader2,
   Bot,
+  Code2,
+  Eye,
+  Plug,
+  Plus,
+  X as XIcon,
+  KeyRound,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -691,6 +707,123 @@ const SECTION_COLORS: Record<string, string> = {
   footer: "#6b7280",
 };
 
+interface IntegrationItem {
+  name: string;
+  key: string;
+  value: string;
+}
+
+function IntegrationsDialog({
+  projectId,
+  initialIntegrations,
+}: {
+  projectId: string;
+  initialIntegrations: IntegrationItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [integrations, setIntegrations] = useState<IntegrationItem[]>(initialIntegrations);
+  const { toast } = useToast();
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/project/${projectId}/integrations`, { integrations });
+    },
+    onSuccess: () => {
+      toast({ title: "Integrations saved", description: "Regenerate your app to apply them." });
+      queryClient.invalidateQueries({ queryKey: ["/api/project", projectId] });
+      setOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to save", variant: "destructive" });
+    },
+  });
+
+  const addIntegration = () => setIntegrations([...integrations, { name: "", key: "key", value: "" }]);
+  const removeIntegration = (i: number) => setIntegrations(integrations.filter((_, idx) => idx !== i));
+  const updateIntegration = (i: number, field: keyof IntegrationItem, val: string) => {
+    const updated = [...integrations];
+    updated[i] = { ...updated[i], [field]: val };
+    setIntegrations(updated);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full gap-2 text-xs h-8" data-testid="button-open-integrations">
+          <Plug className="h-3.5 w-3.5" />
+          Integrations
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plug className="h-4 w-4" />
+            Integrations
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Add public API keys for services (Clerk, Stripe, Firebase, etc.). The AI will include their initialization code when generating your app.
+        </p>
+        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+          {integrations.length === 0 && (
+            <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
+              No integrations yet. Add one below.
+            </div>
+          )}
+          {integrations.map((ig, i) => (
+            <div key={i} className="border border-border rounded-lg p-3 space-y-2 relative">
+              <button
+                className="absolute top-2 right-2 text-muted-foreground hover:text-destructive transition-colors"
+                onClick={() => removeIntegration(i)}
+                data-testid={`button-remove-integration-${i}`}
+              >
+                <XIcon className="h-3.5 w-3.5" />
+              </button>
+              <div>
+                <Label className="text-xs mb-1 block">Service Name</Label>
+                <Input
+                  placeholder="e.g. Clerk Auth, Stripe, Firebase Analytics"
+                  value={ig.name}
+                  onChange={e => updateIntegration(i, "name", e.target.value)}
+                  className="h-8 text-xs"
+                  data-testid={`input-integration-name-${i}`}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 flex items-center gap-1 text-muted-foreground">
+                  <KeyRound className="h-3 w-3" /> Publishable / Public API Key
+                </Label>
+                <Input
+                  placeholder="pk_test_... or your public key"
+                  value={ig.value}
+                  onChange={e => updateIntegration(i, "value", e.target.value)}
+                  className="h-8 text-xs font-mono"
+                  data-testid={`input-integration-value-${i}`}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs" onClick={addIntegration} data-testid="button-add-integration">
+            <Plus className="h-3.5 w-3.5" /> Add Integration
+          </Button>
+          <Button
+            className="flex-1"
+            size="sm"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+            data-testid="button-save-integrations"
+          >
+            {saveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LeftPanel({
   project,
   activeGenome,
@@ -704,6 +837,7 @@ function LeftPanel({
   onRegenerateLayout,
   onToggleLayoutLock,
   onNLApplied,
+  integrations,
 }: {
   project: Project;
   activeGenome: DesignGenome | null;
@@ -717,6 +851,7 @@ function LeftPanel({
   onRegenerateLayout: () => void;
   onToggleLayoutLock: () => void;
   onNLApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: Record<string, string>) => void;
+  integrations: IntegrationItem[];
 }) {
   const [showTokens, setShowTokens] = useState(false);
   const isLocked = !!project.layoutLocked;
@@ -759,6 +894,7 @@ function LeftPanel({
         </div>
         <Separator />
         <NLDesigner projectId={project.id} onApplied={onNLApplied} />
+        <IntegrationsDialog projectId={project.id} initialIntegrations={integrations} />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -1001,6 +1137,8 @@ export default function ProjectPage() {
   const [contentOverrides, setContentOverrides] = useState<ContentOverrides>({});
   const [geminiStatus, setGeminiStatus] = useState<"none" | "pending" | "ready" | "failed">("none");
   const [geminiAppHtml, setGeminiAppHtml] = useState<string | null>(null);
+  const [showCodeView, setShowCodeView] = useState(false);
+  const [localHtml, setLocalHtml] = useState<string>("");
 
   // Inject navigation interceptor so anchor links scroll within the iframe
   // instead of navigating the parent Morse page
@@ -1058,15 +1196,25 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
     }
   }, [project?.settingsJson]);
 
-  // Parse AI status and generated HTML from settingsJson
+  // Parse AI status, generated HTML, and integrations from settingsJson
   useEffect(() => {
     if (project?.settingsJson) {
       try {
         const s = JSON.parse(project.settingsJson);
         setGeminiStatus(s.geminiStatus ?? "none");
-        if (s.geminiAppHtml) setGeminiAppHtml(s.geminiAppHtml);
+        if (s.geminiAppHtml) {
+          setGeminiAppHtml(s.geminiAppHtml);
+          setLocalHtml(s.geminiAppHtml);
+        }
       } catch {}
     }
+  }, [project?.settingsJson]);
+
+  const projectIntegrations: IntegrationItem[] = useMemo(() => {
+    try {
+      const s = project?.settingsJson ? JSON.parse(project.settingsJson) : {};
+      return s.integrations ?? [];
+    } catch { return []; }
   }, [project?.settingsJson]);
 
   // Poll while Gemini is pending
@@ -1201,6 +1349,21 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
     },
   });
 
+  const updateHtmlMutation = useMutation({
+    mutationFn: async (html: string) => {
+      await apiRequest("POST", `/api/project/${params.id}/update-html`, { html });
+    },
+    onSuccess: (_, html) => {
+      setGeminiAppHtml(html);
+      setShowCodeView(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+      toast({ title: "Code applied", description: "Your changes are now live in the preview." });
+    },
+    onError: () => {
+      toast({ title: "Failed to apply code", variant: "destructive" });
+    },
+  });
+
   const handleNLApplied = useCallback((genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch | Record<string, string>) => {
     setActiveGenome(genome);
     setActiveLayout(layout);
@@ -1320,6 +1483,21 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
                     <PenLine className="h-3.5 w-3.5" />
                     {canvasMode ? "Exit Canvas" : "Canvas"}
                   </Button>
+                  {geminiStatus === "ready" && (
+                    <Button
+                      variant={showCodeView ? "default" : "outline"}
+                      size="sm"
+                      className="gap-1.5 text-xs h-8"
+                      onClick={() => {
+                        setLocalHtml(geminiAppHtml ?? "");
+                        setShowCodeView(!showCodeView);
+                      }}
+                      data-testid="button-code-view"
+                    >
+                      {showCodeView ? <Eye className="h-3.5 w-3.5" /> : <Code2 className="h-3.5 w-3.5" />}
+                      {showCodeView ? "Preview" : "Code"}
+                    </Button>
+                  )}
                   {geminiStatus === "pending" && (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="gemini-status-pending">
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -1357,7 +1535,7 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
                     data-testid="button-export-project"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    {geminiStatus === "ready" ? "Export AI App" : "Export"}
+                    Export App
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -1428,6 +1606,7 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
                 onRegenerateLayout={handleRegenerateLayout}
                 onToggleLayoutLock={() => layoutLockMutation.mutate(!project.layoutLocked)}
                 onNLApplied={handleNLApplied}
+                integrations={projectIntegrations}
               />
 
               <main className="flex-1 overflow-hidden bg-muted/10 flex flex-col" data-testid="section-website-preview">
@@ -1458,13 +1637,55 @@ var ob=new MutationObserver(initNav);ob.observe(document.body,{childList:true,su
                     </div>
                   </div>
                 ) : geminiStatus === "ready" && safeGeminiHtml ? (
-                  <iframe
-                    srcDoc={safeGeminiHtml}
-                    sandbox="allow-scripts allow-forms allow-popups"
-                    className="flex-1 w-full border-0"
-                    title="AI Generated App"
-                    data-testid="ai-app-preview"
-                  />
+                  showCodeView ? (
+                    <div className="flex-1 flex flex-col overflow-hidden" data-testid="code-editor-view">
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30 shrink-0">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Code2 className="h-3.5 w-3.5" />
+                          <span>HTML Source — edit directly and apply</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs gap-1.5"
+                            onClick={async () => {
+                              await navigator.clipboard.writeText(localHtml);
+                              toast({ title: "Copied to clipboard" });
+                            }}
+                            data-testid="button-copy-html"
+                          >
+                            <Copy className="h-3 w-3" /> Copy
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs gap-1.5"
+                            onClick={() => updateHtmlMutation.mutate(localHtml)}
+                            disabled={updateHtmlMutation.isPending}
+                            data-testid="button-apply-code"
+                          >
+                            {updateHtmlMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                            Apply Changes
+                          </Button>
+                        </div>
+                      </div>
+                      <Textarea
+                        value={localHtml}
+                        onChange={e => setLocalHtml(e.target.value)}
+                        className="flex-1 font-mono text-xs resize-none rounded-none border-0 focus-visible:ring-0 bg-[#0d1117] text-[#e6edf3] leading-relaxed"
+                        spellCheck={false}
+                        data-testid="textarea-html-editor"
+                      />
+                    </div>
+                  ) : (
+                    <iframe
+                      srcDoc={safeGeminiHtml}
+                      sandbox="allow-scripts allow-forms allow-popups"
+                      className="flex-1 w-full border-0"
+                      title="AI Generated App"
+                      data-testid="ai-app-preview"
+                    />
+                  )
                 ) : displayGenome && activeLayout ? (
                   canvasMode ? (
                     <CanvasEditor
