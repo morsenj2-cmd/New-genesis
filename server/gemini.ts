@@ -343,8 +343,9 @@ CSS CHARTS (no external libraries):
 - Search in header should focus and filter globally or navigate to relevant section`;
 
     } else if (isWebApp) {
-      architectureSection = `ARCHITECTURE: FUNCTIONAL WEB APPLICATION
-This is a REAL working web application — not a marketing site. Users must be able to interact with real features.
+      architectureSection = `ARCHITECTURE: FULLY FUNCTIONAL WEB APPLICATION
+This MUST be a REAL, FULLY WORKING application — not a mockup, not a template, not a static page.
+The user described "${interpret.productName}" — you must build EXACTLY that product with ALL its features working.
 
 LAYOUT:
 - Top navigation bar (64px, fixed) with app name/logo, main nav items, and user actions
@@ -358,42 +359,51 @@ LAYOUT:
 - CSS: .view { display:none; min-height:calc(100vh - 70px); padding: 2rem; } .view.active { display:block; }
 - JS router: function navigate(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id)?.classList.add('active');window.scrollTo(0,0);updateNav(id);}
 
-DATA & STATE (CRITICAL — this is what makes it real software):
-- Create a global state: window.appState = { currentView: 'home', items: [...], user: { name: 'Alex Johnson', email: 'alex@example.com' }, settings: {} }
-- Seed appState.items with 12-20 realistic records appropriate to this product type
-- Each record needs: id (unique), title/name, description, status, category, date, and type-specific fields
-- Use localStorage for persistence: save on every mutation, load on startup
-- All UI must render FROM state — never hardcode content in HTML
+CRITICAL RULE — BUILD THE ACTUAL PRODUCT:
+Read the DESCRIPTION and FEATURES carefully. Build the SPECIFIC application described.
+- If it's a timer → implement setInterval/clearInterval countdown, start/pause/reset, time display
+- If it's a calculator → implement actual math operations, display, button grid
+- If it's a task manager → implement task CRUD, drag-and-drop or status changes, filters
+- If it's a text editor → implement textarea with formatting, save/load, word count
+- If it's a game → implement game loop, scoring, controls, win/lose states
+- If it's a tracker → implement data entry, charts/visualization, history
+- If it's a converter → implement real conversion formulas, input/output
+- Whatever the product is, build its CORE FUNCTIONALITY with real JavaScript logic
 
-REQUIRED FUNCTIONAL VIEWS (implement ALL):
-1. HOME/DASHBOARD: Welcome message with user name, quick stats cards (counts from appState.items), recent items list (last 5, clickable), and quick-action buttons
-2. MAIN FEATURE VIEW: The primary feature of this product — a full working interface:
-   - List/grid view of all items with search bar, category filter dropdown, and status filter
-   - "Create New" button that opens a modal with a complete form (5+ fields relevant to this product)
-   - Each item card/row is clickable to show a detail modal with all fields
-   - Edit and Delete actions on each item with confirmation
-   - Empty state message when no items match filters
-3. SECONDARY FEATURE: A complementary feature (e.g., calendar view, analytics, favorites, categories management)
-4. PROFILE/SETTINGS: Working profile form with name, email, preferences; save button persists to localStorage
+STATE MANAGEMENT (CRITICAL):
+- Create window.appState with ALL state the app needs (timers, counters, data, settings, history)
+- Use localStorage to persist state: save on every change, load on startup
+- ALL UI must render FROM state using render functions — never hardcode HTML content
+- State changes trigger re-renders of affected UI components
 
-INTERACTIVE COMPONENTS (must all work):
-- Modal dialogs: backdrop overlay, close on X, close on backdrop click, form inside, trap focus
-- Toast notifications: slide-in messages for success/error actions (auto-dismiss after 3s)
-- Dropdown menus: click to toggle, close on outside click
-- Tabs within views: switch content without page navigation
-- Loading states: show skeleton/spinner briefly on data operations (setTimeout 300ms)`;
+VIEWS TO BUILD (3-4 views minimum):
+1. MAIN VIEW: The PRIMARY interface of this product — this is where the core functionality lives. It should take up 70%+ of the user's time. Build it with full working JavaScript.
+2. HISTORY/DATA VIEW: Show past usage, records, logs, or data related to the main feature. Render dynamically from state.
+3. SETTINGS VIEW: Working preferences/configuration form that persists to localStorage and affects app behavior.
+4. Optional: Any additional view that makes sense for this specific product.
 
-      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — every item must actually work):
-- Create: Form validates all required fields, generates unique ID (Date.now()), adds to appState.items, saves to localStorage, closes modal, shows success toast, re-renders list
-- Read: Items render dynamically from appState.items using a render function — NEVER hardcoded HTML
-- Update: Edit form pre-fills with current values, saves changes to correct item in appState.items, persists, re-renders
-- Delete: Confirmation dialog ("Are you sure?"), removes from array, persists, re-renders, shows toast
-- Search: Filters items array by title/name in real-time as user types — case insensitive
-- Filter: Dropdown filters by category/status, combinable with search
-- Sort: At least one sortable field (date or name) with toggle direction
-- Empty states: Show helpful message + CTA button when no items exist or no search results
-- Form validation: Required fields show red border + error message, email fields check format, prevent submit until valid
-- All data operations must call a saveToStorage() function and a re-render function`;
+INTERACTIVE COMPONENTS:
+- All buttons must have click handlers that DO something (never decorative)
+- Toast notifications: slide-in for success/error (auto-dismiss 3s)
+- Modal dialogs if needed: backdrop + close on X + close on backdrop click
+- Smooth CSS transitions/animations for state changes
+- Loading/disabled states on buttons during operations`;
+
+      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — the app MUST work):
+THE #1 RULE: Every button, input, and interactive element must have a working JavaScript event handler.
+- NO placeholder buttons that do nothing
+- NO "coming soon" features
+- NO buttons without click handlers
+- NO forms without submit handlers
+- NO inputs without change handlers
+- If a button says "Start" it must START something
+- If a button says "Save" it must SAVE something to localStorage
+- If a button says "Delete" it must DELETE something and update the UI
+- If there's a timer display, it must COUNT with setInterval
+- If there's a form, it must VALIDATE and PROCESS the input
+- Every feature mentioned in DESCRIPTION and FEATURES must be FULLY IMPLEMENTED with working JS code
+- All state persists to localStorage and loads on page refresh
+- Render functions update the DOM dynamically — never rely on static HTML`;
 
     } else {
       architectureSection = `ARCHITECTURE: MULTI-PAGE MARKETING/LANDING SITE
@@ -424,13 +434,16 @@ INTERACTIVE ELEMENTS:
 - Smooth scroll-to sections within a page
 - Working contact/signup form with field validation and success state`;
 
-      functionalitySection = `FUNCTIONALITY REQUIREMENTS:
+      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — every interactive element must work):
+- EVERY button must have a working onclick handler — zero decorative/dead buttons
 - All forms must validate: required fields, email format, show inline error messages, show success message on valid submit
 - FAQ accordions: click to toggle open/close, only one open at a time, smooth height transition
 - Testimonial slider: auto-advance every 5s, manual dots/arrows, smooth CSS transition
 - Any pricing toggle (monthly/yearly) must actually update displayed prices
 - Tab sections must switch content on click
-- Mobile hamburger menu must open/close a dropdown nav`;
+- Mobile hamburger menu must open/close a dropdown nav
+- Contact forms: show success message after submit, clear fields, prevent default
+- All hover states must be visible (opacity change, color shift, or scale)`;
     }
 
     const user = `Generate a complete, fully functional ${isDashboard ? "dashboard application" : isWebApp ? "web application" : "website"} as a self-contained HTML file.
@@ -514,19 +527,17 @@ ${integrations && integrations.length > 0 ? `13. INTEGRATIONS:
 ${integrations.map(ig => `   - ${ig.name}: Key = "${ig.value}"
      Include <script> initialization in <head>.`).join("\n")}` : ""}
 
-${isDashboard || isWebApp ? `CRITICAL FUNCTIONALITY CHECKLIST (every item MUST work or the app is considered broken):
-✓ Data renders dynamically from JavaScript state — NOT hardcoded HTML
-✓ Create/Add: modal form → validate → add to state → save localStorage → re-render → show feedback
-✓ Edit: pre-fill form with existing data → save changes → persist → re-render
-✓ Delete: confirm dialog → remove from state → persist → re-render → show feedback
-✓ Search: real-time filter as user types → case insensitive → show "no results" if empty
-✓ Sort: click column/button → reorder data array → re-render with direction indicator
-✓ Pagination or virtual scroll for data lists with 10+ items
-✓ Modal: backdrop + close button + close on backdrop click + form inside
-✓ Toast/notification: slide in, auto dismiss after 3 seconds
-✓ Empty state: show message + action button when no data exists
-✓ Form validation: required fields, email format, inline error messages, prevent invalid submit
-✓ localStorage persistence: save on every change, load on startup` : ""}
+${isDashboard || isWebApp ? `CRITICAL FUNCTIONALITY CHECKLIST (the app is BROKEN if any of these fail):
+✓ EVERY button has a working onclick handler — zero decorative/dead buttons
+✓ EVERY form has a submit handler with validation — zero forms that do nothing
+✓ EVERY input has a change handler — zero inputs that aren't connected to state
+✓ The CORE FEATURE described in the prompt works completely with real JS logic
+✓ State stored in window.appState and rendered dynamically — NOT hardcoded HTML
+✓ localStorage persistence: save on every state change, load on startup/refresh
+✓ Visual feedback: buttons show active/disabled states, actions show success/error toast
+✓ All navigation works: view switching, back to home, all nav items functional
+✓ CSS is polished: proper hover states on clickable elements, transitions on state changes
+✓ The app feels like REAL SOFTWARE that someone would actually use — not a wireframe` : ""}
 
 Write at minimum ${isDashboard || isWebApp ? "900" : "700"} lines of functional code. Start with <!DOCTYPE html> immediately.`;
 

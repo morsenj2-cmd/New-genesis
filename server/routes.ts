@@ -862,14 +862,72 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         newLayoutJson = JSON.stringify(regenLayout);
       }
 
+      // Mark gemini as pending for AI regeneration
+      if (isGeminiAvailable()) {
+        (currentSettings as any).geminiStatus = "pending";
+      }
+
       const updated = await storage.updateProject(project.id, userId!, {
         genomeJson: JSON.stringify(newGenome),
         layoutJson: newLayoutJson ?? project.layoutJson,
         styleSeed: newStyleSeed,
         previousGenomesJson: JSON.stringify(updatedHistory.slice(-5)),
+        settingsJson: JSON.stringify(currentSettings),
       });
 
       res.json({ project: updated, styleSeed: newStyleSeed, genome: newGenome });
+
+      // Fire AI app regeneration async with new genome
+      if (isGeminiAvailable()) {
+        const genomeCopy = JSON.parse(JSON.stringify(newGenome));
+        const regenSettings = parseSettings(updated.settingsJson);
+        const existingInterpret = (regenSettings as any).geminiInterpret || null;
+        const regenBrand = (regenSettings as any).brandName || project.name;
+        const regenIntegrations: Integration[] = (regenSettings as any).integrations ?? [];
+
+        (async () => {
+          try {
+            console.log(`[Groq] Style re-generation for project ${project.id}`);
+            const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
+            if (!interpret) throw new Error("Interpret returned null");
+
+            const appHtml = await geminiGenerateApp(
+              project.prompt,
+              project.name,
+              regenBrand,
+              genomeCopy as any,
+              interpret,
+              project.fontUrl,
+              project.logoUrl,
+              null,
+              regenIntegrations,
+            );
+            if (!appHtml) throw new Error("App generation returned null");
+
+            const latestProject = await storage.getProject(project.id);
+            if (!latestProject) return;
+            const latestSettings = parseSettings(latestProject.settingsJson);
+            (latestSettings as any).geminiStatus = "ready";
+            (latestSettings as any).geminiAppHtml = appHtml;
+            (latestSettings as any).geminiInterpret = interpret;
+
+            await storage.updateProject(project.id, userId!, {
+              settingsJson: JSON.stringify(latestSettings),
+            });
+            console.log(`[Groq] Style re-generation complete for project ${project.id}`);
+          } catch (err) {
+            console.error(`[Groq] Style re-generation failed for project ${project.id}:`, err);
+            try {
+              const latestProject = await storage.getProject(project.id);
+              if (latestProject) {
+                const latestSettings = parseSettings(latestProject.settingsJson);
+                (latestSettings as any).geminiStatus = "failed";
+                await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+              }
+            } catch {}
+          }
+        })();
+      }
     } catch (err) {
       console.error("Error regenerating style:", err);
       res.status(500).json({ message: "Failed to regenerate style" });
@@ -941,8 +999,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         layout = stripMediaPlacements(layout) as typeof layout;
       }
 
+      // Mark gemini as pending for AI regeneration
+      if (isGeminiAvailable()) {
+        (currentSettings as any).geminiStatus = "pending";
+      }
+
       const updated = await storage.updateProject(project.id, userId!, {
         layoutJson: JSON.stringify(layout),
+        settingsJson: JSON.stringify(currentSettings),
       });
 
       res.json({
@@ -951,6 +1015,58 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dnaHash: dna.hash,
         attempts: uniqueDNA.attempts,
       });
+
+      // Fire AI app regeneration async
+      if (isGeminiAvailable()) {
+        const genome = project.genomeJson ? JSON.parse(project.genomeJson) : generateGenome(project.seed);
+        const layoutRegenSettings = parseSettings(updated.settingsJson);
+        const existingInterpret = (layoutRegenSettings as any).geminiInterpret || null;
+        const layoutRegenBrand = (layoutRegenSettings as any).brandName || project.name;
+        const layoutRegenIntegrations: Integration[] = (layoutRegenSettings as any).integrations ?? [];
+
+        (async () => {
+          try {
+            console.log(`[Groq] Layout re-generation for project ${project.id}`);
+            const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
+            if (!interpret) throw new Error("Interpret returned null");
+
+            const appHtml = await geminiGenerateApp(
+              project.prompt,
+              project.name,
+              layoutRegenBrand,
+              genome,
+              interpret,
+              project.fontUrl,
+              project.logoUrl,
+              null,
+              layoutRegenIntegrations,
+            );
+            if (!appHtml) throw new Error("App generation returned null");
+
+            const latestProject = await storage.getProject(project.id);
+            if (!latestProject) return;
+            const latestSettings = parseSettings(latestProject.settingsJson);
+            (latestSettings as any).geminiStatus = "ready";
+            (latestSettings as any).geminiAppHtml = appHtml;
+            (latestSettings as any).geminiInterpret = interpret;
+
+            await storage.updateProject(project.id, userId!, {
+              settingsJson: JSON.stringify(latestSettings),
+            });
+            console.log(`[Groq] Layout re-generation complete for project ${project.id}`);
+          } catch (err) {
+            console.error(`[Groq] Layout re-generation failed for project ${project.id}:`, err);
+            try {
+              const latestProject = await storage.getProject(project.id);
+              if (latestProject) {
+                const latestSettings = parseSettings(latestProject.settingsJson);
+                (latestSettings as any).geminiStatus = "failed";
+                await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+              }
+            } catch {}
+          }
+        })();
+      }
     } catch (err) {
       console.error("Error regenerating layout:", err);
       res.status(500).json({ message: "Failed to regenerate layout" });
