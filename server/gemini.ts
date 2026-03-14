@@ -9,9 +9,9 @@ const client = apiKey
 
 const MODEL_PREFERENCE = [
   "llama-3.3-70b-versatile",
-  "mixtral-8x7b-32768",
-  "llama3-70b-8192",
-  "llama3-8b-8192",
+  "llama-3.1-8b-instant",
+  "gemma2-9b-it",
+  "llama-3.2-3b-preview",
 ];
 
 export interface GeminiInterpretResult {
@@ -171,23 +171,33 @@ async function chat(
 
   let lastError: Error | null = null;
   for (const model of MODEL_PREFERENCE) {
-    try {
-      const completion = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.7,
-      });
-      return completion.choices[0]?.message?.content ?? "";
-    } catch (err: any) {
-      console.warn(`[Groq] Model ${model} failed:`, err?.message?.slice(0, 80));
-      lastError = err;
-      const msg = err?.message ?? "";
-      if (!msg.includes("429") && !msg.includes("rate") && !msg.includes("quota") && !msg.includes("model")) {
-        throw err;
+    for (let retry = 0; retry < 2; retry++) {
+      try {
+        const completion = await client.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          max_tokens: maxTokens,
+          temperature: 0.7,
+        });
+        return completion.choices[0]?.message?.content ?? "";
+      } catch (err: any) {
+        const msg = err?.message ?? "";
+        const isRateLimit = msg.includes("429") || msg.includes("rate") || msg.includes("quota");
+        const isModelError = msg.includes("decommissioned") || msg.includes("not found") || msg.includes("not supported") || msg.includes("model_");
+        console.warn(`[Groq] Model ${model} failed (attempt ${retry + 1}):`, msg.slice(0, 100));
+        lastError = err;
+
+        if (isModelError) break;
+        if (isRateLimit && retry === 0) {
+          console.log(`[Groq] Rate limited on ${model}, waiting 3s before retry...`);
+          await new Promise(r => setTimeout(r, 3000));
+          continue;
+        }
+        if (!isRateLimit && !isModelError) throw err;
+        break;
       }
     }
   }
