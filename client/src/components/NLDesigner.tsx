@@ -3,7 +3,8 @@ import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Wand2, CheckCircle, AlertCircle, Loader2, Zap } from "lucide-react";
+import { Wand2, CheckCircle, AlertCircle, Loader2, Zap, Crown } from "lucide-react";
+import { UpgradeDialog } from "@/components/UpgradeDialog";
 import type { DesignGenome } from "@shared/genomeGenerator";
 import type { LayoutGraph } from "@shared/layoutEngine";
 
@@ -14,25 +15,31 @@ export interface NLContentPatch {
   ctaLabel?: string;
 }
 
-const CREDIT_LIMIT = 500;
-
 interface NLDesignerProps {
   projectId: string;
   creditsUsed: number;
+  creditLimit: number;
+  userPlan: string;
   onApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch) => void;
 }
 
 
-export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onApplied }: NLDesignerProps) {
+export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditLimit, userPlan, onApplied }: NLDesignerProps) {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [command, setCommand] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [creditsUsed, setCreditsUsed] = useState(initialCreditsUsed);
+  const [currentLimit, setCurrentLimit] = useState(creditLimit);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
     setCreditsUsed(initialCreditsUsed);
   }, [initialCreditsUsed]);
+
+  useEffect(() => {
+    setCurrentLimit(creditLimit);
+  }, [creditLimit]);
 
   const [result, setResult] = useState<{
     description: string[];
@@ -40,8 +47,9 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onAppli
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const creditsRemaining = Math.max(0, CREDIT_LIMIT - creditsUsed);
+  const creditsRemaining = Math.max(0, currentLimit - creditsUsed);
   const isOutOfCredits = creditsRemaining <= 0;
+  const isFree = userPlan === "free";
 
   async function handleApply() {
     if (!command.trim() || isOutOfCredits) return;
@@ -64,6 +72,12 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onAppli
         if (err.creditsUsed !== undefined) {
           setCreditsUsed(err.creditsUsed);
         }
+        if (err.creditsLimit !== undefined) {
+          setCurrentLimit(err.creditsLimit);
+        }
+        if (err.requiresUpgrade) {
+          setShowUpgrade(true);
+        }
         throw new Error(err.message || "Failed to apply command");
       }
       const data = await res.json();
@@ -71,6 +85,9 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onAppli
 
       if (data.creditsUsed !== undefined) {
         setCreditsUsed(data.creditsUsed);
+      }
+      if (data.creditsLimit !== undefined) {
+        setCurrentLimit(data.creditsLimit);
       }
 
       if (data.project?.genomeJson && data.project?.layoutJson) {
@@ -97,17 +114,29 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onAppli
         <div className="flex items-center gap-1 text-xs" data-testid="text-credits-remaining">
           <Zap className={`h-3 w-3 ${isOutOfCredits ? "text-destructive" : creditsRemaining <= 50 ? "text-yellow-500" : "text-muted-foreground"}`} />
           <span className={isOutOfCredits ? "text-destructive font-medium" : creditsRemaining <= 50 ? "text-yellow-500" : "text-muted-foreground"}>
-            {creditsRemaining}/{CREDIT_LIMIT}
+            {creditsRemaining}/{currentLimit}
           </span>
         </div>
       </div>
 
       {isOutOfCredits ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-center" data-testid="credits-exhausted">
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-center space-y-2" data-testid="credits-exhausted">
           <p className="text-xs text-destructive font-medium">Credit limit reached</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            You've used all {CREDIT_LIMIT} free AI edits for this project.
+          <p className="text-xs text-muted-foreground">
+            You've used all {currentLimit} AI edits for this project.
           </p>
+          {isFree && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-7 mt-1"
+              onClick={() => setShowUpgrade(true)}
+              data-testid="button-upgrade-from-nl"
+            >
+              <Crown className="h-3 w-3 text-yellow-500" />
+              Upgrade to Morse Black
+            </Button>
+          )}
         </div>
       ) : (
         <>
@@ -133,7 +162,7 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onAppli
             ) : (
               <Wand2 className="h-3.5 w-3.5" />
             )}
-            {isPending ? "Applying…" : "Apply"}
+            {isPending ? "Applying\u2026" : "Apply"}
           </Button>
         </>
       )}
@@ -151,7 +180,7 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onAppli
           ))}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
             <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-            <span>AI is rebuilding your app with this change…</span>
+            <span>AI is rebuilding your app with this change\u2026</span>
           </div>
         </div>
       )}
@@ -163,6 +192,7 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, onAppli
         </div>
       )}
 
+      <UpgradeDialog open={showUpgrade} onOpenChange={setShowUpgrade} />
     </div>
   );
 }

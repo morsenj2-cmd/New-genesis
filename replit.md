@@ -74,7 +74,15 @@ Key features:
 - Analytics/dashboard component filtering: `shared/productContextEngine.ts` strips `metric_cards`, `analytics_chart`, `data_table`, `filters`, `storage_usage_bar` component types from non-dashboard product types (only shown for analytics_dashboard, crm, project_management, fintech)
 - pageType detection in intent interpreter: `shared/intentInterpreter.ts` detects "landing_page", "web_app", "dashboard", "blog", "ecommerce_store", "social_platform", "portfolio" from free-form prompts
 - Unified NL pipeline: `shared/semanticInterpreter.ts` (Jaro-Winkler fuzzy matching, multi-intent detection via `interpretSemanticMulti()`, compound command splitting on "and"/","), `shared/semanticDictionary.ts` (synonym maps), `shared/patchGenerator.ts` (`generateMultiPatches()` — iterates all intents, generates combined genomePatch + settingsPatch + contentPatch)
-- **NL Credit System**: 500 free AI edits per project; `nlCreditsUsed` column tracks usage; `apply-nl` route checks/increments credits and returns `creditsUsed`/`creditsLimit` in response; NLDesigner UI shows remaining credits with color-coded indicator (green/yellow/red) and blocks input when exhausted
+- **Morse Black Subscription** (Razorpay integration):
+  - **Free tier**: 500 AI edits per project; no export; project creation blocked after exhausting credits on any project
+  - **Morse Black** (₹129/month): 4,000 AI edits per project; export enabled; unlimited project creation; 30-day subscription
+  - **Payment flow**: `POST /api/payment/create-order` creates Razorpay order → client opens Razorpay Checkout → `POST /api/payment/verify` validates HMAC signature → upgrades user plan in DB
+  - **User schema**: `plan` (free/morse_black), `planExpiresAt`, `totalCredits` on users table
+  - **Server guards**: `/api/project/create` blocks free users who have exhausted credits; `/api/export/project/:id` requires morse_black plan; `apply-nl` uses plan-aware per-project credit limit
+  - **Client components**: `UpgradeDialog` (Razorpay checkout flow), upgrade prompts in NLDesigner (credit exhaustion), new-project page (creation blocked), export button (Crown icon for free users)
+  - **Subscription status**: `GET /api/user/subscription` returns plan, active status, credits, per-project limit
+- **NL Credit System**: Plan-aware credits (500 free / 4000 morse_black per project); `nlCreditsUsed` column tracks usage; `apply-nl` route checks/increments credits and returns `creditsUsed`/`creditsLimit` in response; NLDesigner UI shows remaining credits with color-coded indicator (green/yellow/red) and blocks input when exhausted
 - **Client-side CSS Sanitizer**: `safeGeminiHtml` useMemo in `project.tsx` applies the same `max-width` → `font-size` heading fix as the server-side `sanitizeGeneratedCss()`, fixing existing stored projects on display
 - NL brand rename fully wired: `/apply-nl` runs unified interpreter → if `change_name` detected, saves `brandName` to `settingsJson`, returns `contentPatch` in response → client updates `contentOverrides.brandName` immediately
 - NL pipeline architecture: single-pass semantic interpreter replaces the legacy dual-pass system; `interpretSemanticMulti()` detects all intents from a single command; `generateMultiPatches()` combines patches; route applies once; legacy `parseNLCommand` in `nlParser.ts` retained but no longer called from routes (only `applyPatchesToGenome` is used)
@@ -169,7 +177,7 @@ Protected routes check `useAuth()` and redirect to `/sign-in`. Public routes red
 **Tables:**
 | Table | Key columns |
 |---|---|
-| `users` | `id` (Clerk user ID, PK), `email`, `created_at` |
+| `users` | `id` (Clerk user ID, PK), `email`, `plan` (text, default "free"), `plan_expires_at` (timestamp), `total_credits` (int, default 500), `created_at` |
 | `projects` | `id` (UUID, PK), `user_id` (FK), `name`, `prompt`, `seed`, `font`, `font_url`, `theme_color`, `logo_url`, `genome_json`, `layout_json`, `settings_json`, `product_type`, `layout_locked` (bool), `nl_credits_used` (int, default 0), `created_at` |
 | `prompt_logs` | `id` (UUID, PK), `user_id` (FK), `project_id` (FK), `prompt_text`, `sanitized_prompt`, `intent_type`, `confidence` (real), `intent_json`, `patches_json`, `project_context_json`, `feedback_signal`, `corrected_intent_json`, `pattern_id`, `used_for_training` (bool), `created_at` |
 | `blog_posts` | `id` (UUID, PK), `title`, `content`, `author_email`, `created_at` |

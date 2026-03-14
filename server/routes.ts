@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { clerkMiddleware, getAuth } from "@clerk/express";
-import { createHash, randomUUID } from "crypto";
+import { createHash, randomUUID, createHmac } from "crypto";
 import archiver from "archiver";
+import Razorpay from "razorpay";
 import { storage } from "./storage";
 import { createProjectSchema, insertBlogPostSchema } from "@shared/schema";
 import { generateGenome } from "@shared/genomeGenerator";
@@ -64,6 +65,12 @@ function isBase64DataUrl(str: string): boolean {
   return typeof str === "string" && str.startsWith("data:");
 }
 
+function isActivePremium(user: { plan: string; planExpiresAt: Date | null }): boolean {
+  if (user.plan !== "morse_black") return false;
+  if (!user.planExpiresAt) return false;
+  return user.planExpiresAt > new Date();
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   onRetrain(async () => {
     console.log("[Learning] Auto-retraining model with accumulated data...");
@@ -103,6 +110,93 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Error syncing user:", err);
       res.status(500).json({ message: "Failed to sync user" });
+    }
+  });
+
+  const MORSE_BLACK_PRICE = 12900;
+  const MORSE_BLACK_CREDITS = 4000;
+  const FREE_TIER_PER_PROJECT_CREDITS = 500;
+
+  const razorpayInstance = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
+    ? new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET })
+    : null;
+
+  app.get("/api/user/subscription", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const status = await storage.getUserSubscriptionStatus(userId!);
+      if (!status) return res.status(404).json({ message: "User not found" });
+      const exhausted = await storage.hasExhaustedCreditsOnAnyProject(userId!);
+      res.json({ ...status, hasExhaustedProject: exhausted, perProjectLimit: status.plan === "morse_black" ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS });
+    } catch (err) {
+      console.error("Error fetching subscription:", err);
+      res.status(500).json({ message: "Failed to fetch subscription status" });
+    }
+  });
+
+  app.post("/api/payment/create-order", requireAuth, async (req, res) => {
+    try {
+      if (!razorpayInstance) return res.status(503).json({ message: "Payment system unavailable" });
+      const { userId } = getAuth(req);
+      const order = await razorpayInstance.orders.create({
+        amount: MORSE_BLACK_PRICE,
+        currency: "INR",
+        receipt: `morse_black_${userId}_${Date.now()}`,
+        notes: { userId: userId!, plan: "morse_black" },
+      });
+      res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId: process.env.RAZORPAY_KEY_ID });
+    } catch (err) {
+      console.error("Error creating order:", err);
+      res.status(500).json({ message: "Failed to create payment order" });
+    }
+  });
+
+  const processedPayments = new Set<string>();
+
+  app.post("/api/payment/verify", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ message: "Missing payment verification fields" });
+      }
+
+      if (processedPayments.has(razorpay_payment_id)) {
+        return res.status(400).json({ message: "Payment already processed" });
+      }
+
+      const expectedSig = createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+      if (expectedSig !== razorpay_signature) {
+        return res.status(400).json({ message: "Payment verification failed" });
+      }
+
+      if (razorpayInstance) {
+        try {
+          const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+          if (payment.status !== "captured" || Number(payment.amount) !== MORSE_BLACK_PRICE || payment.currency !== "INR") {
+            return res.status(400).json({ message: "Payment verification failed: invalid payment state" });
+          }
+          if (payment.order_id !== razorpay_order_id) {
+            return res.status(400).json({ message: "Payment verification failed: order mismatch" });
+          }
+        } catch (fetchErr) {
+          console.error("Failed to fetch payment from Razorpay:", fetchErr);
+          return res.status(500).json({ message: "Could not verify payment with Razorpay" });
+        }
+      }
+
+      processedPayments.add(razorpay_payment_id);
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      const user = await storage.upgradeUserPlan(userId!, "morse_black", expiresAt, MORSE_BLACK_CREDITS);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json({ success: true, plan: "morse_black", expiresAt: expiresAt.toISOString(), totalCredits: MORSE_BLACK_CREDITS });
+    } catch (err) {
+      console.error("Error verifying payment:", err);
+      res.status(500).json({ message: "Payment verification failed" });
     }
   });
 
@@ -167,6 +261,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/create", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
+
+      const user = await storage.getUser(userId!);
+      if (user && !isActivePremium(user)) {
+        const exhausted = await storage.hasExhaustedCreditsOnAnyProject(userId!);
+        if (exhausted) {
+          return res.status(403).json({
+            message: "You've exhausted credits on a project. Upgrade to Morse Black to continue creating projects.",
+            requiresUpgrade: true,
+          });
+        }
+      }
+
       const parsed = createProjectSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request", errors: parsed.error.errors });
@@ -503,8 +609,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  const FREE_TIER_CREDIT_LIMIT = 500;
-
   app.post("/api/project/:id/apply-nl", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
@@ -512,12 +616,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
+      const user = await storage.getUser(userId!);
+      const perProjectLimit = user && isActivePremium(user) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
       const creditsUsed = project.nlCreditsUsed ?? 0;
-      if (creditsUsed >= FREE_TIER_CREDIT_LIMIT) {
+      if (creditsUsed >= perProjectLimit) {
         return res.status(429).json({
-          message: `Credit limit reached. You've used all ${FREE_TIER_CREDIT_LIMIT} free AI edits for this project.`,
+          message: `Credit limit reached. You've used all ${perProjectLimit} AI edits for this project.`,
           creditsUsed,
-          creditsLimit: FREE_TIER_CREDIT_LIMIT,
+          creditsLimit: perProjectLimit,
+          requiresUpgrade: !(user && isActivePremium(user)),
         });
       }
 
@@ -654,12 +761,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         (currentSettings as any).geminiStatus = "pending";
       }
 
-      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, FREE_TIER_CREDIT_LIMIT);
+      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
       if (newCreditsUsed === null) {
         return res.status(429).json({
-          message: `Credit limit reached. You've used all ${FREE_TIER_CREDIT_LIMIT} free AI edits for this project.`,
-          creditsUsed: FREE_TIER_CREDIT_LIMIT,
-          creditsLimit: FREE_TIER_CREDIT_LIMIT,
+          message: `Credit limit reached. You've used all ${perProjectLimit} AI edits for this project.`,
+          creditsUsed: perProjectLimit,
+          creditsLimit: perProjectLimit,
+          requiresUpgrade: !(user && isActivePremium(user)),
         });
       }
 
@@ -681,7 +789,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         intents,
         contentPatch,
         creditsUsed: newCreditsUsed,
-        creditsLimit: FREE_TIER_CREDIT_LIMIT,
+        creditsLimit: perProjectLimit,
       });
 
       // Fire AI edit (or re-generation) async with the NL instruction applied
@@ -1236,6 +1344,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/export/project/:id", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
+
+      const user = await storage.getUser(userId!);
+      if (!user || !isActivePremium(user)) {
+        return res.status(403).json({
+          message: "Export is available exclusively for Morse Black subscribers.",
+          requiresUpgrade: true,
+        });
+      }
+
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });

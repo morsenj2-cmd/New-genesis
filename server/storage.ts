@@ -5,6 +5,10 @@ import { users, projects, promptLogs, contextKnowledge, blogPosts, type User, ty
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: InsertUser): Promise<User>;
+  upgradeUserPlan(id: string, plan: string, expiresAt: Date, totalCredits: number): Promise<User | undefined>;
+  getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number } | undefined>;
+  getTotalCreditsUsedByUser(userId: string): Promise<number>;
+  hasExhaustedCreditsOnAnyProject(userId: string): Promise<boolean>;
   getProject(id: string): Promise<Project | undefined>;
   getProjectsByUser(userId: string): Promise<Project[]>;
   logPrompt(data: InsertPromptLog): Promise<PromptLog>;
@@ -64,6 +68,50 @@ export class DatabaseStorage implements IStorage {
       .onConflictDoUpdate({ target: users.id, set: { email: insertUser.email } })
       .returning();
     return user;
+  }
+
+  async upgradeUserPlan(id: string, plan: string, expiresAt: Date, totalCredits: number): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ plan, planExpiresAt: expiresAt, totalCredits })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async getTotalCreditsUsedByUser(userId: string): Promise<number> {
+    const result = await db
+      .select({ total: sql<number>`COALESCE(SUM(${projects.nlCreditsUsed}), 0)` })
+      .from(projects)
+      .where(eq(projects.userId, userId));
+    return Number(result[0]?.total ?? 0);
+  }
+
+  async hasExhaustedCreditsOnAnyProject(userId: string): Promise<boolean> {
+    const user = await this.getUser(userId);
+    if (!user) return false;
+    const isPremium = user.plan === "morse_black" && user.planExpiresAt && user.planExpiresAt > new Date();
+    const perProjectLimit = isPremium ? 4000 : 500;
+    const [row] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(projects)
+      .where(and(eq(projects.userId, userId), sql`${projects.nlCreditsUsed} >= ${perProjectLimit}`));
+    return Number(row?.count ?? 0) > 0;
+  }
+
+  async getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number } | undefined> {
+    const user = await this.getUser(id);
+    if (!user) return undefined;
+    const creditsUsed = await this.getTotalCreditsUsedByUser(id);
+    const isPremiumActive = user.plan === "morse_black" && user.planExpiresAt ? user.planExpiresAt > new Date() : false;
+    const isActive = isPremiumActive || user.plan === "free";
+    const effectivePlan = isPremiumActive ? "morse_black" : "free";
+    return {
+      plan: effectivePlan,
+      active: isActive,
+      totalCredits: user.totalCredits,
+      creditsUsedAcrossProjects: creditsUsed,
+    };
   }
 
   async getProject(id: string): Promise<Project | undefined> {

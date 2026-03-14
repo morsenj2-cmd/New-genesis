@@ -55,6 +55,7 @@ import {
   Plus,
   X as XIcon,
   KeyRound,
+  Crown,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -97,6 +98,7 @@ import {
 } from "@shared/iconGenerator";
 import { GenomePreview } from "@/components/genome-ui";
 import { NLDesigner } from "@/components/NLDesigner";
+import { UpgradeDialog } from "@/components/UpgradeDialog";
 import { CanvasEditor, type ContentOverrides } from "@/components/CanvasEditor";
 import type { NLContentPatch } from "@/components/NLDesigner";
 
@@ -897,7 +899,13 @@ function LeftPanel({
           </Button>
         </div>
         <Separator />
-        <NLDesigner projectId={project.id} creditsUsed={project.nlCreditsUsed ?? 0} onApplied={onNLApplied} />
+        <NLDesigner
+          projectId={project.id}
+          creditsUsed={project.nlCreditsUsed ?? 0}
+          creditLimit={subscription?.perProjectLimit ?? 500}
+          userPlan={subscription?.plan ?? "free"}
+          onApplied={onNLApplied}
+        />
         <IntegrationsDialog projectId={project.id} initialIntegrations={integrations} />
       </div>
 
@@ -1097,6 +1105,26 @@ export default function ProjectPage() {
       return res.json();
     },
     enabled: !!params.id,
+  });
+
+  const { data: subscription } = useQuery<{
+    plan: string;
+    active: boolean;
+    totalCredits: number;
+    creditsUsedAcrossProjects: number;
+    hasExhaustedProject: boolean;
+    perProjectLimit: number;
+  }>({
+    queryKey: ["/api/user/subscription"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch("/api/user/subscription", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch subscription");
+      return res.json();
+    },
   });
 
   useEffect(() => {
@@ -1450,7 +1478,13 @@ export default function ProjectPage() {
     },
   });
 
+  const [showExportUpgrade, setShowExportUpgrade] = useState(false);
+
   const handleExport = useCallback(async () => {
+    if (subscription?.plan !== "morse_black") {
+      setShowExportUpgrade(true);
+      return;
+    }
     const token = await getToken();
     const url = `/api/export/project/${params.id}`;
     const res = await fetch(url, {
@@ -1458,7 +1492,16 @@ export default function ProjectPage() {
       credentials: "include",
     });
     if (!res.ok) {
-      toast({ title: "Export failed", description: "Could not generate the project zip.", variant: "destructive" });
+      try {
+        const err = await res.json();
+        if (err.requiresUpgrade) {
+          setShowExportUpgrade(true);
+          return;
+        }
+        toast({ title: "Export failed", description: err.message || "Could not generate the project zip.", variant: "destructive" });
+      } catch {
+        toast({ title: "Export failed", description: "Could not generate the project zip.", variant: "destructive" });
+      }
       return;
     }
     const blob = await res.blob();
@@ -1467,9 +1510,10 @@ export default function ProjectPage() {
     a.download = `${project?.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "morse-export"}.zip`;
     a.click();
     URL.revokeObjectURL(a.href);
-  }, [params.id, getToken, project?.name, toast]);
+  }, [params.id, getToken, project?.name, toast, subscription?.plan]);
 
   return (
+  <>
     <SidebarProvider>
       <SidebarAutoCollapse canvasMode={canvasMode} />
       <div className="flex h-screen w-full bg-background">
@@ -1578,7 +1622,11 @@ export default function ProjectPage() {
                     onClick={handleExport}
                     data-testid="button-export-project"
                   >
-                    <Download className="h-3.5 w-3.5" />
+                    {subscription?.plan !== "morse_black" ? (
+                      <Crown className="h-3.5 w-3.5 text-yellow-500" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
                     Export App
                   </Button>
                   <AlertDialog>
@@ -1771,5 +1819,7 @@ export default function ProjectPage() {
         </div>
       </div>
     </SidebarProvider>
+    <UpgradeDialog open={showExportUpgrade} onOpenChange={setShowExportUpgrade} />
+  </>
   );
 }

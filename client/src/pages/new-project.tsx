@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +18,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, ArrowRight, Upload, Check, X, Type } from "lucide-react";
+import { ArrowLeft, ArrowRight, Upload, Check, X, Type, Crown } from "lucide-react";
+import { UpgradeDialog } from "@/components/UpgradeDialog";
 import logoPath from "@assets/--._1772868829725.png";
 import type { Project } from "@shared/schema";
 
@@ -85,6 +86,26 @@ export default function NewProjectPage() {
   const { toast } = useToast();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const fontInputRef = useRef<HTMLInputElement>(null);
+
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  const { data: subscription } = useQuery<{
+    plan: string;
+    hasExhaustedProject: boolean;
+  }>({
+    queryKey: ["/api/user/subscription"],
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch("/api/user/subscription", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch subscription");
+      return res.json();
+    },
+  });
+
+  const isBlocked = subscription?.plan === "free" && subscription?.hasExhaustedProject;
 
   const [step, setStep] = useState(1);
   const [selectedFont, setSelectedFont] = useState("Arimo");
@@ -185,11 +206,21 @@ export default function NewProjectPage() {
       navigate(`/project/${project.id}`);
     },
     onError: (err: Error) => {
+      if (err.message.includes("Upgrade to Morse Black")) {
+        setShowUpgrade(true);
+        return;
+      }
       toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
-  const onSubmit = (data: DetailsForm) => createMutation.mutate(data);
+  const onSubmit = (data: DetailsForm) => {
+    if (isBlocked) {
+      setShowUpgrade(true);
+      return;
+    }
+    createMutation.mutate(data);
+  };
 
   const fontDisplayName = selectedFont === "CustomUpload"
     ? (customFontName?.replace(/\.\w+$/, "") || "Custom")
@@ -576,18 +607,38 @@ export default function NewProjectPage() {
                     <Button
                       type="submit"
                       className="flex-1 gap-2"
-                      disabled={createMutation.isPending}
+                      disabled={createMutation.isPending || isBlocked}
                       data-testid="button-create-project"
                     >
                       {createMutation.isPending ? "Creating..." : "Create Project"}
                     </Button>
                   </div>
+                  {isBlocked && (
+                    <div className="mt-3 rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3 text-center space-y-2" data-testid="blocked-create-banner">
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">Project creation locked</p>
+                      <p className="text-xs text-muted-foreground">
+                        You've used all free credits on a project. Upgrade to continue creating.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs h-7"
+                        onClick={() => setShowUpgrade(true)}
+                        data-testid="button-upgrade-from-create"
+                      >
+                        <Crown className="h-3 w-3 text-yellow-500" />
+                        Upgrade to Morse Black
+                      </Button>
+                    </div>
+                  )}
                 </form>
               </Form>
             </div>
           )}
         </div>
       </div>
+      <UpgradeDialog open={showUpgrade} onOpenChange={setShowUpgrade} />
     </div>
   );
 }
