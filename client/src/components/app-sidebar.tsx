@@ -1,5 +1,6 @@
 import { useLocation, Link } from "wouter";
 import { useAuth, UserButton } from "@clerk/react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +13,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Plus, LogIn, BookOpen, Info } from "lucide-react";
+import { LayoutDashboard, Plus, LogIn, BookOpen, Info, Crown } from "lucide-react";
 import logoPath from "../assets/logo.png";
 
 const navItems = [
@@ -24,7 +25,23 @@ const navItems = [
 
 export function AppSidebar({ onNewProject }: { onNewProject?: () => void } = {}) {
   const [location, navigate] = useLocation();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, getToken } = useAuth();
+
+  const { data: subscription } = useQuery<{ plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number }>({
+    queryKey: ["/api/user/subscription"],
+    enabled: !!isSignedIn,
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch("/api/user/subscription", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch subscription");
+      return res.json();
+    },
+  });
+
+  const isMorseBlack = subscription?.plan === "morse_black" && subscription?.active;
 
   const handleNewProject = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -88,14 +105,28 @@ export function AppSidebar({ onNewProject }: { onNewProject?: () => void } = {})
 
       <SidebarFooter className="p-4 border-t border-white/[0.06]">
         {isLoaded && isSignedIn ? (
-          <div className="flex items-center gap-3 rounded-lg px-2 py-1.5 bg-white/[0.04]">
-            <UserButton
-              signInUrl="/sign-in"
-              appearance={{ elements: { avatarBox: "h-8 w-8" } }}
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-sidebar-foreground truncate">Account</p>
-              <p className="text-xs text-muted-foreground">Manage profile</p>
+          <div className="space-y-2">
+            {isMorseBlack && (
+              <div
+                className="flex items-center gap-2 rounded-lg px-3 py-2 border border-yellow-500/20"
+                style={{
+                  background: "linear-gradient(135deg, rgba(234,179,8,0.08) 0%, rgba(251,191,36,0.04) 100%)",
+                }}
+                data-testid="badge-morse-black"
+              >
+                <Crown className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                <span className="text-xs font-semibold text-yellow-500">Morse Black</span>
+              </div>
+            )}
+            <div className="flex items-center gap-3 rounded-lg px-2 py-1.5 bg-white/[0.04]">
+              <UserButton
+                signInUrl="/sign-in"
+                appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-sidebar-foreground truncate">Account</p>
+                <p className="text-xs text-muted-foreground">Manage profile</p>
+              </div>
             </div>
           </div>
         ) : (

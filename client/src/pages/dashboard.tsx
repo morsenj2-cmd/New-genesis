@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Hash, Clock, ChevronRight, X, Info } from "lucide-react";
+import { Plus, Hash, Clock, ChevronRight, X, Info, Crown } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import type { Project } from "@shared/schema";
 import spiralBg from "../assets/spiral-bg.png";
@@ -180,6 +180,22 @@ export default function DashboardPage() {
     enabled: !!isSignedIn,
   });
 
+  const { data: subscription } = useQuery<{ plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number }>({
+    queryKey: ["/api/user/subscription"],
+    enabled: !!isSignedIn,
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch("/api/user/subscription", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch subscription");
+      return res.json();
+    },
+  });
+
+  const isMorseBlack = subscription?.plan === "morse_black" && subscription?.active;
+
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   const handleCreateClick = () => {
@@ -267,7 +283,18 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
               <div>
-                <h1 className="text-lg font-semibold text-foreground">Your work</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-semibold text-foreground">Your work</h1>
+                  {isMorseBlack && (
+                    <Badge
+                      className="gap-1 bg-yellow-500/10 text-yellow-500 border-yellow-500/20 hover:bg-yellow-500/15 text-[10px] px-1.5 py-0"
+                      data-testid="badge-morse-black-header"
+                    >
+                      <Crown className="h-3 w-3" />
+                      BLACK
+                    </Badge>
+                  )}
+                </div>
                 {isSignedIn && (
                   <p className="text-xs text-muted-foreground">
                     {isLoading ? "Loading..." : `${projectCount} project${projectCount !== 1 ? "s" : ""}`}
