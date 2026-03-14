@@ -110,10 +110,22 @@ function genIndexHtml(project: Project): string {
 `;
 }
 
-function genGlobalsCss(genome: DesignGenome): string {
-  const h = encodeURIComponent(genome.typography.heading);
-  const b = encodeURIComponent(genome.typography.body);
-  return `@import url('https://fonts.googleapis.com/css2?family=${h}:wght@400;500;600;700;800&family=${b}:wght@400;500;600;700&display=swap');
+function genGlobalsCss(genome: DesignGenome, customFontUrl?: string | null, customFontName?: string | null): string {
+  let fontImport: string;
+  if (customFontUrl && customFontName) {
+    // User uploaded a custom font — embed it via @font-face using its Cloudinary URL
+    fontImport = `@font-face {
+  font-family: '${customFontName}';
+  src: url('${customFontUrl}');
+  font-weight: 100 900;
+  font-display: swap;
+}`;
+  } else {
+    const h = encodeURIComponent(genome.typography.heading);
+    const b = encodeURIComponent(genome.typography.body);
+    fontImport = `@import url('https://fonts.googleapis.com/css2?family=${h}:wght@400;500;600;700;800&family=${b}:wght@400;500;600;700&display=swap');`;
+  }
+  return `${fontImport}
 
 @tailwind base;
 @tailwind components;
@@ -1113,7 +1125,7 @@ export function generateExportFiles(
     { path: "postcss.config.cjs", content: genPostcssConfig() },
     { path: "index.html", content: genIndexHtml(project) },
     { path: "src/main.jsx", content: genMainJsx(genome) },
-    { path: "styles/globals.css", content: genGlobalsCss(genome) },
+    { path: "styles/globals.css", content: genGlobalsCss(genome, project.fontUrl, project.font) },
     { path: "lib/navigation.js", content: genNavigationJs() },
     { path: "components/icons.jsx", content: genIconsSvg(genome) },
     { path: "components/GenomeNavbar.jsx", content: genNavbarJsx() },

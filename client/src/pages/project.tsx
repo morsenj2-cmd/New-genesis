@@ -1052,13 +1052,21 @@ export default function ProjectPage() {
 
   const displayGenome = useMemo<DesignGenome | null>(() => {
     if (!activeGenome || !project) return activeGenome;
-    return mergeDesignSources(activeGenome, {
+    const merged = mergeDesignSources(activeGenome, {
       selectedFont: project.font,
       selectedPrimaryColor: nlColorOverride ?? project.themeColor,
       uploadedLogoUrl: project.logoUrl,
       productType: effectiveProductType,
     });
-  }, [activeGenome, project?.font, project?.themeColor, project?.logoUrl, effectiveProductType, nlColorOverride]);
+    // If user uploaded a custom font, patch typography to the loaded font-face name
+    // so the preview actually renders the custom font instead of falling back
+    if (project.fontUrl) {
+      const customFamilyName = `ProjectFont-${project.id}`;
+      merged.typography.heading = customFamilyName;
+      merged.typography.body = customFamilyName;
+    }
+    return merged;
+  }, [activeGenome, project?.font, project?.themeColor, project?.logoUrl, project?.fontUrl, project?.id, effectiveProductType, nlColorOverride]);
 
   const handleRegenerateStyle = useCallback(async () => {
     if (!project?.id) return;

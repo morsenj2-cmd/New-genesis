@@ -1,0 +1,114 @@
+What Morse Is
+A user describes any software product in plain English. Morse generates a complete, runnable, uniquely designed application — frontend, backend, and all functionality — and exports it as a downloadable ZIP.
+
+The Pipeline (what happens when a user submits a prompt)
+User types a prompt
+        │
+        ▼
+┌─────────────────┐
+│   LOCAL ENGINE  │  generateGenome() runs immediately
+│   Design Tokens │  Produces: colors, fonts, spacing,
+│                 │  radius, shadow, motion timing
+└────────┬────────┘
+         │  genome tokens ready
+         ▼
+┌─────────────────┐
+│   LOCAL ENGINE  │  iconGenerator pulls SVG paths
+│   Icon Library  │  25 semantic icons, styled to match
+│                 │  the genome's stroke width + geometry
+└────────┬────────┘
+         │  icon SVGs ready
+         ▼
+┌─────────────────────────────────────────────────────┐
+│                    GEMINI STAGE 1                   │
+│                    INTERPRET                        │
+│                                                     │
+│  Reads the full prompt and extracts:                │
+│  · productName, productType, industry               │
+│  · pageType (landing_page / web_app / dashboard)    │
+│  · style, personality, primaryColor, isDarkMode     │
+│  · features, targetAudience, keyBenefit             │
+│  · navigationStyle, contentDensity, hasDashboard    │
+│  · uniqueToken (drives visual distinctiveness)      │
+└────────────────────────┬────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│                    GEMINI STAGE 2                   │
+│               GENERATE FULL APPLICATION             │
+│                                                     │
+│  Receives as hard constraints:                      │
+│  · genome tokens (G.c.primary, G.f.head, G.sp.md…) │
+│  · icon library (Icon component with local SVGs)    │
+│                                                     │
+│  Writes completely:                                 │
+│  · Complete React App.jsx — fully functional        │
+│  · All copy — headlines, features, stats,           │
+│    testimonials, pricing, CTAs, nav labels          │
+│  · All interactivity — forms submit, filters work,  │
+│    data updates, views navigate                     │
+│  · Layout structure — shell, sections, columns      │
+│  · Pre-loaded demo data — realistic, named records  │
+└────────────────────────┬────────────────────────────┘
+                         │ hasBackend = true?
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│                    GEMINI STAGE 3                   │
+│                  GENERATE BACKEND                   │
+│                  (only if needed)                   │
+│                                                     │
+│  Writes:                                            │
+│  · Complete Express server.js with all API routes   │
+│  · In-memory data store, seeded with demo records   │
+│  · package.json with all dependencies               │
+└────────────────────────┬────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│                  LOCAL ENGINE                       │
+│              LIVE CANVAS PREVIEW                    │
+│                                                     │
+│  generateLayoutDNA() + generateStructuralLayout()   │
+│  still run to power the Morse canvas preview        │
+│  inside the app. This is separate from the export.  │
+└────────────────────────┬────────────────────────────┘
+                         │
+                         ▼
+                   Project saved to DB
+                   (genome + layout + settings +
+                    geminiAppJsx stored in settingsJson)
+
+What Gets Exported (the ZIP the user downloads)
+my-product/
+├── index.html          ← loads fonts, mounts React
+├── src/
+│   ├── main.jsx        ← ReactDOM.createRoot entry
+│   ├── App.jsx         ← GEMINI-WRITTEN — the entire product
+│   └── globals.css     ← genome design tokens as CSS vars
+├── vite.config.js
+├── package.json
+├── server.js           ← GEMINI-WRITTEN (if app needs backend)
+└── README.md
+The user runs npm install && npm run dev and has a working product.
+
+What Each Layer Owns
+LayerOwnsDoes NOT ownGenome engine (local)Colors, fonts, spacing, radius, shadow, motionCopy, layout, functionalityIcon library (local)SVG paths for 25 semantic iconsWhich icons to use, whereGeminiEverything elseDesign tokens, icon SVGs
+
+When a User Edits a Project (apply-nl)
+User types an edit like "make it darker" or "add a pricing section"
+        │
+        ▼
+  geminiInterpretEdit()
+  Gemini classifies: style_change | layout_modification |
+                     content_change | regenerate | compound
+        │
+        ▼
+  Result merged with local router (routePromptAsync)
+  Patches applied to genome/layout/content as appropriate
+        │
+        ▼
+  If shouldRegenerate = true → full pipeline reruns
+  If style/layout change → genome or DNA patched and re-rendered
+
+Fallback Behaviour
+At every stage, if Gemini fails (no API key, network error, malformed response), the system catches the error and falls back to the existing local engines. The project still generates — just with generic content instead of Gemini-written content. Nothing breaks.

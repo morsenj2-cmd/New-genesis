@@ -1088,13 +1088,17 @@ export function renderSection(
 
 function useGenomeFonts(genome: DesignGenome) {
   useEffect(() => {
-    const fonts = [genome.typography.heading, genome.typography.body].filter(Boolean);
+    // Skip Google Fonts loading for custom uploaded fonts (they are loaded via @font-face elsewhere)
+    const googleFonts = [genome.typography.heading, genome.typography.body]
+      .filter(Boolean)
+      .filter((f) => !f.startsWith("ProjectFont-"));
+    if (googleFonts.length === 0) return;
     const id = "genome-font-import";
     const existing = document.getElementById(id);
     if (existing) existing.remove();
     const style = document.createElement("style");
     style.id = id;
-    style.textContent = fonts
+    style.textContent = googleFonts
       .map((f) => `@import url('https://fonts.googleapis.com/css2?family=${encodeURIComponent(f)}:wght@400;500;600;700;800&display=swap');`)
       .join("\n");
     document.head.appendChild(style);
