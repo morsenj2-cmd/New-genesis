@@ -1163,8 +1163,8 @@ export default function ProjectPage() {
         var href=el.getAttribute&&el.getAttribute('href');
         if(href&&!href.startsWith('#')&&!href.startsWith('javascript')){
           e.preventDefault();e.stopImmediatePropagation();
-          var dest=document.getElementById('contact-page')||document.getElementById('donate-page')||document.querySelector('.page:not(.active)');
-          if(dest){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});dest.classList.add('active');dest.scrollIntoView({behavior:'smooth'});}
+          var dest=document.getElementById('contact-page')||document.getElementById('page-contact')||document.getElementById('view-contact')||document.getElementById('view-settings')||document.querySelector('.page:not(.active)')||document.querySelector('.view:not(.active)');
+          if(dest){document.querySelectorAll('.page,.view').forEach(function(p){p.classList.remove('active');});dest.classList.add('active');dest.scrollIntoView({behavior:'smooth'});}
           return;
         }
       }

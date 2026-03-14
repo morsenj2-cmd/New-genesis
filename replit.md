@@ -265,9 +265,21 @@ Logos and custom fonts are uploaded to Cloudinary on project creation. The serve
 | `lucide-react` | Icon library |
 | `drizzle-zod` | Zod schemas from Drizzle tables |
 
+### AI Generation Engine — Groq LLM
+
+Morse uses Groq (llama-3.3-70b-versatile) to generate complete, functional HTML applications from user prompts. The generation engine differentiates between three app types:
+
+- **Web Apps** (`web_app`): Full CRUD applications with localStorage persistence, real state management (`window.appState`), working search/filter/sort, modal forms with validation, toast notifications, dynamic rendering from data arrays. Allocated 12,000 tokens for complex output.
+- **Dashboards** (`dashboard`): Fixed sidebar + content panels with sortable data tables, CSS charts, pagination, real-time stat cards, settings persistence. Allocated 12,000 tokens.
+- **Landing Pages** (`landing_page`): Multi-page SPA marketing sites with working forms, FAQ accordions, testimonial sliders. Allocated 8,000 tokens.
+
+Key files: `server/gemini.ts` (generation engine), interpret → classify → generate pipeline.
+Safety: `injectSafetyScript()` blocks external navigation, window.open, external hrefs. Client-side fallback in `project.tsx` `safeGeminiHtml` useMemo.
+Images: picsum.photos with seeded URLs (source.unsplash.com deprecated).
+
 ### AI System — Local Prototype Network
 
-Morse includes a locally-run AI model for prompt interpretation — no external API calls needed.
+Morse also includes a locally-run AI model for prompt interpretation — no external API calls needed.
 
 **Architecture:**
 - `ai/model/tokenizer.ts` — Tokenizer with stemming, normalization, stopword removal
