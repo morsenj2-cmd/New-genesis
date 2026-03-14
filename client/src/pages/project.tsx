@@ -1383,6 +1383,9 @@ export default function ProjectPage() {
           setIteration(prev => prev + 1);
           queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
         }
+      } else if (res.status === 429) {
+        const errData = await res.json();
+        toast({ title: "Credit limit reached", description: errData.message, variant: "destructive" });
       }
     } catch (err) {
       console.error("Style regeneration failed:", err);
@@ -1392,16 +1395,35 @@ export default function ProjectPage() {
   }, [project?.id, params.id, getToken]);
 
   const handleRegenerateLayout = useCallback(async () => {
-    if (!project?.seed || project.layoutLocked) return;
+    if (!project?.id || !project?.seed || project.layoutLocked) return;
     setIsRegeneratingLayout(true);
-    const nextIteration = iteration + 1;
-    const newSeed = await deriveSeed(project.seed, nextIteration);
-    const newLayout = generateLayout(newSeed);
-    setActiveSeed(project.styleSeed ?? newSeed);
-    setActiveLayout(newLayout);
-    setIteration(nextIteration);
-    setIsRegeneratingLayout(false);
-  }, [project?.seed, project?.styleSeed, project?.layoutLocked, iteration]);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/project/${project.id}/regenerate-layout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.layout) {
+          setActiveLayout(data.layout);
+        }
+        setIteration(prev => prev + 1);
+        queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+      } else if (res.status === 429) {
+        const errData = await res.json();
+        toast({ title: "Credit limit reached", description: errData.message, variant: "destructive" });
+      }
+    } catch (err) {
+      console.error("Layout regeneration failed:", err);
+    } finally {
+      setIsRegeneratingLayout(false);
+    }
+  }, [project?.id, project?.seed, project?.layoutLocked, params.id, getToken]);
 
   const layoutLockMutation = useMutation({
     mutationFn: async (locked: boolean) => {

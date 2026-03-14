@@ -87,12 +87,23 @@ function injectSafetyScript(html: string): string {
   // --- Override window.open to block popup windows ---
   window.open = function() { return null; };
 
-  // --- Intercept ALL clicks that would navigate externally ---
+  // --- Intercept clicks that would navigate externally (but NOT close/dismiss buttons) ---
   document.addEventListener('click', function(e) {
     var el = e.target;
     for (var i = 0; i < 6 && el && el !== document.body; i++, el = el.parentElement) {
       if (!el || !el.tagName) continue;
       var tag = el.tagName.toUpperCase();
+
+      // Skip interception for close/dismiss/cancel buttons — let them work naturally
+      if (tag === 'BUTTON' || tag === 'A' || tag === 'SPAN') {
+        var text = (el.textContent || '').trim().toLowerCase();
+        var cls = (el.className || '').toLowerCase();
+        if (text === 'close' || text === 'dismiss' || text === 'cancel' || text === '×' || text === '✕' || text === 'x' ||
+            cls.includes('close') || cls.includes('dismiss') || cls.includes('cancel') ||
+            el.getAttribute('data-dismiss') || el.getAttribute('data-close')) {
+          return;
+        }
+      }
 
       // External anchor links → scroll to matching section
       if (tag === 'A') {
@@ -121,7 +132,6 @@ function injectSafetyScript(html: string): string {
         if (onclick && (onclick.includes('window.location') || onclick.includes('location.href') || onclick.includes('location.assign') || onclick.includes('window.open'))) {
           e.preventDefault();
           e.stopImmediatePropagation();
-          // Show the first hidden section (donate/contact/CTA page)
           var ctaSection = document.querySelector('[id*="donate"], [id*="contact"], [id*="signup"], [id*="action"]');
           if (ctaSection) {
             ctaSection.style.display = 'block';
@@ -318,7 +328,19 @@ export async function geminiGenerateApp(
     const isVisualProduct = visualTypes.some(t => combinedText.includes(t) || (interpret.productType || "").toLowerCase().includes(t) || (interpret.pageType || "").toLowerCase().includes(t));
     const hasImages = isVisualProduct || combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
 
-    const imageInstruction = `IMAGES: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/{descriptive-keyword}/width/height". Use unique descriptive seeds for each image context — e.g. seed/${imageKeywords}-hero/1200/600 for hero images, seed/${imageKeywords}-team/400/300 for team photos, seed/${imageKeywords}-product1/400/300, seed/${imageKeywords}-product2/400/300 for cards. Each image should have a DIFFERENT descriptive seed suffix matching its context (e.g. -office, -nature, -portrait, -dashboard, -food). NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com. ALWAYS use picsum.photos.${hasImages ? " This product is visual — include prominent product/hero images throughout." : ""}`;
+    const imageInstruction = `IMAGES: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/{descriptive-keyword}/width/height".
+CRITICAL IMAGE RULES:
+- Every image seed MUST be contextually relevant to "${interpret.productName}" in the "${interpret.industry}" industry.
+- For a car company, use seeds like: seed/sports-car-red/1200/600, seed/luxury-sedan/400/300, seed/car-interior/400/300, seed/racing-track/800/400
+- For a restaurant, use seeds like: seed/gourmet-food/1200/600, seed/restaurant-dining/400/300, seed/chef-cooking/400/300
+- For a museum, use seeds like: seed/art-gallery/1200/600, seed/sculpture/400/300, seed/painting-exhibition/400/300
+- Base prefix: "${imageKeywords}" — combine with domain-specific suffixes for each image context
+- Hero images: seed/${imageKeywords}-hero-main/1200/600 (use wide aspect ratio)
+- Cards/features: seed/${imageKeywords}-feature-1/400/300, seed/${imageKeywords}-feature-2/400/300 (each UNIQUE seed)
+- Team/about: seed/${imageKeywords}-team-portrait/400/400
+- Each image MUST have a COMPLETELY DIFFERENT seed — never repeat seeds
+- NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com
+${hasImages ? "- This product is VISUAL — include prominent product/hero images throughout with large, high-quality image areas." : ""}`;
 
     const system = `You are an elite full-stack web developer. You build production-quality, fully functional applications as single self-contained HTML files. You analyze the user's product description and autonomously decide the best architecture, layout, navigation style, data model, and UI patterns. You never build generic templates — every app is unique to the user's domain. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
@@ -364,22 +386,34 @@ ${imageInstruction}
 HARD RULES (non-negotiable):
 1. SINGLE FILE: All HTML, CSS in <style>, JS in <script>. No external libraries or CDN imports.
 2. CONTRAST: Dark backgrounds require light text (#f1f5f9). Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root. Explicitly set color on ALL text elements — never rely on browser defaults. Buttons use white text on colored backgrounds. Inputs have visible borders (rgba(255,255,255,0.1)).
-3. TYPOGRAPHY: Use font-size (NOT max-width) for headings: h1 { font-size: 2.5rem; }, h2 { font-size: 1.75rem; }, h3 { font-size: 1.25rem; }, body { font-size: 1rem; line-height: 1.7; }. NEVER set max-width on heading elements.
+3. TYPOGRAPHY: Apply the Google Fonts import and use the heading/body fonts on ALL text elements. Set font-family on body, h1-h6, buttons, inputs, labels, nav links, cards — EVERY text element must inherit the chosen fonts, never fall back to browser defaults. Use font-size (NOT max-width) for headings: h1 { font-size: 2.5rem; }, h2 { font-size: 1.75rem; }, h3 { font-size: 1.25rem; }, body { font-size: 1rem; line-height: 1.7; }. NEVER set max-width on heading elements. Add: * { font-family: inherit; } and body { font-family: '${bodyFont}', sans-serif; } and h1,h2,h3,h4,h5,h6 { font-family: '${headingFont}', sans-serif; }.
 4. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
-5. FUNCTIONALITY: Every button has a click handler. Every form validates and processes. Every input is connected to state. Zero decorative/dead UI elements. If a feature is shown, it works completely.
+5. FULLY FUNCTIONAL BUTTONS: Every single button MUST have a working click handler. Close/dismiss buttons must close their parent modal/popup. "Get Started"/"Learn More" buttons must scroll to or show the relevant section. Form submit buttons must validate and process. NEVER create a button without a functional onclick handler. Modal close buttons: use onclick to set the modal's display to 'none'. Toast dismiss buttons: remove the toast element. There must be ZERO dead/decorative buttons in the entire app.
 6. STATE: Use window.appState for all app data. Persist to localStorage on every change. Load from localStorage on startup. Render all UI dynamically from state — never hardcode content in HTML.
 7. INITIALIZATION: At the end of <script>: document.addEventListener('DOMContentLoaded', function() { init(); }); — init() must populate ALL visible content from state so the page is never blank on load. Use event delegation (document.addEventListener on a parent) for dynamically rendered elements.
 8. RESPONSIVE: CSS grid/flex, works on mobile. Navigation adapts (hamburger menu or collapsible sidebar on small screens).
 9. REALISTIC DATA: Seed with real names, dates, and numbers specific to this domain. No lorem ipsum, no "test" entries, no placeholder text.
-10. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions. Active state on current nav item.
+10. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions (with working dismiss). Active state on current nav item.
+11. DO NOT show any "Hello, world!" messages, demo popups, test notifications, or placeholder alerts on page load. The app must load cleanly into its main view without any introductory popups or modals.
+
+LAYOUT QUALITY (critical — the design must look professional):
+- Use CSS Grid or Flexbox for ALL layouts. Never use floats or absolute positioning for layout structure.
+- Consistent spacing: use a spacing scale (8px, 16px, 24px, 32px, 48px, 64px). Sections should have padding: 64px 0 or more.
+- Cards must have equal heights in a row (use grid with auto-rows or flex with stretch). Card grids: use gap: 24px minimum.
+- Hero section: full-width, min-height: 60vh, with clear visual hierarchy (large heading, subtext, CTA button).
+- Container max-width: 1200px centered with margin: 0 auto and padding: 0 24px for content areas.
+- Section headings: center-aligned with margin-bottom: 48px before content grids.
+- Navigation: sticky top, full-width, with proper padding and clear active state. Brand on left, links on right.
+- No content should ever overflow its container or overlap other elements.
+- Modals must have proper overlay (fixed, inset 0, semi-transparent background), centered content, and a visible close button.
 
 CONTENT REQUIREMENTS (the app must have ALL of these):
-- HERO/HEADER SECTION: A visually striking top section with the product name, tagline, and primary call-to-action.
+- HERO/HEADER SECTION: A visually striking top section with the product name, tagline, and primary call-to-action. Full-width background with overlay text.
 - MAIN CONTENT AREA: The core functional area (product grid, data table, dashboard panels, feature showcase, etc.) — must be rendered visibly from state data on load, NOT hidden or empty.
 - MULTIPLE VIEWS/SECTIONS: At least 3 distinct content areas navigable via the nav bar. Each view must have real, substantial content.
-- FOOTER: With copyright, brand name, and relevant links.
+- FOOTER: With copyright, brand name, and relevant links. Full-width dark background.
 - CSS must be comprehensive: style EVERY element, including scrollbar styling (webkit), selection styling, focus states on inputs, hover transitions on cards/buttons, gradient accents.
-- JavaScript must include: event delegation for dynamic elements, search/filter functionality, modal dialogs for detail views, toast notification system, data rendering functions that rebuild UI from state.
+- JavaScript must include: event delegation for dynamic elements, search/filter functionality, modal dialogs for detail views (with working close buttons), toast notification system (with working dismiss), data rendering functions that rebuild UI from state.
 
 ${integrations && integrations.length > 0 ? `INTEGRATIONS:\n${integrations.map(ig => `- ${ig.name}: Key = "${ig.value}" — include initialization in <head>.`).join("\n")}` : ""}
 
@@ -463,6 +497,8 @@ RULES:
 8. Preserve the dark theme with light text (#f1f5f9) on dark backgrounds.
 9. Keep all images using picsum.photos URLs.
 10. Output the COMPLETE HTML document — not a diff, not a fragment.
+11. Ensure ALL buttons have working click handlers. Close/dismiss buttons must close modals. No dead buttons.
+12. Ensure fonts are applied to ALL text elements via * { font-family: inherit; } and body font-family setting.
 
 Return the full modified HTML starting with <!DOCTYPE html>.`;
 

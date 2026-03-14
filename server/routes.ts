@@ -908,6 +908,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
+      const user = await storage.getUserByClerkId(userId!);
+      const perProjectLimit = (user && isActivePremium(user)) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
+      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
+      if (newCreditsUsed === null) {
+        return res.status(429).json({
+          message: `Credit limit reached. You've used all ${perProjectLimit} credits for this project.`,
+          creditsUsed: perProjectLimit,
+          creditsLimit: perProjectLimit,
+          requiresUpgrade: !(user && isActivePremium(user)),
+        });
+      }
+
       const previousGenomes: string[] = project.previousGenomesJson
         ? JSON.parse(project.previousGenomesJson)
         : [];
@@ -1063,6 +1075,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             );
             if (!appResult) throw new Error("App generation returned null");
 
+            const tokenCredits = Math.max(0, Math.ceil(appResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
+            if (tokenCredits > 0) {
+              await storage.incrementNlCredits(project.id, userId!, perProjectLimit, tokenCredits);
+            }
+
             const latestProject = await storage.getProject(project.id);
             if (!latestProject) return;
             const latestSettings = parseSettings(latestProject.settingsJson);
@@ -1073,7 +1090,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, userId!, {
               settingsJson: JSON.stringify(latestSettings),
             });
-            console.log(`[Groq] Style re-generation complete for project ${project.id}`);
+            console.log(`[Groq] Style re-generation complete for project ${project.id} (${tokenCredits + 1} credits used)`);
           } catch (err) {
             console.error(`[Groq] Style re-generation failed for project ${project.id}:`, err);
             try {
@@ -1100,6 +1117,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
       if (project.layoutLocked) return res.status(400).json({ message: "Layout is locked" });
+
+      const user = await storage.getUserByClerkId(userId!);
+      const perProjectLimit = (user && isActivePremium(user)) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
+      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
+      if (newCreditsUsed === null) {
+        return res.status(429).json({
+          message: `Credit limit reached. You've used all ${perProjectLimit} credits for this project.`,
+          creditsUsed: perProjectLimit,
+          creditsLimit: perProjectLimit,
+          requiresUpgrade: !(user && isActivePremium(user)),
+        });
+      }
 
       const regenSeed = createHash("sha256")
         .update(`${project.seed}-layout-regen-${Date.now()}-${randomUUID()}`)
@@ -1202,6 +1231,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             );
             if (!appResult) throw new Error("App generation returned null");
 
+            const tokenCredits = Math.max(0, Math.ceil(appResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
+            if (tokenCredits > 0) {
+              await storage.incrementNlCredits(project.id, userId!, perProjectLimit, tokenCredits);
+            }
+
             const latestProject = await storage.getProject(project.id);
             if (!latestProject) return;
             const latestSettings = parseSettings(latestProject.settingsJson);
@@ -1212,7 +1246,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, userId!, {
               settingsJson: JSON.stringify(latestSettings),
             });
-            console.log(`[Groq] Layout re-generation complete for project ${project.id}`);
+            console.log(`[Groq] Layout re-generation complete for project ${project.id} (${tokenCredits + 1} credits used)`);
           } catch (err) {
             console.error(`[Groq] Layout re-generation failed for project ${project.id}:`, err);
             try {
