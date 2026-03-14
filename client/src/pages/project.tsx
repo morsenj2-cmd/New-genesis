@@ -1163,14 +1163,14 @@ export default function ProjectPage() {
         var href=el.getAttribute&&el.getAttribute('href');
         if(href&&!href.startsWith('#')&&!href.startsWith('javascript')){
           e.preventDefault();e.stopImmediatePropagation();
-          var dest=document.getElementById('contact-page')||document.getElementById('page-contact')||document.getElementById('view-contact')||document.getElementById('view-settings')||document.querySelector('.page:not(.active)')||document.querySelector('.view:not(.active)');
-          if(dest){document.querySelectorAll('.page,.view').forEach(function(p){p.classList.remove('active');});dest.classList.add('active');dest.scrollIntoView({behavior:'smooth'});}
+          var dest=document.querySelector('[id*="contact"]')||document.querySelector('[id*="donate"]')||document.querySelector('[id*="signup"]')||document.querySelector('[id*="settings"]')||document.querySelector('section:not(.active)');
+          if(dest){document.querySelectorAll('section.active,.view.active,.page.active,[data-view].active').forEach(function(p){p.classList.remove('active');p.style.display='none';});dest.classList.add('active');dest.style.display='block';dest.scrollIntoView({behavior:'smooth'});}
           return;
         }
       }
       if(tag==='BUTTON'||tag==='A'||tag==='INPUT'){
         var oc=el.getAttribute&&el.getAttribute('onclick');
-        if(oc&&(oc.includes('window.location')||oc.includes('location.href')||oc.includes('window.open'))){
+        if(oc&&(oc.includes('window.location')||oc.includes('location.href')||oc.includes('location.assign')||oc.includes('location.replace')||oc.includes('window.open'))){
           e.preventDefault();e.stopImmediatePropagation();
           var s=document.querySelector('[id*="donate"],[id*="contact"],[id*="signup"],[id*="action"]');
           if(s){s.style.display='block';s.scrollIntoView({behavior:'smooth'});}
@@ -1183,7 +1183,7 @@ export default function ProjectPage() {
     document.querySelectorAll('a[href^="#"]').forEach(function(a){
       a.addEventListener('click',function(e){e.preventDefault();var t=document.querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'});});
     });
-    document.querySelectorAll('a[href^="http"],a[href^="//"]').forEach(function(a){a.removeAttribute('href');a.style.cursor='pointer';});
+    document.querySelectorAll('a[href^="http"],a[href^="//"],a[href^="www"]').forEach(function(a){a.removeAttribute('href');a.style.cursor='pointer';});
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initNav);}else{initNav();}
   var ob=new MutationObserver(initNav);if(document.body)ob.observe(document.body,{childList:true,subtree:true});

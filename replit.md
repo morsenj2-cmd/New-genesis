@@ -267,18 +267,29 @@ Logos and custom fonts are uploaded to Cloudinary on project creation. The serve
 
 ### AI Generation Engine — Groq LLM
 
-Morse uses Groq (llama-3.3-70b-versatile) to generate complete, fully functional HTML applications from user prompts. The generation engine differentiates between three app types with aggressive functional detection:
+Morse uses Groq (llama-3.3-70b-versatile) to generate complete, fully functional HTML applications from user prompts. The generation engine is **fully dynamic** — no hardcoded templates, layouts, or app-type branching.
 
-- **Web Apps** (`web_app`): Product-specific applications with full working JavaScript. Detects via pageType, productType (saas/ecommerce/social/fintech/healthcare/education/productivity), OR feature keywords (80+ action verbs like track/manage/create/edit/browse/donate/play/score). Includes localStorage persistence, `window.appState` state management, dynamic rendering, toast notifications. 12,000 tokens. Prompt includes 20+ product-specific implementation guides (timer→setInterval, calculator→math ops, ecommerce→cart system, etc.)
-- **Dashboards** (`dashboard`): Domain-specific dashboards with guided thinking process (5-step: identify domain → derive metrics → derive entities → seed real data → derive nav labels). Includes 8+ domain examples (sports, business, education, health, DevOps, inventory, project mgmt, social). Prompt-level regex fallback catches "dashboard/standings/leaderboard/scoreboard" keywords even if AI classifier misses. Fixed sidebar + content panels with CRUD tables, CSS charts, pagination, settings. 12,000 tokens.
-- **Landing Pages** (`landing_page`): Only for purely informational sites with zero interactive features. Still requires ALL buttons/forms/accordions/sliders to work. 10,000 tokens.
+**Architecture**: Single unified prompt that gives the AI full autonomy to decide:
+- Best layout architecture (sidebar+panels, top nav+SPA, scrolling sections, or anything else)
+- Navigation style, labels, and structure
+- Data model, seed data, and state management approach
+- Which interactive components to build (tables, charts, forms, modals, timers, etc.)
+- All terminology, labels, and content — derived from the user's domain
 
-**Universal Functionality Mandate**: ALL app types enforce zero dead buttons, working forms, visual feedback, and real JavaScript logic. No exceptions.
+**Hard Rules** (non-negotiable quality constraints the AI must follow):
+- Single self-contained HTML file, no external libraries
+- Dark theme contrast: light text on dark backgrounds, explicit color on every element
+- No external navigation (window.location, window.open blocked)
+- All interactive elements must work (zero dead buttons/forms)
+- State via window.appState + localStorage persistence
+- Initialization on DOMContentLoaded (never blank on load)
+- Realistic domain-specific seed data (15-25 records)
+- 12,000 max tokens, minimum 800 lines
 
-Key files: `server/gemini.ts` (generation engine), interpret → classify → generate pipeline.
+Key files: `server/gemini.ts` (generation engine), interpret → generate pipeline.
 Safety: `injectSafetyScript()` blocks external navigation, window.open, external hrefs. Client-side fallback in `project.tsx` `safeGeminiHtml` useMemo.
 Images: picsum.photos with seeded URLs (source.unsplash.com deprecated).
-Regeneration: Both `regenerate-style` and `regenerate-layout` routes now trigger async AI HTML regeneration.
+Regeneration: Both `regenerate-style` and `regenerate-layout` routes trigger async AI HTML regeneration.
 
 ### AI System — Local Prototype Network
 

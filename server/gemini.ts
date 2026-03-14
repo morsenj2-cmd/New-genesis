@@ -78,17 +78,15 @@ function injectSafetyScript(html: string): string {
         if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
           e.preventDefault();
           e.stopImmediatePropagation();
-          // Try to find a contact/action section to show
-          var dest = document.getElementById('contact-page') ||
-                     document.getElementById('page-contact') ||
-                     document.getElementById('view-contact') ||
-                     document.getElementById('page-donate') ||
-                     document.getElementById('view-settings') ||
-                     document.querySelector('.page:not(.active)') ||
-                     document.querySelector('.view:not(.active)');
+          var dest = document.querySelector('[id*="contact"]') ||
+                     document.querySelector('[id*="donate"]') ||
+                     document.querySelector('[id*="signup"]') ||
+                     document.querySelector('[id*="settings"]') ||
+                     document.querySelector('section:not(.active)');
           if (dest) {
-            document.querySelectorAll('.page,.view').forEach(function(p) { p.classList.remove('active'); });
+            document.querySelectorAll('section.active,.view.active,.page.active,[data-view].active').forEach(function(p) { p.classList.remove('active'); p.style.display = 'none'; });
             dest.classList.add('active');
+            dest.style.display = 'block';
             dest.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
           return;
@@ -269,381 +267,76 @@ export async function geminiGenerateApp(
     const bodyFont = genome.typography.body;
     const googleFontsUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(headingFont)}:wght@400;600;700&family=${encodeURIComponent(bodyFont)}:wght@400;500&display=swap`;
 
-    const logoInstruction = logoUrl
-      ? `LOGO: The brand has an uploaded logo image. Use this exact URL in an <img> tag inside the navigation bar (left side, height 36px): ${logoUrl}`
-      : `LOGO: No logo image. Show the brand name "${brandName}" as styled text in the navigation bar.`;
-
     const nlSection = nlInstruction
-      ? `\nUSER EDIT REQUEST: The user has requested the following change to the design: "${nlInstruction}"\nMake sure this change is clearly applied in the generated application.`
+      ? `\nUSER EDIT REQUEST: "${nlInstruction}" — apply this change clearly in the generated output.`
       : "";
-
-    const promptLower = prompt.toLowerCase();
-    const hasDashboardNorm = interpret.hasDashboard === true || interpret.hasDashboard === ("true" as any);
-    const isDashboard = hasDashboardNorm || interpret.pageType === "dashboard" || interpret.productType === "dashboard" ||
-      /\bdashboard\b|\banalytics panel\b|\badmin panel\b|\bmonitoring\b|\bstandings\b|\bleaderboard\b|\brankings?\b|\bscoreboard\b/.test(promptLower);
-    // Treat EVERYTHING that involves user interaction as a web app — only purely informational sites get landing page treatment
-    const isWebApp = !isDashboard && (
-      interpret.pageType === "web_app" ||
-      interpret.productType === "saas" ||
-      interpret.productType === "productivity" ||
-      interpret.productType === "ecommerce" ||
-      interpret.productType === "social" ||
-      interpret.productType === "fintech" ||
-      interpret.productType === "healthcare" ||
-      interpret.productType === "education" ||
-      // Also detect from features/prompt keywords — if the product DOES things, it's an app
-      interpret.features.some((f: string) => /track|manage|create|edit|delete|add|search|filter|sort|calculate|convert|schedule|book|order|pay|upload|download|send|receive|login|sign|play|record|monitor|analyze|chat|message|timer|clock|count|score|vote|rate|review|share|save|export|import|generate|build|design|compose|write|draw|plan|organize|list|board|kanban|calendar|browse|shop|buy|sell|donate|subscribe|register|submit|post|comment|reply|follow|like|bookmark|archive|assign|complete|start|stop|pause|reset|toggle|switch|select|pick|choose|compare|customize|configure|set up|enroll|apply|request|reserve|check|scan|measure|log|enter|input|fill/i.test(f)) ||
-      // Catch-all: if the classifier said web_app in any form
-      (interpret.hasBackend === true || interpret.hasBackend === ("true" as any))
-    );
-    const isLandingPage = !isDashboard && !isWebApp;
-
-    const system = `You are an elite full-stack web developer who builds production-quality, fully functional applications. You build REAL working software — not mockups, not wireframes, not marketing pages. Every feature must actually work with real data manipulation, state management, and user interactions. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary before or after the HTML.`;
 
     const combinedText = `${prompt} ${nlInstruction ?? ""}`.toLowerCase();
     const hasImages = combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
     const imageKeywords = interpret.productName.toLowerCase().replace(/\s+/g, "+");
 
     const imageInstruction = hasImages
-      ? `IMAGES: Use picsum.photos for guaranteed-loading images:
-  - Format: <img src="https://picsum.photos/seed/${imageKeywords}/800/500" alt="..." style="width:100%;height:300px;object-fit:cover;border-radius:var(--radius-md);">
-  - Gallery: vary seed: seed/${imageKeywords}1/800/500, seed/${imageKeywords}2/800/500, etc.
-  - Hero/banner: seed/${imageKeywords}/1200/600
-  - picsum.photos ALWAYS loads — never use source.unsplash.com (deprecated).`
+      ? `IMAGES: Use picsum.photos for guaranteed-loading images. Format: src="https://picsum.photos/seed/${imageKeywords}/800/500". Vary seed for multiple: seed/${imageKeywords}1, seed/${imageKeywords}2, etc. Hero: seed/${imageKeywords}/1200/600. NEVER use source.unsplash.com.`
       : "";
 
-    // ========== APP-TYPE-SPECIFIC ARCHITECTURE ==========
-    let architectureSection = "";
-    let functionalitySection = "";
+    const system = `You are an elite full-stack web developer. You build production-quality, fully functional applications as single self-contained HTML files. You analyze the user's product description and autonomously decide the best architecture, layout, navigation style, data model, and UI patterns. You never build generic templates — every app is unique to the user's domain. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
-    if (isDashboard) {
-      architectureSection = `ARCHITECTURE: DOMAIN-SPECIFIC FUNCTIONAL DASHBOARD
-This is a REAL working dashboard for "${interpret.productName}" — not a generic template. Every label, stat card, table column, and chart MUST be specific to this product's domain.
+    const user = `Build a complete, fully functional application as a single self-contained HTML file.
 
-READ THIS CAREFULLY: The user described "${prompt}". You must build a dashboard about EXACTLY THAT — with domain-specific terminology, data, and panels.
-
-HOW TO BUILD A DOMAIN-SPECIFIC DASHBOARD (follow this thinking process for ANY domain):
-Step 1: Read the user's DESCRIPTION below. Identify the DOMAIN (sports, finance, health, school, inventory, etc.)
-Step 2: Ask yourself: "What are the 4 most important METRICS someone in this domain tracks?" → Those become your stat cards
-Step 3: Ask yourself: "What are the ENTITIES/RECORDS in this domain?" → Those become your table columns
-Step 4: Ask yourself: "What real-world data exists in this domain?" → Seed with REAL names, terms, and realistic numbers
-Step 5: Ask yourself: "What would the sidebar sections be called in this domain?" → Those become your nav labels
-
-EXAMPLES (showing the thinking process — apply the same logic to ANY domain):
-- Sports/Racing (F1, NBA, Soccer, etc.) → Stats: domain records/rankings. Table: Player/Driver, Team, Position, Score/Time, Status. Data: real athlete names, real team names. Sidebar: "Race Overview"/"Standings"/"Performance"/"Settings"
-- Business (Sales, CRM, Marketing) → Stats: Revenue, Conversions, Deals, Growth. Table: Customer/Deal, Amount, Stage, Date. Sidebar: "Overview"/"Pipeline"/"Reports"/"Settings"
-- Education (School, Grades, Courses) → Stats: Students, Avg Grade, Pass Rate, Courses. Table: Student, Subject, Grade, Attendance. Sidebar: "Class Overview"/"Grade Book"/"Student Records"/"Settings"
-- Health/Medical → Stats: Patients, Appointments Today, Avg Wait, Satisfaction. Table: Patient, Condition, Doctor, Date, Status. Sidebar: "Patient Overview"/"Appointments"/"Records"/"Settings"
-- DevOps/Servers → Stats: Servers Online, Avg CPU, Alerts, Uptime %. Table: Server, Status, CPU, Memory, Response Time. Sidebar: "System Health"/"Servers"/"Alerts"/"Settings"
-- Inventory/Warehouse → Stats: Total Items, Low Stock, Orders Pending, Warehouse Utilization. Table: Product, SKU, Quantity, Location, Status. Sidebar: "Inventory"/"Stock Levels"/"Orders"/"Settings"
-- Project Management → Stats: Active Projects, Tasks Done, Overdue, Team Members. Table: Task, Assignee, Priority, Due Date, Status. Sidebar: "Overview"/"Tasks"/"Timeline"/"Settings"
-- Social Media/Analytics → Stats: Followers, Engagement Rate, Posts Today, Reach. Table: Post, Likes, Comments, Shares, Date. Sidebar: "Overview"/"Content"/"Audience"/"Settings"
-- ANY OTHER DOMAIN → Apply the same thinking: identify domain metrics, entities, real data, and natural section names
-
-CRITICAL RULE: NEVER use these generic labels: "Total Count", "Active Count", "Revenue/Value", "Growth %", "Data Table", "Detail/Analytics". Every label MUST be specific to the user's domain. If you catch yourself writing a generic label, STOP and replace it with a domain-specific one.
-
-LAYOUT:
-- Fixed left sidebar (240px wide, full height, dark surface color) with icon + label nav items
-- Sidebar nav labels MUST be domain-specific — derived from the user's description (see examples above)
-- Top header bar (64px) with search input and product name
-- Main content area changes based on active sidebar item
-- Sidebar items highlight when active
-
-DATA & STATE (CRITICAL):
-- window.appState = { currentView: 'dashboard', data: {...}, filters: {...} }
-- Seed with 15-25 realistic records using REAL domain-specific data (real names, real terminology, realistic numbers for this domain)
-- ALL data stored in appState and rendered dynamically — no hardcoded HTML
-- localStorage persistence: save on every change, load on startup
-
-REQUIRED PANELS (ALL must use domain-specific labels and data):
-1. OVERVIEW PANEL: 4 stat cards with domain-specific metrics (large number + label + trend indicator) + CSS bar chart showing relevant data + recent activity list
-2. DATA TABLE PANEL: Full interactive table with:
-   - Domain-specific column headers (NOT generic "Name", "Email", "Status")
-   - Sortable columns (click header toggles asc/desc with arrow indicator)
-   - Search/filter that filters rows in real-time
-   - Status badges with domain-appropriate colors and labels
-   - Add/Edit/Delete functionality with modal forms
-   - Pagination: 10 rows per page with Previous/Next
-3. ANALYTICS PANEL: Domain-specific charts and breakdowns (category breakdown with CSS bars, trend data, aggregated stats)
-4. SETTINGS PANEL: Working preferences form that saves to localStorage
-
-CSS CHARTS (no external libraries):
-- Bar chart: CSS flexbox with div bars, height proportional to value, hover tooltip with exact value
-- Stat cards: Large number + descriptive domain label + percentage trend (green ▲ / red ▼)`;
-
-      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — every item must actually work):
-- Clicking sidebar items MUST switch the main content panel (use a renderView() function that rebuilds DOM for active panel)
-- Table sorting MUST actually reorder the data array and re-render — clicking column headers toggles sort direction
-- Search/filter MUST filter the data array in real-time and re-render the table
-- Add/Edit forms MUST validate inputs and show inline errors — modal forms with domain-specific fields
-- Delete MUST remove the record from appState.data, save to localStorage, and re-render
-- Pagination MUST work — calculate correct page slice, disable Previous on page 1, Next on last page
-- Charts MUST render from actual data values — not hardcoded CSS heights. Recalculate bar heights from data.
-- Stat cards MUST show computed values from the actual data array (e.g., appState.data.length for count, Math.max(...) for records)
-- Settings toggles MUST persist to localStorage and take effect immediately
-- IMPORTANT: On initial load, call renderView() immediately so the default panel shows content — never show an empty page`;
-
-    } else if (isWebApp) {
-      architectureSection = `ARCHITECTURE: FULLY FUNCTIONAL WEB APPLICATION
-This MUST be a REAL, FULLY WORKING application — not a mockup, not a template, not a static page.
-The user described: "${prompt}"
-Product name: "${interpret.productName}"
-You must build EXACTLY that product with ALL its features working. Read the description above — every word matters.
-
-LAYOUT:
-- Top navigation bar (64px, fixed) with app name/logo, main nav items, and user actions
-- Multi-view SPA where each nav item loads a completely different functional view
-- Structure:
-  <nav class="navbar">...</nav>
-  <div class="app-container">
-    <section id="view-[name]" class="view active">Functional content</section>
-    ... one <section class="view"> per feature ...
-  </div>
-- CSS: .view { display:none; min-height:calc(100vh - 70px); padding: 2rem; } .view.active { display:block; }
-- JS router: function navigate(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id)?.classList.add('active');window.scrollTo(0,0);updateNav(id);}
-
-CRITICAL RULE — BUILD THE ACTUAL PRODUCT (THIS IS THE MOST IMPORTANT INSTRUCTION):
-Read the DESCRIPTION and FEATURES carefully. Build the SPECIFIC application described — not a template, not a generic app.
-
-HOW TO BUILD ANY APP (follow this thinking process):
-Step 1: Read the description — what is the CORE ACTION the user performs? (timing, calculating, tracking, browsing, creating, playing, etc.)
-Step 2: What JavaScript APIs/techniques does that core action need? (setInterval for timers, Math for calculators, arrays for lists, etc.)
-Step 3: What data does this app manage? → That becomes your window.appState structure
-Step 4: What views does the user need? → Those become your nav items (domain-specific labels, NOT generic ones)
-
-IMPLEMENTATION GUIDES BY APP TYPE:
-- Timer/Clock/Stopwatch → setInterval/clearInterval, countdown display (MM:SS), start/pause/reset/lap buttons, alarm sound (new Audio with oscillator), session tracking
-- Calculator → math operations (+−×÷%), memory, display, responsive button grid, keyboard support
-- Task Manager/Todo → add/edit/delete tasks, status toggle (done/pending), categories, due dates, priority levels, filter/search
-- Text/Note Editor → textarea with word/char count, auto-save to localStorage, multiple notes list, search, delete, export
-- Game → canvas or DOM game loop with requestAnimationFrame, scoring, lives, levels, controls (keyboard/touch), win/lose/restart
-- Tracker (fitness/habit/budget/mood) → data entry form, history list/chart (CSS bars), daily/weekly view, streaks, totals, averages
-- Converter (unit/currency/temperature) → real formulas, bidirectional conversion, multiple unit types, swap button, copy result
-- E-commerce/Store → product grid with prices, working cart (add/remove/quantity), cart total calculation, checkout form with validation, order confirmation
-- Social/Chat → message list, compose input, send button that adds to conversation, user profiles, like/react buttons
-- Booking/Scheduling → date/time picker, available slots, booking form, confirmation, booking list management
-- Recipe/Cooking → recipe list, ingredient checkboxes, serving size adjuster that recalculates quantities, timer, favorites
-- Finance/Budget → transaction entry, income/expense tracking, category breakdown, running balance, charts
-- Quiz/Survey → question navigation, answer selection, score calculation, results page, timer optional
-- Music/Audio → playlist, play/pause controls, progress bar, volume slider, track info display
-- Calendar/Planner → month/week/day views, add/edit/delete events, date navigation, event details modal
-- Portfolio/Gallery → grid layout, lightbox modal, category filter, project detail view
-- Weather App → data cards, charts, location selector, unit toggle (°C/°F), forecast display
-- ANY OTHER APP → Apply the same thinking: identify the core action, the JS technique needed, and build it with real working code
-
-CRITICAL: If your app type is NOT in the list above, you MUST still build the full working product. The list is examples of HOW to think — not a whitelist. Every product's CORE FUNCTIONALITY must work with real JavaScript logic.
-
-STATE MANAGEMENT (CRITICAL):
-- Create window.appState with ALL state the app needs (timers, counters, data, settings, history)
-- Use localStorage to persist state: save on every change, load on startup
-- ALL UI must render FROM state using render functions — never hardcode HTML content
-- State changes trigger re-renders of affected UI components
-
-VIEWS TO BUILD (3-4 views minimum):
-1. MAIN VIEW: The PRIMARY interface of this product — this is where the core functionality lives. It should take up 70%+ of the user's time. Build it with full working JavaScript.
-2. HISTORY/DATA VIEW: Show past usage, records, logs, or data related to the main feature. Render dynamically from state.
-3. SETTINGS VIEW: Working preferences/configuration form that persists to localStorage and affects app behavior.
-4. Optional: Any additional view that makes sense for this specific product.
-
-INTERACTIVE COMPONENTS:
-- All buttons must have click handlers that DO something (never decorative)
-- Toast notifications: slide-in for success/error (auto-dismiss 3s)
-- Modal dialogs if needed: backdrop + close on X + close on backdrop click
-- Smooth CSS transitions/animations for state changes
-- Loading/disabled states on buttons during operations`;
-
-      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — the app MUST work):
-THE #1 RULE: Every button, input, and interactive element must have a working JavaScript event handler.
-- NO placeholder buttons that do nothing
-- NO "coming soon" features
-- NO buttons without click handlers
-- NO forms without submit handlers
-- NO inputs without change handlers
-- If a button says "Start" it must START something
-- If a button says "Save" it must SAVE something to localStorage
-- If a button says "Delete" it must DELETE something and update the UI
-- If there's a timer display, it must COUNT with setInterval
-- If there's a form, it must VALIDATE and PROCESS the input
-- Every feature mentioned in DESCRIPTION and FEATURES must be FULLY IMPLEMENTED with working JS code
-- All state persists to localStorage and loads on page refresh
-- Render functions update the DOM dynamically — never rely on static HTML`;
-
-    } else {
-      architectureSection = `ARCHITECTURE: MULTI-PAGE INTERACTIVE WEBSITE
-This is a polished, professional website — but EVERY interactive element MUST actually work with real JavaScript.
-
-LAYOUT: MULTI-PAGE SPA — each nav item is a separate "page" (full viewport). Structure:
-  <nav class="navbar">...</nav>
-  <div class="pages-container">
-    <section id="page-home" class="page active">Home content</section>
-    <section id="page-[name]" class="page">Page content</section>
-    ... one <section class="page"> per nav item ...
-  </div>
-CSS: .page { display:none; min-height:calc(100vh - 70px); padding: 3rem 2rem; } .page.active { display:block; }
-JS router (REQUIRED): function navigate(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
-Each nav link calls navigate('page-name') — do NOT use href="#..." for page switching
-
-CRITICAL RULE — BUILD WHAT THE USER DESCRIBED:
-Read the DESCRIPTION "${prompt}" carefully. Build content and interactive elements specific to THIS product's domain.
-
-Step 1: Identify the domain from the description
-Step 2: Use domain-specific page names, section titles, content, and terminology — NOT generic placeholders
-Step 3: All interactive elements MUST work with JavaScript
-
-EXAMPLES (apply same thinking to ANY domain):
-- Restaurant → interactive menu with categories, dietary filters, item modals, reservation form
-- Nonprofit/Charity → donation form with amount selection, recurring toggle, confirmation
-- Portfolio → project gallery with category filter, lightbox modal, contact form
-- Event site → schedule with filtering, RSVP form, countdown timer
-- Real estate → property listings with search/filter, detail modals, inquiry form
-- Gym/Fitness → class schedule browser, membership signup form, trainer profiles
-- School/Education → course catalog with filters, enrollment form, FAQ accordions
-- ANY OTHER SITE → identify what's domain-specific and build it with real content and working JS
-
-REQUIRED PAGES (minimum 4-5 pages, ALL must have substantial content):
-1. HOME: Hero section with headline, subheadline, and CTA button + feature highlights
-2. ABOUT/STORY: Background, mission, team members with names and roles
-3. PRODUCTS/SERVICES/OFFERINGS: Grid of items — each expandable or with detail modals, filterable if 6+ items
-4. CONTACT/SIGN UP: Complete working form (name, email, message/subject) with JS validation and success message
-5. At least ONE more page relevant to this product (e.g., Blog, Pricing with toggle, Portfolio, FAQ)
-
-INTERACTIVE ELEMENTS (ALL must have working JavaScript):
-- FAQ accordions that expand/collapse on click with smooth CSS transition
-- Testimonial carousel/slider with dots/arrows and auto-advance (every 5s)
-- Animated counters for statistics (count up on page visibility)
-- Tab sections that switch content on click
-- Working forms with field validation, error messages, and success state
-- Pricing toggle (monthly/yearly) that actually recalculates and updates prices
-- Gallery/portfolio items that open in a lightbox modal
-- Mobile hamburger menu that opens/closes on click`;
-
-      functionalitySection = `FUNCTIONALITY REQUIREMENTS (CRITICAL — ZERO dead/decorative elements):
-- EVERY button MUST have a working onclick handler — a button that does nothing is a BUG
-- EVERY form MUST validate on submit: check required fields, show red borders + error text for invalid, show success message for valid
-- EVERY interactive element MUST respond: accordions toggle, tabs switch, sliders slide, modals open/close
-- FAQ: click toggles open/close, only one open at a time, smooth max-height transition
-- Testimonials: auto-advance every 5s, dots/arrows work, smooth CSS opacity/transform transition
-- Pricing toggle: clicking monthly/yearly MUST update ALL price values dynamically via JavaScript
-- Contact form: validate all fields → show success message → clear form → prevent default
-- Gallery items: click opens lightbox modal with image + close button + backdrop click to close
-- Hamburger menu: click toggles mobile nav dropdown, click outside closes
-- CTA buttons: navigate to the relevant page (contact/signup/pricing) — never dead links
-- All hover states visible: opacity, color shift, scale, or border change on interactive elements
-- Tab content: clicking tab label switches visible content panel, active tab highlighted`;
-    }
-
-    const user = `Generate a complete, fully functional ${isDashboard ? "dashboard application" : isWebApp ? "web application" : "website"} as a self-contained HTML file.
-
-BRAND: ${brandName}
-PRODUCT: ${interpret.productName}
-TYPE: ${interpret.productType} / ${interpret.pageType}
-DESCRIPTION: ${prompt}
-FEATURES: ${interpret.features.join(", ")}
-AUDIENCE: ${interpret.targetAudience}
-KEY BENEFIT: ${interpret.keyBenefit}
-STYLE: ${interpret.style} — ${interpret.personality}
+PRODUCT BRIEF:
+- Brand: ${brandName}
+- Product: ${interpret.productName}
+- Type: ${interpret.productType} / ${interpret.pageType}
+- Description: ${prompt}
+- Features: ${interpret.features.join(", ")}
+- Audience: ${interpret.targetAudience}
+- Key Benefit: ${interpret.keyBenefit}
+- Style: ${interpret.style} — ${interpret.personality}
 ${nlSection}
 
-${architectureSection}
+YOUR TASK — THINK THROUGH THESE STEPS BEFORE WRITING CODE:
+1. READ the description above. What EXACTLY is this product? What domain is it in?
+2. DECIDE the best architecture for this specific product:
+   - Does it need a sidebar + panels layout? (dashboards, admin panels, data-heavy tools)
+   - Does it need a top nav + multi-view SPA? (apps, tools, interactive products)
+   - Does it need a scrolling multi-section site? (showcases, portfolios, informational sites)
+   - Or something else entirely? YOU decide what fits best.
+3. DECIDE what data this product manages. Design the data model (window.appState) with domain-specific fields, realistic seed data (15-25 records with REAL names/terms from this domain), and localStorage persistence.
+4. DECIDE the navigation labels, section names, stat card labels, table columns — ALL must use terminology specific to this product's domain. NEVER use generic labels like "Dashboard", "Data Table", "Total Count", "Active Count". Every label should make sense ONLY for this specific product.
+5. DECIDE which interactive components this product needs: tables, charts, forms, modals, timers, calculators, sliders, toggles, drag-and-drop, etc. Build ONLY what makes sense for this product.
+6. BUILD the complete product with full working JavaScript. Every feature described above must be fully functional.
 
-${functionalitySection}
+DESIGN TOKENS (use these exact values):
+Primary: ${genome.colors.primary} | Secondary: ${genome.colors.secondary} | Accent: ${genome.colors.accent}
+Background: ${genome.colors.background} | Surface: ${genome.colors.surface}
+Radius: ${genome.radius.sm} / ${genome.radius.md} / ${genome.radius.lg}
+Heading font: ${headingFont} | Body font: ${bodyFont}
+CSS variables for :root { ${colorVars} }
+Font import: <link href="${googleFontsUrl}" rel="stylesheet">
 
-DESIGN TOKENS (use these exact values for ALL colors and typography):
-Primary color: ${genome.colors.primary}
-Secondary: ${genome.colors.secondary}
-Accent: ${genome.colors.accent}
-Background: ${genome.colors.background}
-Surface/cards: ${genome.colors.surface}
-Border radius small: ${genome.radius.sm}
-Border radius medium: ${genome.radius.md}
-Border radius large: ${genome.radius.lg}
-Heading font: ${headingFont}
-Body font: ${bodyFont}
-
-${logoInstruction}
+${logoUrl
+      ? `LOGO: Place this exact img tag in the navbar (left side): <img src="${logoUrl}" alt="${brandName}" style="height:36px;width:auto;object-fit:contain;display:block;">`
+      : `LOGO: Show "${brandName}" as styled text in the navbar.`}
 
 ${imageInstruction}
 
-CORE REQUIREMENTS:
+HARD RULES (non-negotiable):
+1. SINGLE FILE: All HTML, CSS in <style>, JS in <script>. No external libraries or CDN imports.
+2. CONTRAST: Dark backgrounds require light text (#f1f5f9). Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root. Explicitly set color on ALL text elements — never rely on browser defaults. Buttons use white text on colored backgrounds. Inputs have visible borders (rgba(255,255,255,0.1)).
+3. TYPOGRAPHY: h1 max 2.5rem, h2 max 1.75rem, h3 max 1.25rem, body 1rem with line-height 1.7.
+4. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
+5. FUNCTIONALITY: Every button has a click handler. Every form validates and processes. Every input is connected to state. Zero decorative/dead UI elements. If a feature is shown, it works completely.
+6. STATE: Use window.appState for all app data. Persist to localStorage on every change. Load from localStorage on startup. Render all UI dynamically from state — never hardcode content in HTML.
+7. INITIALIZATION: At the end of <script>: document.addEventListener('DOMContentLoaded', function() { init(); }); — init() must populate ALL visible content from state so the page is never blank on load.
+8. RESPONSIVE: CSS grid/flex, works on mobile. Navigation adapts (hamburger menu or collapsible sidebar on small screens).
+9. REALISTIC DATA: Seed with real names, dates, and numbers specific to this domain. No lorem ipsum, no "test" entries, no placeholder text.
+10. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions. Active state on current nav item.
 
-1. STRUCTURE: Complete single HTML file — all CSS in <style>, all JS in <script>. Load fonts: <link href="${googleFontsUrl}" rel="stylesheet">
+${integrations && integrations.length > 0 ? `INTEGRATIONS:\n${integrations.map(ig => `- ${ig.name}: Key = "${ig.value}" — include initialization in <head>.`).join("\n")}` : ""}
 
-2. DESIGN TOKENS: Add to :root { ${colorVars} }
+Write at minimum 800 lines of functional code. The app must feel like real software. Start with <!DOCTYPE html> immediately.`;
 
-3. LOGO IN NAV: ${logoUrl
-      ? `Place EXACTLY this img tag on the left of the navbar: <img src="${logoUrl}" alt="${brandName}" style="height:36px;width:auto;object-fit:contain;display:block;"> — never replace with text`
-      : `Show "${brandName}" as bold text on the left of the navbar`}
-
-4. NAVIGATION:
-   - Nav labels specific to this product — NEVER generic "Features", "Solutions", "Resources"
-   - Active nav item highlighted with border-bottom or background color change
-   - ${isDashboard ? "Sidebar items switch main panel content" : "Each nav button calls navigate('view-id') or navigate('page-id')"}
-
-5. TYPOGRAPHY SCALE (STRICT):
-   - h1: max 2.5rem, font-weight: 700   |   h2: max 1.75rem, font-weight: 600
-   - h3: max 1.25rem, font-weight: 600   |   p: 1rem, line-height: 1.7
-   - Small text: 0.875rem. NEVER use font sizes above 2.5rem.
-
-6. CONTRAST & VISIBILITY (CRITICAL — broken contrast = broken app):
-   - Add these CSS variables: :root { --color-text: #f1f5f9; --color-text-muted: #94a3b8; }
-   - body { background: var(--color-bg); color: var(--color-text); }
-   - ALL text everywhere must be light (#f1f5f9 or #e2e8f0) — NEVER use #000, #333, or dark gray text
-   - Cards/surfaces: var(--color-surface) with ALL text inside as var(--color-text) — NEVER dark text on dark bg
-   - Table headers: light text. Table cells: light text. Stat card numbers: light text. Chart labels: light text.
-   - Muted/secondary text: #94a3b8 (still light enough to read on dark backgrounds)
-   - Buttons: primary bg with WHITE or very light text for contrast
-   - Inputs/selects: dark background with light text, visible border (1px solid rgba(255,255,255,0.1))
-   - Sidebar text: light colored, active item has visible highlight
-   - NEVER rely on default browser colors — explicitly set color on every text element
-
-7. LAYOUT:
-   - ${isDashboard ? "Sidebar: 240px fixed left. Main: flex-1. Header: 64px fixed top." : "body { padding-top: 70px; margin: 0; } Navbar: 64px fixed, z-index: 100"}
-   - Max content width: ${isDashboard ? "100% (fluid)" : "1100px"}, proper spacing and padding
-   - Card gap: 1.5rem, internal padding: 1rem minimum
-
-8. NO EXTERNAL NAVIGATION (CRITICAL):
-   - NEVER use window.location.href, location.assign(), window.open(), or any external URL in JS
-   - ALL buttons call navigate() or toggle in-page elements — no exceptions
-   - Forms use e.preventDefault() and handle submission in-page with success feedback
-
-9. IMAGES: ${hasImages
-      ? `Use picsum.photos: src="https://picsum.photos/seed/${imageKeywords}/800/500". Vary seeds for multiple images. NEVER use source.unsplash.com.`
-      : `Use CSS gradient backgrounds for visual areas. No <img> tags unless specifically needed.`}
-
-10. REALISTIC CONTENT: Use specific real-sounding names, dates, data. NO lorem ipsum, NO placeholder text.
-
-11. RESPONSIVE: CSS grid/flex, works on mobile. ${isDashboard ? "Sidebar collapses to hamburger on mobile." : ""}
-
-12. NO EXTERNAL LIBRARIES: Vanilla HTML, CSS, JS only. No CDN imports.
-
-${integrations && integrations.length > 0 ? `13. INTEGRATIONS:
-${integrations.map(ig => `   - ${ig.name}: Key = "${ig.value}"
-     Include <script> initialization in <head>.`).join("\n")}` : ""}
-
-UNIVERSAL FUNCTIONALITY MANDATE (applies to ALL app types — ZERO EXCEPTIONS):
-✓ EVERY button has a working onclick handler — a button that does nothing is a BROKEN app
-✓ EVERY form has a submit handler with validation — forms that don't respond are BROKEN
-✓ EVERY interactive element responds to user input — dead UI elements are NEVER acceptable
-✓ The CORE FEATURE described in the prompt works completely with real JS logic
-✓ Navigation works: every nav item switches content, active state highlighted
-✓ Visual feedback on ALL interactions: hover states, click feedback, success/error messages
-✓ CSS is polished: transitions on state changes, hover effects on clickable elements
-✓ The output feels like REAL SOFTWARE that someone would actually use — not a wireframe or mockup
-${isDashboard || isWebApp ? `✓ State stored in window.appState and rendered dynamically — NOT hardcoded HTML
-✓ localStorage persistence: save on every state change, load on startup/refresh
-✓ Toast notifications for user actions (success/error) that auto-dismiss` : `✓ Forms show validation errors inline and success message after valid submit
-✓ Accordions, sliders, tabs, modals — all interactive components work with JS
-✓ Mobile menu toggle works`}
-
-INITIALIZATION (CRITICAL — prevents blank/empty pages):
-- At the END of your <script>, add: document.addEventListener('DOMContentLoaded', function() { init(); });
-- ${isDashboard ? "function init() { renderView('dashboard'); } — this calls renderView which populates stat cards, tables, charts from window.appState" : isWebApp ? "function init() { navigate('view-home'); } — or whatever your first view ID is. This must show the main functional view with all content populated" : "function init() { navigate('page-home'); } — this shows the home page with all content rendered"}
-- The page MUST show fully populated content immediately on load — NEVER an empty/blank state
-- ALL dynamic content (tables, stats, charts, lists) must render from data in window.appState on first load
-
-Write at minimum 800 lines of functional code. Prioritize working JavaScript over static HTML content. Start with <!DOCTYPE html> immediately.`;
-
-    const maxTokens = (isDashboard || isWebApp) ? 12000 : 10000;
+    const maxTokens = 12000;
     const text = await chat(system, user, maxTokens);
     const html = extractHtml(text);
     return injectSafetyScript(html);
