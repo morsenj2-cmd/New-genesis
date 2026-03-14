@@ -76,6 +76,11 @@ function Router() {
       <Route path="/sign-in" component={() => <AuthRedirect component={SignInPage} />} />
       <Route path="/sign-up" component={() => <AuthRedirect component={SignUpPage} />} />
       <Route path="/sign-in/sso-callback" component={() => <AuthenticateWithRedirectCallback />} />
+      <Route path="/sign-up/sso-callback" component={() => <AuthenticateWithRedirectCallback />} />
+      <Route path="/sign-in/factor-one" component={() => <AuthRedirect component={SignInPage} />} />
+      <Route path="/sign-in/factor-two" component={() => <AuthRedirect component={SignInPage} />} />
+      <Route path="/sign-up/verify-email-address" component={() => <AuthRedirect component={SignUpPage} />} />
+      <Route path="/sign-up/continue" component={() => <AuthRedirect component={SignUpPage} />} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/new" component={NewProjectPage} />
       <Route path="/project/:id" component={() => <ProtectedRoute component={ProjectPage} />} />
