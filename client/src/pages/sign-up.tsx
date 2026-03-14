@@ -44,7 +44,7 @@ export default function SignUpPage() {
             routing="path"
             path="/sign-up"
             signInUrl={`/sign-in?redirect=${encodeURIComponent(redirectUrl)}`}
-            afterSignUpUrl={redirectUrl}
+            forceRedirectUrl={redirectUrl}
             appearance={{
               elements: {
                 rootBox: "w-full",

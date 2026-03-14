@@ -1263,13 +1263,11 @@ export function CanvasEditor({
                       for (const sc of changes.sectionCanvases) {
                         for (const el of sc.elements) {
                           if (el.content == null) continue;
-                          if (el.type === "headline") patch.headline = el.content;
-                          else if (el.type === "subheadline") patch.subheadline = el.content;
-                          else if (el.type === "button_primary") patch.ctaLabel = el.content;
+                          if (el.type === "section_title" && sc.sectionType === "cta") patch.ctaHeadline = el.content;
                           else if (el.type === "section_title" && sc.sectionType === "featureGrid") patch.featureGridTitle = el.content;
                           else if (el.type === "section_title" && sc.sectionType === "cardList") patch.cardListTitle = el.content;
-                          else if (el.type === "headline" && sc.sectionType === "cta") patch.ctaHeadline = el.content;
                           else if (el.type === "paragraph" && sc.sectionType === "cta") patch.ctaBody = el.content;
+                          else if (el.type === "button_primary") patch.ctaLabel = el.content;
                         }
                       }
                       onContentChange({ ...contentOverrides, ...patch });

@@ -116,10 +116,12 @@ export async function retrieveContextForInterpretation(
   } catch {
     domainKnowledge = {
       domain: topDomain?.domain || "general",
-      entities: [],
-      actions: [],
+      typicalEntities: [],
+      commonActions: [],
       concepts: [],
+      interfacePatterns: [],
       source: "fallback",
+      confidence: 0,
     };
     sources.push("fallback_knowledge");
   }
@@ -147,22 +149,22 @@ export function mergeRetrievedIntoContext(
     merged = {
       ...merged,
       entities: [...new Set([...merged.entities, ...(retrieved.extractedContext.entities || [])])].slice(0, scaledCap(20, promptLength)),
-      userActions: [...new Set([...merged.userActions, ...(retrieved.extractedContext.actions || [])])].slice(0, scaledCap(15, promptLength)),
-      operationalConcepts: [...new Set([...merged.operationalConcepts, ...(retrieved.extractedContext.concepts || [])])].slice(0, scaledCap(15, promptLength)),
+      userActions: [...new Set([...merged.userActions, ...(retrieved.extractedContext.userActions || [])])].slice(0, scaledCap(15, promptLength)),
+      operationalConcepts: [...new Set([...merged.operationalConcepts, ...((retrieved.extractedContext as any).concepts || [])])].slice(0, scaledCap(15, promptLength)),
     };
   }
 
-  if (retrieved.domainKnowledge?.entities?.length > 0) {
+  if (retrieved.domainKnowledge?.typicalEntities?.length > 0) {
     merged = {
       ...merged,
-      entities: [...new Set([...merged.entities, ...retrieved.domainKnowledge.entities])].slice(0, scaledCap(20, promptLength)),
+      entities: [...new Set([...merged.entities, ...retrieved.domainKnowledge.typicalEntities])].slice(0, scaledCap(20, promptLength)),
     };
   }
 
-  if (retrieved.domainKnowledge?.actions?.length > 0) {
+  if (retrieved.domainKnowledge?.commonActions?.length > 0) {
     merged = {
       ...merged,
-      userActions: [...new Set([...merged.userActions, ...retrieved.domainKnowledge.actions])].slice(0, scaledCap(15, promptLength)),
+      userActions: [...new Set([...merged.userActions, ...retrieved.domainKnowledge.commonActions])].slice(0, scaledCap(15, promptLength)),
     };
   }
 

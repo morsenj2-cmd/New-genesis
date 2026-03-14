@@ -6,7 +6,7 @@ import archiver from "archiver";
 import Razorpay from "razorpay";
 import { storage } from "./storage";
 import { createProjectSchema, insertBlogPostSchema } from "@shared/schema";
-import { generateGenome } from "@shared/genomeGenerator";
+import { generateGenome, type DesignGenome } from "@shared/genomeGenerator";
 import { generateLayout } from "@shared/layoutEngine";
 import { uploadBase64Image, uploadBase64Font } from "./cloudinary";
 import { generateExportFiles, safeName } from "./exportGenerator";
@@ -643,7 +643,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let contentPatch: Record<string, string> = {};
       const nlContextLock = extractContextLock(project.settingsJson);
 
-      const aiResult = await routePromptAsync({ prompt: commands, project });
+      const aiResult = await routePromptAsync({ prompt: commands, project: { ...project, productType: project.productType ?? undefined, font: project.font ?? undefined, themeColor: project.themeColor ?? undefined, settingsJson: project.settingsJson ?? undefined, layoutJson: project.layoutJson ?? undefined, genomeJson: project.genomeJson ?? undefined } });
 
       const intents = interpretSemanticMulti(commands);
       const patchSet = generateMultiPatches(intents);
@@ -877,18 +877,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       try {
         if (intents.length > 0) {
           const primaryIntent = intents[0];
-          const logEntry = buildLogEntry(userId!, prompt, primaryIntent, patchSet, project.id, projectContext);
-          const patternId = recordPattern(logEntry.sanitizedPrompt, primaryIntent.intentType as any);
+          const adaptedIntent = { intentType: primaryIntent.intent, confidence: primaryIntent.confidence } as any;
+          const logEntry = buildLogEntry(userId!, commands, adaptedIntent, patchSet as any, project.id);
+          const patternId = recordPattern(logEntry.sanitizedPrompt, primaryIntent.intent as any);
           logEntry.patternId = patternId;
           await storage.logPrompt(logEntry as any);
           appendExample({
             prompt: logEntry.sanitizedPrompt,
-            intentType: primaryIntent.intentType as any,
+            intentType: primaryIntent.intent as any,
             confidence: primaryIntent.confidence,
             feedbackSignal: "none",
             timestamp: Date.now(),
           });
-          recordAdaptation(logEntry.sanitizedPrompt, primaryIntent.intentType as any);
+          recordAdaptation(logEntry.sanitizedPrompt, primaryIntent.intent as any);
           recordPrompt();
           triggerRetrainIfNeeded().catch(() => {});
         }
@@ -908,7 +909,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!project) return res.status(404).json({ message: "Project not found" });
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
-      const user = await storage.getUserByClerkId(userId!);
+      const user = await storage.getUser(userId!);
       const perProjectLimit = (user && isActivePremium(user)) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
       const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
       if (newCreditsUsed === null) {
@@ -943,9 +944,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       while (attempts < 8) {
         const entropy = `${randomUUID()}-${Date.now()}`;
         newStyleSeed = createHash("sha256").update(`${currentStyleSeed}${entropy}`).digest("hex");
-        const candidate = generateGenome(newStyleSeed) as Record<string, unknown>;
+        const candidate = generateGenome(newStyleSeed) as unknown as Record<string, unknown>;
 
-        const candidateSig = serializeGenomeSig(buildGenomeSig(candidate as any));
+        const candidateSig = serializeGenomeSig(buildGenomeSig(candidate as unknown as DesignGenome));
 
         // Reject if too similar to any of the last 5 designs (match on 4+ of 6 dimensions)
         const tooSimilar = isGenomeTooSimilar(candidateSig, normalizedHistory.slice(-5), 4);
@@ -962,7 +963,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!newGenome) {
         const entropy = `${randomUUID()}-${Date.now()}-final`;
         newStyleSeed = createHash("sha256").update(`${currentStyleSeed}${entropy}`).digest("hex");
-        newGenome = generateGenome(newStyleSeed) as Record<string, unknown>;
+        newGenome = generateGenome(newStyleSeed) as unknown as Record<string, unknown>;
       }
 
       const currentSettings = parseSettings(project.settingsJson);
@@ -1040,7 +1041,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const updated = await storage.updateProject(project.id, userId!, {
         genomeJson: JSON.stringify(newGenome),
-        layoutJson: newLayoutJson ?? project.layoutJson,
+        layoutJson: newLayoutJson ?? project.layoutJson ?? undefined,
         styleSeed: newStyleSeed,
         previousGenomesJson: JSON.stringify(updatedHistory.slice(-5)),
         settingsJson: JSON.stringify(currentSettings),
@@ -1049,7 +1050,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ project: updated, styleSeed: newStyleSeed, genome: newGenome });
 
       // Fire AI app regeneration async with new genome
-      if (isGeminiAvailable()) {
+      if (isGeminiAvailable() && updated) {
         const genomeCopy = JSON.parse(JSON.stringify(newGenome));
         const regenSettings = parseSettings(updated.settingsJson);
         const existingInterpret = (regenSettings as any).geminiInterpret || null;
@@ -1118,7 +1119,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
       if (project.layoutLocked) return res.status(400).json({ message: "Layout is locked" });
 
-      const user = await storage.getUserByClerkId(userId!);
+      const user = await storage.getUser(userId!);
       const perProjectLimit = (user && isActivePremium(user)) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
       const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
       if (newCreditsUsed === null) {
@@ -1205,7 +1206,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
 
       // Fire AI app regeneration async
-      if (isGeminiAvailable()) {
+      if (isGeminiAvailable() && updated) {
         const genome = project.genomeJson ? JSON.parse(project.genomeJson) : generateGenome(project.seed);
         const layoutRegenSettings = parseSettings(updated.settingsJson);
         const existingInterpret = (layoutRegenSettings as any).geminiInterpret || null;
@@ -1319,7 +1320,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const newSettings: Record<string, unknown> = {
         ...currentSettings,
         industry: updatedCtx.industry,
-        productType: updatedCtx.productType ?? currentSettings.productType,
+        productType: updatedCtx.productType ?? (currentSettings as any).productType,
         promptContent,
         contextLock: newContextLock,
       };

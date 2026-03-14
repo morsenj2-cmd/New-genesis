@@ -199,7 +199,7 @@ function buildSemanticFrame(tokens: Token[], rawPrompt: string): SemanticFrame {
       continue;
     }
 
-    if (phase === "seeking_subject" || (!foundVerb && phase === "seeking_predicate")) {
+    if (phase === "seeking_subject" || (!foundVerb && (phase as string) === "seeking_predicate")) {
       frame.subject.push(word);
     } else {
       frame.object.push(word);

@@ -90,7 +90,7 @@ export function AppSidebar({ onNewProject }: { onNewProject?: () => void } = {})
         {isLoaded && isSignedIn ? (
           <div className="flex items-center gap-3 rounded-lg px-2 py-1.5 bg-white/[0.04]">
             <UserButton
-              afterSignOutUrl="/dashboard"
+              signInUrl="/sign-in"
               appearance={{ elements: { avatarBox: "h-8 w-8" } }}
             />
             <div className="flex-1 min-w-0">
