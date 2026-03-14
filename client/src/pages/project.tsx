@@ -844,6 +844,7 @@ function LeftPanel({
   onToggleLayoutLock,
   onNLApplied,
   integrations,
+  subscription,
 }: {
   project: Project;
   activeGenome: DesignGenome | null;
@@ -858,6 +859,7 @@ function LeftPanel({
   onToggleLayoutLock: () => void;
   onNLApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch | Record<string, string>) => void;
   integrations: IntegrationItem[];
+  subscription?: { plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number; hasExhaustedProject: boolean; perProjectLimit: number };
 }) {
   const [showTokens, setShowTokens] = useState(false);
   const isLocked = !!project.layoutLocked;
@@ -1699,6 +1701,7 @@ export default function ProjectPage() {
                 onToggleLayoutLock={() => layoutLockMutation.mutate(!project.layoutLocked)}
                 onNLApplied={handleNLApplied}
                 integrations={projectIntegrations}
+                subscription={subscription}
               />
 
               <main className="flex-1 overflow-hidden bg-muted/10 flex flex-col" data-testid="section-website-preview">
