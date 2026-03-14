@@ -277,7 +277,10 @@ export async function geminiGenerateApp(
       ? `\nUSER EDIT REQUEST: The user has requested the following change to the design: "${nlInstruction}"\nMake sure this change is clearly applied in the generated application.`
       : "";
 
-    const isDashboard = interpret.hasDashboard || interpret.pageType === "dashboard" || interpret.productType === "dashboard";
+    const promptLower = prompt.toLowerCase();
+    const hasDashboardNorm = interpret.hasDashboard === true || interpret.hasDashboard === ("true" as any);
+    const isDashboard = hasDashboardNorm || interpret.pageType === "dashboard" || interpret.productType === "dashboard" ||
+      /\bdashboard\b|\banalytics panel\b|\badmin panel\b|\bmonitoring\b|\bstandings\b|\bleaderboard\b|\brankings?\b|\bscoreboard\b/.test(promptLower);
     // Treat EVERYTHING that involves user interaction as a web app — only purely informational sites get landing page treatment
     const isWebApp = !isDashboard && (
       interpret.pageType === "web_app" ||
@@ -291,7 +294,7 @@ export async function geminiGenerateApp(
       // Also detect from features/prompt keywords — if the product DOES things, it's an app
       interpret.features.some((f: string) => /track|manage|create|edit|delete|add|search|filter|sort|calculate|convert|schedule|book|order|pay|upload|download|send|receive|login|sign|play|record|monitor|analyze|chat|message|timer|clock|count|score|vote|rate|review|share|save|export|import|generate|build|design|compose|write|draw|plan|organize|list|board|kanban|calendar|browse|shop|buy|sell|donate|subscribe|register|submit|post|comment|reply|follow|like|bookmark|archive|assign|complete|start|stop|pause|reset|toggle|switch|select|pick|choose|compare|customize|configure|set up|enroll|apply|request|reserve|check|scan|measure|log|enter|input|fill/i.test(f)) ||
       // Catch-all: if the classifier said web_app in any form
-      interpret.hasBackend
+      (interpret.hasBackend === true || interpret.hasBackend === ("true" as any))
     );
     const isLandingPage = !isDashboard && !isWebApp;
 
@@ -319,18 +322,29 @@ This is a REAL working dashboard for "${interpret.productName}" — not a generi
 
 READ THIS CAREFULLY: The user described "${prompt}". You must build a dashboard about EXACTLY THAT — with domain-specific terminology, data, and panels.
 
-EXAMPLES OF DOMAIN-SPECIFIC DASHBOARDS:
-- "F1 dashboard" → Stat cards: "Total Drivers", "Laps Completed", "Fastest Lap", "DNFs". Table columns: Position, Driver, Team, Gap to Leader, Pit Stops, Status. Data: real F1 driver names (Verstappen, Hamilton, Leclerc, Norris, etc.), real team names (Red Bull, Mercedes, Ferrari, McLaren, etc.)
-- "Sales dashboard" → Stat cards: "Total Revenue", "Orders Today", "Avg Order Value", "Conversion Rate". Table: Order ID, Customer, Product, Amount, Status, Date
-- "HR dashboard" → Stat cards: "Employees", "Open Positions", "Avg Tenure", "Turnover Rate". Table: Name, Department, Role, Start Date, Status
-- "Fitness tracker" → Stat cards: "Workouts This Week", "Calories Burned", "Streak", "Personal Bests". Table: Date, Exercise, Duration, Reps, Weight
-- "Crypto dashboard" → Stat cards: "Portfolio Value", "24h Change", "Top Gainer", "Total Assets". Table: Coin, Price, 24h Change, Holdings, Value
+HOW TO BUILD A DOMAIN-SPECIFIC DASHBOARD (follow this thinking process for ANY domain):
+Step 1: Read the user's DESCRIPTION below. Identify the DOMAIN (sports, finance, health, school, inventory, etc.)
+Step 2: Ask yourself: "What are the 4 most important METRICS someone in this domain tracks?" → Those become your stat cards
+Step 3: Ask yourself: "What are the ENTITIES/RECORDS in this domain?" → Those become your table columns
+Step 4: Ask yourself: "What real-world data exists in this domain?" → Seed with REAL names, terms, and realistic numbers
+Step 5: Ask yourself: "What would the sidebar sections be called in this domain?" → Those become your nav labels
 
-FOLLOW THIS PATTERN: Read the description → identify the domain → use domain-specific labels, columns, and data for EVERYTHING. NEVER use generic labels like "Total Count", "Active Count", "Revenue/Value" unless the domain is actually about revenue.
+EXAMPLES (showing the thinking process — apply the same logic to ANY domain):
+- Sports/Racing (F1, NBA, Soccer, etc.) → Stats: domain records/rankings. Table: Player/Driver, Team, Position, Score/Time, Status. Data: real athlete names, real team names. Sidebar: "Race Overview"/"Standings"/"Performance"/"Settings"
+- Business (Sales, CRM, Marketing) → Stats: Revenue, Conversions, Deals, Growth. Table: Customer/Deal, Amount, Stage, Date. Sidebar: "Overview"/"Pipeline"/"Reports"/"Settings"
+- Education (School, Grades, Courses) → Stats: Students, Avg Grade, Pass Rate, Courses. Table: Student, Subject, Grade, Attendance. Sidebar: "Class Overview"/"Grade Book"/"Student Records"/"Settings"
+- Health/Medical → Stats: Patients, Appointments Today, Avg Wait, Satisfaction. Table: Patient, Condition, Doctor, Date, Status. Sidebar: "Patient Overview"/"Appointments"/"Records"/"Settings"
+- DevOps/Servers → Stats: Servers Online, Avg CPU, Alerts, Uptime %. Table: Server, Status, CPU, Memory, Response Time. Sidebar: "System Health"/"Servers"/"Alerts"/"Settings"
+- Inventory/Warehouse → Stats: Total Items, Low Stock, Orders Pending, Warehouse Utilization. Table: Product, SKU, Quantity, Location, Status. Sidebar: "Inventory"/"Stock Levels"/"Orders"/"Settings"
+- Project Management → Stats: Active Projects, Tasks Done, Overdue, Team Members. Table: Task, Assignee, Priority, Due Date, Status. Sidebar: "Overview"/"Tasks"/"Timeline"/"Settings"
+- Social Media/Analytics → Stats: Followers, Engagement Rate, Posts Today, Reach. Table: Post, Likes, Comments, Shares, Date. Sidebar: "Overview"/"Content"/"Audience"/"Settings"
+- ANY OTHER DOMAIN → Apply the same thinking: identify domain metrics, entities, real data, and natural section names
+
+CRITICAL RULE: NEVER use these generic labels: "Total Count", "Active Count", "Revenue/Value", "Growth %", "Data Table", "Detail/Analytics". Every label MUST be specific to the user's domain. If you catch yourself writing a generic label, STOP and replace it with a domain-specific one.
 
 LAYOUT:
 - Fixed left sidebar (240px wide, full height, dark surface color) with icon + label nav items
-- Sidebar nav labels MUST be domain-specific (e.g., for F1: "Race Overview", "Driver Standings", "Lap Analysis", "Settings" — NOT generic "Dashboard", "Data Table", "Analytics")
+- Sidebar nav labels MUST be domain-specific — derived from the user's description (see examples above)
 - Top header bar (64px) with search input and product name
 - Main content area changes based on active sidebar item
 - Sidebar items highlight when active
@@ -390,15 +404,23 @@ LAYOUT:
 
 CRITICAL RULE — BUILD THE ACTUAL PRODUCT (THIS IS THE MOST IMPORTANT INSTRUCTION):
 Read the DESCRIPTION and FEATURES carefully. Build the SPECIFIC application described — not a template, not a generic app.
+
+HOW TO BUILD ANY APP (follow this thinking process):
+Step 1: Read the description — what is the CORE ACTION the user performs? (timing, calculating, tracking, browsing, creating, playing, etc.)
+Step 2: What JavaScript APIs/techniques does that core action need? (setInterval for timers, Math for calculators, arrays for lists, etc.)
+Step 3: What data does this app manage? → That becomes your window.appState structure
+Step 4: What views does the user need? → Those become your nav items (domain-specific labels, NOT generic ones)
+
+IMPLEMENTATION GUIDES BY APP TYPE:
 - Timer/Clock/Stopwatch → setInterval/clearInterval, countdown display (MM:SS), start/pause/reset/lap buttons, alarm sound (new Audio with oscillator), session tracking
 - Calculator → math operations (+−×÷%), memory, display, responsive button grid, keyboard support
-- Task Manager/Todo → add/edit/delete tasks, status toggle (done/pending), categories, drag reorder, due dates, priority levels, filter/search
+- Task Manager/Todo → add/edit/delete tasks, status toggle (done/pending), categories, due dates, priority levels, filter/search
 - Text/Note Editor → textarea with word/char count, auto-save to localStorage, multiple notes list, search, delete, export
 - Game → canvas or DOM game loop with requestAnimationFrame, scoring, lives, levels, controls (keyboard/touch), win/lose/restart
 - Tracker (fitness/habit/budget/mood) → data entry form, history list/chart (CSS bars), daily/weekly view, streaks, totals, averages
 - Converter (unit/currency/temperature) → real formulas, bidirectional conversion, multiple unit types, swap button, copy result
 - E-commerce/Store → product grid with prices, working cart (add/remove/quantity), cart total calculation, checkout form with validation, order confirmation
-- Social/Chat → message list, compose input, send button that adds to conversation, user profiles, like/react buttons, real-time-feeling updates
+- Social/Chat → message list, compose input, send button that adds to conversation, user profiles, like/react buttons
 - Booking/Scheduling → date/time picker, available slots, booking form, confirmation, booking list management
 - Recipe/Cooking → recipe list, ingredient checkboxes, serving size adjuster that recalculates quantities, timer, favorites
 - Finance/Budget → transaction entry, income/expense tracking, category breakdown, running balance, charts
@@ -406,8 +428,10 @@ Read the DESCRIPTION and FEATURES carefully. Build the SPECIFIC application desc
 - Music/Audio → playlist, play/pause controls, progress bar, volume slider, track info display
 - Calendar/Planner → month/week/day views, add/edit/delete events, date navigation, event details modal
 - Portfolio/Gallery → grid layout, lightbox modal, category filter, project detail view
-- Weather/Dashboard → data cards, charts, location selector, unit toggle (°C/°F), forecast display
-- Whatever the product is → build its CORE FUNCTIONALITY with real JavaScript logic that actually does what the product promises
+- Weather App → data cards, charts, location selector, unit toggle (°C/°F), forecast display
+- ANY OTHER APP → Apply the same thinking: identify the core action, the JS technique needed, and build it with real working code
+
+CRITICAL: If your app type is NOT in the list above, you MUST still build the full working product. The list is examples of HOW to think — not a whitelist. Every product's CORE FUNCTIONALITY must work with real JavaScript logic.
 
 STATE MANAGEMENT (CRITICAL):
 - Create window.appState with ALL state the app needs (timers, counters, data, settings, history)
@@ -460,15 +484,21 @@ JS router (REQUIRED): function navigate(id){document.querySelectorAll('.page').f
 Each nav link calls navigate('page-name') — do NOT use href="#..." for page switching
 
 CRITICAL RULE — BUILD WHAT THE USER DESCRIBED:
-Read the DESCRIPTION carefully. If the product involves ANY interactive features, those features MUST work:
-- Restaurant site → interactive menu with categories, dietary filters, item detail modals, order/reservation form
-- Nonprofit/Charity → working donation form with amount selection, recurring toggle, payment info fields, confirmation
+Read the DESCRIPTION "${prompt}" carefully. Build content and interactive elements specific to THIS product's domain.
+
+Step 1: Identify the domain from the description
+Step 2: Use domain-specific page names, section titles, content, and terminology — NOT generic placeholders
+Step 3: All interactive elements MUST work with JavaScript
+
+EXAMPLES (apply same thinking to ANY domain):
+- Restaurant → interactive menu with categories, dietary filters, item modals, reservation form
+- Nonprofit/Charity → donation form with amount selection, recurring toggle, confirmation
 - Portfolio → project gallery with category filter, lightbox modal, contact form
-- Event site → event schedule with filtering, RSVP form, countdown timer to event date
+- Event site → schedule with filtering, RSVP form, countdown timer
 - Real estate → property listings with search/filter, detail modals, inquiry form
 - Gym/Fitness → class schedule browser, membership signup form, trainer profiles
 - School/Education → course catalog with filters, enrollment form, FAQ accordions
-Whatever the site is for, the interactive elements must ACTUALLY FUNCTION with JavaScript.
+- ANY OTHER SITE → identify what's domain-specific and build it with real content and working JS
 
 REQUIRED PAGES (minimum 4-5 pages, ALL must have substantial content):
 1. HOME: Hero section with headline, subheadline, and CTA button + feature highlights
