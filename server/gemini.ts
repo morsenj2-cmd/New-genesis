@@ -194,23 +194,62 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
   nav, nav a, nav span, .navbar, .navbar a {
     font-size: 0.875rem;
   }
-  h1 { font-size: clamp(2rem, 5vw, 3rem); }
+  h1 { font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.2; }
   h2 { font-size: clamp(1.5rem, 3vw, 1.75rem); }
   h3 { font-size: clamp(1.1rem, 2vw, 1.25rem); }
   body { font-size: 1rem; line-height: 1.7; }
 
+  /* Hero section layout — centered, properly spaced */
+  .hero, #hero, [class^="hero-"], [class$="-hero"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 70vh;
+    padding: 80px 24px;
+    box-sizing: border-box;
+  }
+  .hero h1, #hero h1, [class^="hero-"] h1, [class$="-hero"] h1 {
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 16px;
+  }
+  .hero p, #hero p, [class^="hero-"] p, [class$="-hero"] p {
+    max-width: 540px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 24px;
+    font-size: 1.05rem;
+    opacity: 0.85;
+  }
+  header + section {
+    text-align: center;
+  }
+  header + section h1 {
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 16px;
+  }
+  header + section > p, header + section > div > p {
+    max-width: 540px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 24px;
+  }
+
   /* Hero CTA — proportional sizing, single dominant action */
   .hero button, .hero a[class*="btn"], .hero a[class*="button"],
-  [class*="hero"] button, [class*="hero"] a[class*="btn"],
   #hero button, #hero a[class*="btn"],
-  section:first-of-type button, header + section button {
+  header + section button {
     padding: 12px 28px !important;
     font-size: 1rem !important;
     max-width: 220px;
   }
-  /* Hide extra hero CTAs — only the first button should be dominant */
+  /* Demote extra hero CTAs — only the first button should be dominant */
   .hero button ~ button, .hero a[class*="btn"] ~ a[class*="btn"],
-  [class*="hero"] button ~ button, [class*="hero"] a[class*="btn"] ~ a[class*="btn"],
   #hero button ~ button, #hero a[class*="btn"] ~ a[class*="btn"] {
     background: transparent !important;
     border: 1px solid rgba(255,255,255,0.2) !important;
@@ -220,23 +259,24 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
   }
 
   /* Overlay legibility — ensure overlays on hero images don't reduce contrast */
-  .hero::before, [class*="hero"]::before, #hero::before,
-  .hero .overlay, [class*="hero"] .overlay, #hero .overlay {
+  .hero::before, #hero::before,
+  .hero .overlay, #hero .overlay {
     background: rgba(0,0,0,0.6) !important;
   }
 
   /* Hero responsive stability */
   @media (max-width: 768px) {
-    .hero, [class*="hero"], #hero, section:first-of-type {
+    .hero, #hero {
       min-height: 50vh;
       padding: 48px 16px;
-      text-align: center;
     }
-    .hero h1, [class*="hero"] h1, #hero h1 {
-      font-size: clamp(1.75rem, 6vw, 2.5rem);
+    .hero h1, #hero h1 {
+      font-size: clamp(1.75rem, 6vw, 2.25rem);
+      max-width: 90%;
     }
-    .hero p, [class*="hero"] p, #hero p {
+    .hero p, #hero p {
       font-size: 1rem;
+      max-width: 90%;
     }
   }
 

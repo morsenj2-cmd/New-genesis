@@ -1264,27 +1264,26 @@ export function CanvasEditor({
               </div>
             )}
 
-            {iframeHasChanges && (
-              <div className="p-3 border-t border-border shrink-0">
-                <Button
-                  size="sm"
-                  className="w-full gap-1.5 text-xs"
-                  onClick={() => {
-                    sendEditorCmd("getHtml");
-                    htmlSaveResolve.current = (html: string) => {
-                      onSaveHtml?.(html);
-                      setIframeHasChanges(false);
-                      setSaveMessage("Changes saved");
-                      setTimeout(() => setSaveMessage(null), 2000);
-                    };
-                  }}
-                  data-testid="button-save-iframe-changes"
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  {saveMessage || "Save Changes"}
-                </Button>
-              </div>
-            )}
+            <div className="p-3 border-t border-border shrink-0">
+              <Button
+                size="sm"
+                className="w-full gap-1.5 text-xs"
+                disabled={!iframeHasChanges}
+                onClick={() => {
+                  sendEditorCmd("getHtml");
+                  htmlSaveResolve.current = (html: string) => {
+                    onSaveHtml?.(html);
+                    setIframeHasChanges(false);
+                    setSaveMessage("Changes saved");
+                    setTimeout(() => setSaveMessage(null), 2000);
+                  };
+                }}
+                data-testid="button-save-iframe-changes"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {saveMessage || (iframeHasChanges ? "Save Changes" : "No Changes")}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -1463,12 +1462,12 @@ export function CanvasEditor({
               </div>
             )}
 
-            {elementState.hasChanges && (
-              <div className="p-3 border-t border-border shrink-0">
-                <Button
-                  size="sm"
-                  className="w-full gap-1.5 text-xs"
-                  onClick={() => {
+            <div className="p-3 border-t border-border shrink-0">
+              <Button
+                size="sm"
+                className="w-full gap-1.5 text-xs"
+                disabled={!elementState.hasChanges}
+                onClick={() => {
                     const changes = elementCanvasRef.current?.getChanges();
                     if (changes) {
                       const patch: Partial<ContentOverrides> = {};
@@ -1491,10 +1490,9 @@ export function CanvasEditor({
                   data-testid="button-save-element-changes"
                 >
                   <Save className="h-3.5 w-3.5" />
-                  {saveMessage || "Save Changes"}
+                  {saveMessage || (elementState.hasChanges ? "Save Changes" : "No Changes")}
                 </Button>
               </div>
-            )}
           </div>
         )}
 
