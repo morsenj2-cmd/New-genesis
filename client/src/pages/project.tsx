@@ -907,7 +907,7 @@ function LeftPanel({
         <NLDesigner
           projectId={project.id}
           creditsRemaining={subscription?.creditsRemaining ?? 0}
-          totalCredits={subscription?.totalCredits ?? 150}
+          totalCredits={subscription?.totalCredits ?? 80}
           userPlan={subscription?.plan ?? "free"}
           onApplied={onNLApplied}
         />
@@ -1855,7 +1855,7 @@ export default function ProjectPage() {
                     onContentChange={setContentOverrides}
                     onLayoutChange={(newLayout) => setActiveLayout(newLayout)}
                     creditsRemaining={subscription?.creditsRemaining ?? 0}
-                    totalCredits={subscription?.totalCredits ?? 150}
+                    totalCredits={subscription?.totalCredits ?? 80}
                     userPlan={subscription?.plan ?? "free"}
                     geminiAppHtml={safeGeminiHtml}
                     onSaveHtml={(html) => updateHtmlMutation.mutate(html)}
