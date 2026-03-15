@@ -713,26 +713,26 @@ export function CanvasEditor({
 
   const isElementsMode = mode === "elements";
 
-  const canvasPreviewRef = useRef<HTMLDivElement>(null);
-  const [canvasPreviewWidth, setCanvasPreviewWidth] = useState(0);
-  const [canvasPreviewHeight, setCanvasPreviewHeight] = useState(0);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [previewWidth, setPreviewWidth] = useState(0);
+  const [previewHeight, setPreviewHeight] = useState(0);
 
   useEffect(() => {
-    const el = canvasPreviewRef.current;
+    const el = previewContainerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver((entries) => {
+    const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setCanvasPreviewWidth(entry.contentRect.width);
-        setCanvasPreviewHeight(entry.contentRect.height);
+        setPreviewWidth(entry.contentRect.width);
+        setPreviewHeight(entry.contentRect.height);
       }
     });
-    ro.observe(el);
-    return () => ro.disconnect();
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
-  const CANVAS_SIDEBAR_W = 224;
-  const targetWidth = canvasPreviewWidth + CANVAS_SIDEBAR_W;
-  const canvasScale = canvasPreviewWidth > 0 && targetWidth > 0 ? canvasPreviewWidth / targetWidth : 1;
+  const SIDEBAR_WIDTH = 224;
+  const fullWidth = previewWidth + SIDEBAR_WIDTH;
+  const previewScale = previewWidth > 0 ? previewWidth / fullWidth : 1;
 
   const iframeEditorRef = useRef<HTMLIFrameElement>(null);
   const [iframeSelectedEl, setIframeSelectedEl] = useState<IframeSelectedElement | null>(null);
@@ -1428,13 +1428,20 @@ export function CanvasEditor({
 
       {/* ── Preview area ─────────────────────────────────────── */}
       <div
-        ref={canvasPreviewRef}
-        className="flex-1 overflow-hidden"
+        ref={previewContainerRef}
+        className="flex-1 overflow-hidden relative"
         data-testid="canvas-preview-area"
         onClick={() => { if (showAddMenu) setShowAddMenu(false); }}
       >
         {geminiAppHtml && isElementsMode && editableHtml ? (
-          <div style={{ width: targetWidth, height: canvasPreviewHeight > 0 ? canvasPreviewHeight / canvasScale : '100%', transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}>
+          <div
+            style={{
+              width: fullWidth,
+              height: previewHeight > 0 ? previewHeight / previewScale : '100%',
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+          >
             <iframe
               ref={iframeEditorRef}
               srcDoc={editableHtml}
@@ -1445,7 +1452,14 @@ export function CanvasEditor({
             />
           </div>
         ) : geminiAppHtml ? (
-          <div style={{ width: targetWidth, height: canvasPreviewHeight > 0 ? canvasPreviewHeight / canvasScale : '100%', transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}>
+          <div
+            style={{
+              width: fullWidth,
+              height: previewHeight > 0 ? previewHeight / previewScale : '100%',
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+          >
             <iframe
               srcDoc={geminiAppHtml}
               sandbox="allow-scripts allow-forms allow-popups"
@@ -1463,7 +1477,15 @@ export function CanvasEditor({
             onStateChange={setElementState}
           />
         ) : (
-          <div className="h-full overflow-y-auto">
+          <div
+            style={{
+              width: fullWidth,
+              height: previewHeight > 0 ? previewHeight / previewScale : '100%',
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+            className="overflow-y-auto"
+          >
             <GenomePreview
               genome={genome}
               layout={layout}
