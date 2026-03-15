@@ -1235,9 +1235,11 @@ export function CanvasEditor({
                     <span className="text-[10px] uppercase text-muted-foreground block mb-1">Text Content</span>
                     <Textarea
                       value={iframeEditText}
-                      onChange={e => setIframeEditText(e.target.value)}
-                      onBlur={() => sendEditorCmd("updateText", { text: iframeEditText })}
-                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendEditorCmd("updateText", { text: iframeEditText }); }}}
+                      onChange={e => {
+                        setIframeEditText(e.target.value);
+                        sendEditorCmd("updateText", { text: e.target.value });
+                        setIframeHasChanges(true);
+                      }}
                       rows={3}
                       className="text-xs resize-y"
                       data-testid="input-iframe-text"
@@ -1264,27 +1266,26 @@ export function CanvasEditor({
               </div>
             )}
 
-            {iframeHasChanges && (
-              <div className="p-3 border-t border-border shrink-0">
-                <Button
-                  size="sm"
-                  className="w-full gap-1.5 text-xs"
-                  onClick={() => {
-                    sendEditorCmd("getHtml");
-                    htmlSaveResolve.current = (html: string) => {
-                      onSaveHtml?.(html);
-                      setIframeHasChanges(false);
-                      setSaveMessage("Changes saved");
-                      setTimeout(() => setSaveMessage(null), 2000);
-                    };
-                  }}
-                  data-testid="button-save-iframe-changes"
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  {saveMessage || "Save Changes"}
-                </Button>
-              </div>
-            )}
+            <div className="p-3 border-t border-border shrink-0">
+              <Button
+                size="sm"
+                className="w-full gap-1.5 text-xs"
+                disabled={!iframeHasChanges && !saveMessage}
+                onClick={() => {
+                  sendEditorCmd("getHtml");
+                  htmlSaveResolve.current = (html: string) => {
+                    onSaveHtml?.(html);
+                    setIframeHasChanges(false);
+                    setSaveMessage("Changes saved");
+                    setTimeout(() => setSaveMessage(null), 2000);
+                  };
+                }}
+                data-testid="button-save-iframe-changes"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {saveMessage || "Save Changes"}
+              </Button>
+            </div>
           </div>
         )}
 
