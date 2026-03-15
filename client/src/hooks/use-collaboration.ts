@@ -69,8 +69,17 @@ export function useCollaboration({
             setPresence(msg.presence || []);
             break;
           case "user-joined":
+            setPresence(msg.presence || []);
+            break;
           case "user-left":
             setPresence(msg.presence || []);
+            if (msg.userId) {
+              setCursors((prev) => {
+                const next = new Map(prev);
+                next.delete(msg.userId);
+                return next;
+              });
+            }
             break;
           case "cursor-update":
             setCursors((prev) => {
@@ -119,7 +128,11 @@ export function useCollaboration({
     };
   }, [connect]);
 
+  const lastCursorSendRef = useRef<number>(0);
   const sendCursorMove = useCallback((x: number, y: number) => {
+    const now = Date.now();
+    if (now - lastCursorSendRef.current < 50) return;
+    lastCursorSendRef.current = now;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "cursor-move", x, y }));
     }

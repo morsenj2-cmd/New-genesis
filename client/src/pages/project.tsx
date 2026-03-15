@@ -1151,11 +1151,17 @@ export default function ProjectPage() {
 
   const handleRemoteGenomeUpdate = useCallback((genomeJson: string, layoutJson: string, _fromUserId: string) => {
     try {
-      if (genomeJson) setActiveGenome(JSON.parse(genomeJson));
-      if (layoutJson) setActiveLayout(JSON.parse(layoutJson));
+      if (genomeJson && genomeJson !== '""' && genomeJson !== '') {
+        setActiveGenome(JSON.parse(genomeJson));
+        setNlColorOverride(null);
+      }
+      if (layoutJson && layoutJson !== '""' && layoutJson !== '') {
+        setActiveLayout(JSON.parse(layoutJson));
+      }
       setIteration((i) => i + 1);
+      queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
     } catch {}
-  }, []);
+  }, [params.id]);
 
   const collaboration = useCollaboration({
     projectId: params.id || "",
@@ -1449,6 +1455,7 @@ export default function ProjectPage() {
           setIteration(prev => prev + 1);
           queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
           queryClient.invalidateQueries({ queryKey: ["/api/user/subscription"] });
+          collaboration.sendGenomeUpdate(JSON.stringify(newGenome), "");
         }
       } else if (res.status === 429) {
         const errData = await res.json();
@@ -1463,7 +1470,7 @@ export default function ProjectPage() {
     } finally {
       setIsRegenerating(false);
     }
-  }, [project?.id, params.id, getToken]);
+  }, [project?.id, params.id, getToken, collaboration.sendGenomeUpdate]);
 
   const handleRegenerateLayout = useCallback(async () => {
     if (!project?.id || !project?.seed || project.layoutLocked) return;
@@ -1482,6 +1489,7 @@ export default function ProjectPage() {
         const data = await res.json();
         if (data.layout) {
           setActiveLayout(data.layout);
+          collaboration.sendGenomeUpdate("", JSON.stringify(data.layout));
         }
         setIteration(prev => prev + 1);
         queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
@@ -1499,7 +1507,7 @@ export default function ProjectPage() {
     } finally {
       setIsRegeneratingLayout(false);
     }
-  }, [project?.id, project?.seed, project?.layoutLocked, params.id, getToken]);
+  }, [project?.id, project?.seed, project?.layoutLocked, params.id, getToken, collaboration.sendGenomeUpdate]);
 
   const layoutLockMutation = useMutation({
     mutationFn: async (locked: boolean) => {
@@ -1545,11 +1553,11 @@ export default function ProjectPage() {
     if (contentPatch && Object.keys(contentPatch).length > 0) {
       setContentOverrides(prev => ({ ...prev, ...contentPatch }));
     }
-    // Override themeColor with NL-patched color so mergeDesignSources doesn't clobber it
     if (genome.colors?.primary) {
       setNlColorOverride(genome.colors.primary);
     }
-  }, [project?.seed]);
+    collaboration.sendGenomeUpdate(JSON.stringify(genome), JSON.stringify(layout));
+  }, [project?.seed, collaboration.sendGenomeUpdate]);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -1914,16 +1922,55 @@ export default function ProjectPage() {
                       />
                     </div>
                   ) : (
-                    <iframe
-                      srcDoc={safeGeminiHtml}
-                      sandbox="allow-scripts allow-forms allow-popups"
-                      className="flex-1 w-full border-0"
-                      title="AI Generated App"
-                      data-testid="ai-app-preview"
-                    />
+                    <div
+                      className="flex-1 w-full relative"
+                      onMouseMove={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = ((e.clientX - rect.left) / rect.width) * 100;
+                        const y = ((e.clientY - rect.top) / rect.height) * 100;
+                        collaboration.sendCursorMove(x, y);
+                      }}
+                      data-testid="preview-wrapper"
+                    >
+                      <iframe
+                        srcDoc={safeGeminiHtml}
+                        sandbox="allow-scripts allow-forms allow-popups"
+                        className="w-full h-full border-0"
+                        title="AI Generated App"
+                        data-testid="ai-app-preview"
+                      />
+                      {Array.from(collaboration.cursors.entries()).map(([uid, cursor]) => (
+                        uid !== clerkUser?.id && (
+                          <div
+                            key={uid}
+                            className="absolute pointer-events-none z-50 transition-all duration-150 ease-out"
+                            style={{ left: `${cursor.x}%`, top: `${cursor.y}%` }}
+                            data-testid={`cursor-${uid}`}
+                          >
+                            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                              <path d="M0 0L16 12H6L0 20V0Z" fill={cursor.color} stroke="white" strokeWidth="1" />
+                            </svg>
+                            <span
+                              className="absolute left-4 top-3 text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
+                              style={{ backgroundColor: cursor.color, color: "#fff" }}
+                            >
+                              {cursor.displayName}
+                            </span>
+                          </div>
+                        )
+                      ))}
+                    </div>
                   )
                 ) : displayGenome && activeLayout ? (
-                  <div className="flex-1 overflow-y-auto">
+                  <div
+                    className="flex-1 overflow-y-auto relative"
+                    onMouseMove={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = ((e.clientX - rect.left) / rect.width) * 100;
+                      const y = ((e.clientY - rect.top) / rect.height) * 100;
+                      collaboration.sendCursorMove(x, y);
+                    }}
+                  >
                     <GenomePreview
                       genome={displayGenome}
                       layout={activeLayout}
@@ -1933,6 +1980,25 @@ export default function ProjectPage() {
                       productType={effectiveProductType}
                       contentOverrides={contentOverrides}
                     />
+                    {Array.from(collaboration.cursors.entries()).map(([uid, cursor]) => (
+                      uid !== clerkUser?.id && (
+                        <div
+                          key={uid}
+                          className="absolute pointer-events-none z-50 transition-all duration-150 ease-out"
+                          style={{ left: `${cursor.x}%`, top: `${cursor.y}%` }}
+                        >
+                          <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                            <path d="M0 0L16 12H6L0 20V0Z" fill={cursor.color} stroke="white" strokeWidth="1" />
+                          </svg>
+                          <span
+                            className="absolute left-4 top-3 text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
+                            style={{ backgroundColor: cursor.color, color: "#fff" }}
+                          >
+                            {cursor.displayName}
+                          </span>
+                        </div>
+                      )
+                    ))}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full min-h-64 p-8 text-center">

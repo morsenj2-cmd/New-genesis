@@ -182,6 +182,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const syncEmail = existingUser?.email || email;
 
       const user = await storage.upsertUser({ id: userId!, email: syncEmail });
+
+      storage.linkPendingCollaborators(userId!, syncEmail).catch((err) => {
+        console.error("[Collab] Failed to link pending collaborators:", err);
+      });
+
       res.json(user);
     } catch (err) {
       console.error("Error syncing user:", err);
@@ -1731,14 +1736,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const count = await storage.getCollaboratorCount(req.params.id);
       if (count >= MAX_COLLABORATORS) return res.status(400).json({ message: `Maximum ${MAX_COLLABORATORS} collaborators per project` });
 
+      const existingByEmail = await storage.getCollaboratorRoleByEmail(req.params.id, email);
+      if (existingByEmail) return res.status(400).json({ message: "This user is already a collaborator" });
+
       const targetUser = await storage.getUserByEmail(email);
-      if (!targetUser) return res.status(404).json({ message: "No Morse user found with that email. They need to sign up first." });
+      const targetUserId = targetUser?.id || `pending_${email.toLowerCase()}`;
 
-      const existingRole = await storage.getCollaboratorRole(req.params.id, targetUser.id);
-      if (existingRole) return res.status(400).json({ message: "This user is already a collaborator" });
+      if (targetUser) {
+        const existingRole = await storage.getCollaboratorRole(req.params.id, targetUser.id);
+        if (existingRole) return res.status(400).json({ message: "This user is already a collaborator" });
+      }
 
-      console.log(`[Collab] Adding collaborator: projectId=${req.params.id}, targetUserId=${targetUser.id}, email=${email}, role=${role}`);
-      const collab = await storage.addCollaborator(req.params.id, targetUser.id, email, role, userId!);
+      console.log(`[Collab] Adding collaborator: projectId=${req.params.id}, targetUserId=${targetUserId}, email=${email}, role=${role}, pending=${!targetUser}`);
+      const collab = await storage.addCollaborator(req.params.id, targetUserId, email, role, userId!);
 
       sendCollaborationInviteEmail(email, project.name, req.params.id, role, owner.email).catch((err) => {
         console.error("[Collab] Failed to send invite email:", err);

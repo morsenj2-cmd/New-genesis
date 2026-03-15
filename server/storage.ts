@@ -360,6 +360,31 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(ilike(users.email, email));
     return user;
   }
+
+  async linkPendingCollaborators(userId: string, email: string): Promise<void> {
+    const pendingId = `pending_${email.toLowerCase()}`;
+    const pendingCollabs = await db.select().from(projectCollaborators).where(
+      or(
+        eq(projectCollaborators.userId, pendingId),
+        and(ilike(projectCollaborators.email, email), sql`${projectCollaborators.userId} LIKE 'pending_%'`)
+      )
+    );
+    for (const c of pendingCollabs) {
+      try {
+        const existing = await this.getCollaboratorRole(c.projectId, userId);
+        if (existing) {
+          await db.delete(projectCollaborators).where(eq(projectCollaborators.id, c.id));
+        } else {
+          await db.update(projectCollaborators)
+            .set({ userId })
+            .where(eq(projectCollaborators.id, c.id));
+        }
+        console.log(`[Collab] Linked pending collaborator: email=${email}, projectId=${c.projectId}, userId=${userId}`);
+      } catch (e) {
+        console.error(`[Collab] Failed to link pending collaborator ${c.id}:`, e);
+      }
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();

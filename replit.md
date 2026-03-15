@@ -106,6 +106,9 @@ Key features:
   - **Dashboard**: Shared projects appear alongside own projects with "Invited" badge
   - **Email notifications**: Resend integration sends invite emails with project link (requires `RESEND_API_KEY` env var, sends from `noreply@morse.co.in`)
   - **Email-based access fallback**: `checkProjectAccess` tries userId match first, then email-based lookup (auto-fixes stale userId records)
+  - **Pending invite linking**: Non-existing users can be invited via email (`pending_{email}` userId placeholder); when user signs up, `/api/user/sync` calls `linkPendingCollaborators()` to convert pending records to real userId
+  - **Full real-time sync**: All edit paths broadcast changes — NL design edits, style regeneration, layout regeneration, manual HTML code edits; collaborators receive genome/layout/HTML updates via WebSocket
+  - **Collaborator cursors**: Mouse position tracked on preview area (iframe + GenomePreview); cursor overlay renders colored SVG pointer + name label for each remote collaborator; 50ms throttle on cursor sends; cursors auto-removed on user disconnect
   - **Limits**: Max 6 collaborators per project; Morse Black required on owner's account to invite
 - **Client-side CSS Sanitizer**: `safeGeminiHtml` useMemo in `project.tsx` applies the same `max-width` → `font-size` heading fix as the server-side `sanitizeGeneratedCss()`, fixing existing stored projects on display
 - NL brand rename fully wired: `/apply-nl` runs unified interpreter → if `change_name` detected, saves `brandName` to `settingsJson`, returns `contentPatch` in response → client updates `contentOverrides.brandName` immediately
