@@ -1187,6 +1187,7 @@ export default function ProjectPage() {
     );
 
     html = html.replace(/<script>\s*\/\/\s*Morse safety layer[\s\S]*?<\/script>/g, "");
+    html = html.replace(/<script[^>]*>\s*\(function\(\)\s*\{\s*try\s*\{\s*Object\.defineProperty\(window,\s*['"]__safeNav['"][\s\S]*?<\/script>/g, "");
 
     const safetyScript = `<script>
 (function(){

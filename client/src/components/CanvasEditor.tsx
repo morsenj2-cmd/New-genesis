@@ -73,7 +73,7 @@ const IFRAME_EDITOR_SCRIPT = `
   }
 
   function createOverlay() {
-    if (overlay) overlay.remove();
+    document.querySelectorAll('#__morse_overlay').forEach(function(o){o.remove();});
     overlay = document.createElement('div');
     overlay.id = '__morse_overlay';
     overlay.style.cssText = 'position:absolute;pointer-events:none;border:2px solid #3b82f6;background:rgba(59,130,246,0.08);z-index:999999;transition:all 0.15s ease;';
@@ -110,17 +110,34 @@ const IFRAME_EDITOR_SCRIPT = `
     }, '*');
   }
 
+  function getCleanBodyHtml() {
+    var hadOverlay = overlay && overlay.parentNode;
+    if (hadOverlay) overlay.remove();
+    var html = document.body.innerHTML;
+    if (hadOverlay) document.body.appendChild(overlay);
+    return html;
+  }
+
   function saveUndo() {
-    undoStack.push(document.body.innerHTML);
+    undoStack.push(getCleanBodyHtml());
     if (undoStack.length > 30) undoStack.shift();
     redoStack = [];
     hasChanges = true;
     window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: false }, '*');
   }
 
+  function restoreFromStack(html) {
+    if (overlay) overlay.remove();
+    document.body.innerHTML = html;
+    createOverlay();
+    createResizeHandles();
+    overlay.style.display = 'none';
+    selected = null;
+    sendState();
+  }
+
   function selectEl(el) {
     if (!el || el === document.body || el === document.documentElement || el.id === '__morse_overlay') return;
-    // skip tiny/invisible elements
     var r = el.getBoundingClientRect();
     if (r.width < 10 || r.height < 10) { el = el.parentElement; if(!el) return; }
     selected = el;
@@ -136,7 +153,6 @@ const IFRAME_EDITOR_SCRIPT = `
     sendState();
   }
 
-  // hover highlight
   var hoverEl = null;
   document.addEventListener('mousemove', function(e) {
     if (isDragging) return;
@@ -154,7 +170,6 @@ const IFRAME_EDITOR_SCRIPT = `
     hoverEl = null;
   });
 
-  // click to select
   document.addEventListener('click', function(e) {
     if (isDragging) return;
     e.preventDefault();
@@ -164,7 +179,6 @@ const IFRAME_EDITOR_SCRIPT = `
     selectEl(el);
   }, true);
 
-  // drag to move
   document.addEventListener('mousedown', function(e) {
     if (!selected || e.target.id === '__morse_overlay') return;
     if (e.target.classList && e.target.classList.contains('__morse_handle')) return;
@@ -200,7 +214,6 @@ const IFRAME_EDITOR_SCRIPT = `
     }
   });
 
-  // double click to edit text
   document.addEventListener('dblclick', function(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -227,7 +240,6 @@ const IFRAME_EDITOR_SCRIPT = `
     }
   }, true);
 
-  // delete key
   document.addEventListener('keydown', function(e) {
     if (document.querySelector('[contenteditable="true"]')) return;
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
@@ -240,37 +252,28 @@ const IFRAME_EDITOR_SCRIPT = `
     }
     if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey && undoStack.length > 0) {
       e.preventDefault();
-      redoStack.push(document.body.innerHTML);
-      document.body.innerHTML = undoStack.pop();
-      createOverlay();
-      selected = null;
-      sendState();
+      redoStack.push(getCleanBodyHtml());
+      restoreFromStack(undoStack.pop());
       window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
     }
     if (((e.key === 'y' && (e.ctrlKey || e.metaKey)) || (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey)) && redoStack.length > 0) {
       e.preventDefault();
-      undoStack.push(document.body.innerHTML);
-      document.body.innerHTML = redoStack.pop();
-      createOverlay();
-      selected = null;
-      sendState();
+      undoStack.push(getCleanBodyHtml());
+      restoreFromStack(redoStack.pop());
       window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
     }
   });
 
-  // listen for parent commands
   window.addEventListener('message', function(e) {
     if (!e.data || e.data.source !== 'morse-editor-cmd') return;
     if (e.data.cmd === 'undo' && undoStack.length > 0) {
-      redoStack.push(document.body.innerHTML);
-      document.body.innerHTML = undoStack.pop();
-      createOverlay(); selected = null; sendState();
+      redoStack.push(getCleanBodyHtml());
+      restoreFromStack(undoStack.pop());
       window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
     }
     if (e.data.cmd === 'redo' && redoStack.length > 0) {
-      undoStack.push(document.body.innerHTML);
-      document.body.innerHTML = redoStack.pop();
-      createOverlay(); selected = null; sendState();
+      undoStack.push(getCleanBodyHtml());
+      restoreFromStack(redoStack.pop());
       window.parent.postMessage({ type: 'morse-editor-changes', hasChanges: true, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, '*');
     }
     if (e.data.cmd === 'delete' && selected) {
@@ -282,7 +285,7 @@ const IFRAME_EDITOR_SCRIPT = `
       if (el) selectEl(el);
     }
     if (e.data.cmd === 'getHtml') {
-      if (overlay) overlay.remove();
+      document.querySelectorAll('#__morse_overlay').forEach(function(o){o.remove();});
       document.querySelectorAll('.__morse_handle').forEach(function(h){h.remove();});
       document.querySelectorAll('[contenteditable]').forEach(function(el) { el.removeAttribute('contenteditable'); });
       document.querySelectorAll('[style]').forEach(function(el) {
@@ -291,10 +294,23 @@ const IFRAME_EDITOR_SCRIPT = `
         if (s.minHeight === '1em') s.minHeight = '';
         if (!el.getAttribute('style')) el.removeAttribute('style');
       });
-      var scripts = document.querySelectorAll('script[data-morse-editor]');
-      scripts.forEach(function(s){s.remove();});
+      document.querySelectorAll('script[data-morse-editor]').forEach(function(s){s.remove();});
+      document.querySelectorAll('script').forEach(function(s){
+        var txt = s.textContent || '';
+        if (txt.includes('__safeNav') || txt.includes('Morse safety layer')) s.remove();
+      });
+      document.querySelectorAll('script:not([src]):not([data-morse-editor])').forEach(function(s) {
+        if (s.getAttribute('type') === 'text/morse-deferred') return;
+        var code = s.textContent || '';
+        if (!code.trim()) return;
+        if (/\\.innerHTML\\s*[=+]|\\.appendChild|\\.insertBefore|\\.append\\s*\\(|\\.prepend\\s*\\(|\\.insertAdjacentHTML|document\\.write|\\.createElement/.test(code)) {
+          s.setAttribute('type', 'text/morse-deferred');
+        }
+      });
       var html = '<!DOCTYPE html>' + document.documentElement.outerHTML;
       createOverlay();
+      createResizeHandles();
+      overlay.style.display = 'none';
       window.parent.postMessage({ type: 'morse-editor-html', html: html }, '*');
     }
     if (e.data.cmd === 'updateText' && selected && e.data.text !== undefined) {
@@ -328,7 +344,6 @@ const IFRAME_EDITOR_SCRIPT = `
     }
   });
 
-  // resize handles on overlay
   function createResizeHandles() {
     if (!overlay) return;
     var positions = ['se','e','s'];
@@ -710,6 +725,8 @@ export function CanvasEditor({
     if (!geminiAppHtml || !isElementsMode) return null;
     let html = geminiAppHtml;
     html = html.replace(/<script\s+data-morse-editor[\s\S]*?<\/script>/g, "");
+    html = html.replace(/<script>\s*\/\/\s*Morse safety layer[\s\S]*?<\/script>/g, "");
+    html = html.replace(/<script[^>]*>\s*\(function\(\)\s*\{\s*try\s*\{\s*Object\.defineProperty\(window,\s*['"]__safeNav['"][\s\S]*?<\/script>/g, "");
     if (html.includes("</body>")) {
       return html.replace("</body>", IFRAME_EDITOR_SCRIPT + "\n</body>");
     }

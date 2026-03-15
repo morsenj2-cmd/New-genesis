@@ -1147,6 +1147,8 @@ function cleanHtmlForExport(html: string): string {
   cleaned = cleaned.replace(/<script>\s*\/\/\s*Morse safety layer[\s\S]*?<\/script>/g, "");
   cleaned = cleaned.replace(/<script[^>]*>\s*\(function\(\)\s*\{\s*try\s*\{\s*Object\.defineProperty\(window,\s*['"]__safeNav['"][\s\S]*?<\/script>/g, "");
 
+  cleaned = cleaned.replace(/<script\s[^>]*type\s*=\s*["']text\/morse-deferred["'][^>]*>[\s\S]*?<\/script>/g, "");
+
   cleaned = cleaned.replace(
     /h([1-6])\s*\{[^}]*?max-width\s*:\s*[\d.]+rem[^}]*?\}/g,
     (match: string, level: string) => {
