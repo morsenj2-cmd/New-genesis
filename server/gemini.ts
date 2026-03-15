@@ -165,6 +165,24 @@ function fixOverlappingLayout(html: string): string {
   return html;
 }
 
+function enforceVisualHierarchy(html: string): string {
+  const hierarchyCSS = `
+  /* Morse visual hierarchy enforcement */
+  h1 { font-size: 2.75rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
+  h2 { font-size: 1.85rem; font-weight: 700; line-height: 1.25; }
+  h3 { font-size: 1.35rem; font-weight: 600; line-height: 1.35; }
+  h4 { font-size: 1.1rem; font-weight: 600; }
+  p, li, td, th { font-size: 1rem; line-height: 1.7; }
+  section, [class*="section"] { padding-top: 80px; padding-bottom: 80px; }
+  `;
+
+  if (html.includes("</style>")) {
+    html = html.replace("</style>", `${hierarchyCSS}\n</style>`);
+  }
+
+  return html;
+}
+
 function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): string {
   const bgColor = genome.colors.background;
   const surfaceColor = genome.colors.surface;
@@ -548,19 +566,32 @@ export async function geminiGenerateApp(
     const isVisualProduct = visualTypes.some(t => combinedText.includes(t) || (interpret.productType || "").toLowerCase().includes(t) || (interpret.pageType || "").toLowerCase().includes(t));
     const hasImages = isVisualProduct || combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
 
-    const imageInstruction = `IMAGES: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/{descriptive-keyword}/width/height".
-CRITICAL IMAGE RULES:
-- Every image seed MUST be contextually relevant to "${interpret.productName}" in the "${interpret.industry}" industry.
-- For a car company, use seeds like: seed/sports-car-red/1200/600, seed/luxury-sedan/400/300, seed/car-interior/400/300, seed/racing-track/800/400
-- For a restaurant, use seeds like: seed/gourmet-food/1200/600, seed/restaurant-dining/400/300, seed/chef-cooking/400/300
-- For a museum, use seeds like: seed/art-gallery/1200/600, seed/sculpture/400/300, seed/painting-exhibition/400/300
-- Base prefix: "${imageKeywords}" — combine with domain-specific suffixes for each image context
-- Hero images: seed/${imageKeywords}-hero-main/1200/600 (use wide aspect ratio)
-- Cards/features: seed/${imageKeywords}-feature-1/400/300, seed/${imageKeywords}-feature-2/400/300 (each UNIQUE seed)
-- Team/about: seed/${imageKeywords}-team-portrait/400/400
-- Each image MUST have a COMPLETELY DIFFERENT seed — never repeat seeds
+    const imageInstruction = `IMAGES — CONTEXTUAL RELEVANCE IS CRITICAL:
+Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/{descriptive-keyword}/width/height".
+
+THE PRODUCT IS: "${interpret.productName}" — a ${interpret.productType} in the ${interpret.industry} industry.
+Target audience: ${interpret.targetAudience}.
+
+IMAGE SEED SELECTION RULES (read carefully):
+- The seed keyword DIRECTLY controls what image appears. You MUST choose seeds that describe what a user of "${interpret.productName}" would expect to see.
+- Think: "If I were a ${interpret.targetAudience} visiting ${interpret.productName}, what images would I expect on this website?"
+- HERO IMAGE: Choose a seed that represents the CORE of this product. Examples:
+  * Fintech app → seed/digital-banking-finance/1200/600 or seed/money-management-laptop/1200/600
+  * Restaurant → seed/fine-dining-restaurant-interior/1200/600 or seed/gourmet-food-plating/1200/600
+  * Fitness app → seed/gym-workout-training/1200/600 or seed/running-athlete-outdoor/1200/600
+  * Real estate → seed/modern-house-exterior/1200/600 or seed/luxury-apartment-interior/1200/600
+  * Education → seed/students-classroom-learning/1200/600 or seed/library-books-study/1200/600
+  * Healthcare → seed/medical-doctor-hospital/1200/600 or seed/healthcare-technology/1200/600
+  * E-commerce → seed/online-shopping-products/1200/600 or seed/fashion-clothing-store/1200/600
+- FEATURE/CARD IMAGES: Each must relate to a SPECIFIC feature of ${interpret.productName}:
+  * For each feature (${interpret.features.slice(0, 4).join(", ")}), pick a seed that visually represents THAT feature
+  * Example for a CRM: "Contact Management" → seed/business-contacts-networking, "Sales Pipeline" → seed/sales-chart-growth, "Email Campaigns" → seed/email-marketing-digital
+- ABOUT/TEAM: seed/professional-team-office/400/400 or seed/business-meeting-collaboration/400/400
+- NEVER use generic seeds like: seed/image1, seed/photo, seed/random, seed/placeholder, seed/test, seed/example, seed/picture
+- NEVER use seeds unrelated to the product (e.g., food images for a tech company, nature for a fintech)
+- Each image MUST have a COMPLETELY UNIQUE seed — never repeat the same seed
 - NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com
-${hasImages ? "- This product is VISUAL — include prominent product/hero images throughout with large, high-quality image areas." : ""}`;
+${hasImages ? "- This product is VISUAL — include prominent product/hero images throughout with large, high-quality image areas. Use at least 5 distinct contextual images." : ""}`;
 
     const system = `You are an elite full-stack web developer. You build production-quality, fully functional applications as single self-contained HTML files. You analyze the user's product description and autonomously decide the best architecture, layout, navigation style, data model, and UI patterns. You never build generic templates — every app is unique to the user's domain. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
@@ -625,10 +656,20 @@ HARD RULES (non-negotiable):
 11. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions (with working dismiss). Active state on current nav item.
 12. NO POPUPS OR MODALS ON PAGE LOAD (CRITICAL): The page must load CLEAN with ZERO popups, modals, toasts, notifications, overlays, or dialogs visible. ALL modals must start with display:none or visibility:hidden. ALL toast/notification containers must start empty. The init() function must NOT trigger any showModal(), showToast(), showNotification(), or alert() calls. No element with class "modal", "toast", "notification", "overlay", "popup", or "dialog" should be visible on initial render. Modals and toasts should ONLY appear in response to user clicks — never automatically.
 
+VISUAL HIERARCHY (critical — the design must guide the user's eye):
+- SIZE HIERARCHY: h1 (2.5–3rem, font-weight: 800) > h2 (1.75–2rem, font-weight: 700) > h3 (1.25–1.5rem, font-weight: 600) > body (1rem, font-weight: 400). There must be a CLEAR size difference between each heading level — never make h1 and h2 look the same size.
+- HERO SECTION: The hero h1 must be the LARGEST text on the entire page (min 2.5rem, ideally 3–3.5rem). It must be the first thing the user's eye is drawn to. The subtitle below it should be noticeably smaller (1.1–1.25rem) and use a muted color. The CTA button should be large and prominent (padding: 14px 32px, font-size: 1.1rem).
+- SECTION HEADINGS: Each section's h2 must be clearly larger than the content below it. Add a subtle accent element (e.g., a small colored bar, underline, or badge above the heading) to separate sections visually.
+- SPACING RHYTHM: Use generous whitespace between sections (padding: 80px 0 minimum for major sections). Within sections, use consistent spacing (24px–32px between cards, 16px between text elements). NEVER crowd elements together — whitespace is a feature, not wasted space.
+- VISUAL WEIGHT: Primary CTA buttons should be bold and filled (background: var(--color-primary), large padding). Secondary actions should be outlined or ghost buttons. Links should be subtle. This creates a clear action hierarchy.
+- CARD DESIGN: Cards should have subtle elevation (box-shadow or border), consistent padding (24px), and clear internal hierarchy (image > title > description > action). Card titles should be bold (font-weight: 600) and card descriptions should be muted.
+- COLOR EMPHASIS: Use var(--color-primary) sparingly for emphasis — only on CTAs, active nav items, and key metrics. Use var(--color-accent) for highlights and badges. Overusing the primary color kills hierarchy.
+- CONTENT WIDTH: Hero text should be contained (max-width: 700px for text area) so lines don't stretch too wide. Body content areas should use max-width: 1200px. Narrow content is easier to read.
+
 LAYOUT QUALITY (critical — the design must look professional):
 - Use CSS Grid or Flexbox for ALL layouts. NEVER use position: absolute for layout structure, text placement, or section content. Only use position: absolute for overlays, modals, dropdowns, and tooltips.
 - ZERO OVERLAPPING: No text, heading, button, or content element may visually overlap another. Every element must occupy its own space in the document flow. Hero sections must use flexbox column layout (display: flex; flex-direction: column; align-items: center; justify-content: center;) — NEVER stack elements with position: absolute inside heroes.
-- Consistent spacing: use a spacing scale (8px, 16px, 24px, 32px, 48px, 64px). Sections should have padding: 64px 0 or more.
+- Consistent spacing: use a spacing scale (8px, 16px, 24px, 32px, 48px, 64px, 80px). Sections should have padding: 80px 0 or more.
 - Cards must have equal heights in a row (use grid with auto-rows or flex with stretch). Card grids: use gap: 24px minimum.
 - Hero section: full-width, min-height: 60vh, display: flex, flex-direction: column, align-items: center, justify-content: center. Place heading, subtitle, and CTA in normal flow — never use absolute positioning for hero text.
 - Container max-width: 1200px centered with margin: 0 auto and padding: 0 24px for content areas.
@@ -679,6 +720,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       html = fixOverlappingLayout(html);
       html = ensureNavAtTop(html);
       html = enforceContrastAndBackgrounds(html, genome);
+      html = enforceVisualHierarchy(html);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
 
@@ -758,6 +800,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = fixOverlappingLayout(html);
     html = ensureNavAtTop(html);
     html = enforceContrastAndBackgrounds(html, genome);
+    html = enforceVisualHierarchy(html);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
