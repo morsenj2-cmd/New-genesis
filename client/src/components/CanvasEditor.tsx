@@ -415,8 +415,8 @@ interface CanvasEditorProps {
   contentOverrides: ContentOverrides;
   onContentChange: (overrides: ContentOverrides) => void;
   onLayoutChange: (layout: LayoutGraph) => void;
-  creditsUsed?: number;
-  creditLimit?: number;
+  creditsRemaining?: number;
+  totalCredits?: number;
   userPlan?: string;
   geminiAppHtml?: string | null;
   onSaveHtml?: (html: string) => void;
@@ -683,8 +683,8 @@ export function CanvasEditor({
   contentOverrides,
   onContentChange,
   onLayoutChange,
-  creditsUsed = 0,
-  creditLimit = 500,
+  creditsRemaining = 0,
+  totalCredits = 500,
   userPlan = "free",
   geminiAppHtml,
   onSaveHtml,
@@ -862,10 +862,10 @@ export function CanvasEditor({
                 <div
                   className="h-full rounded-full transition-all duration-300"
                   style={{
-                    width: `${Math.min(100, (creditsUsed / creditLimit) * 100)}%`,
-                    background: creditsUsed >= creditLimit
+                    width: `${Math.min(100, ((totalCredits - creditsRemaining) / totalCredits) * 100)}%`,
+                    background: creditsRemaining <= 0
                       ? "#ef4444"
-                      : creditsUsed >= creditLimit * 0.8
+                      : creditsRemaining <= totalCredits * 0.2
                         ? "#f59e0b"
                         : "hsl(var(--primary))",
                   }}
@@ -873,12 +873,12 @@ export function CanvasEditor({
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className={`text-[10px] font-medium ${
-                  creditsUsed >= creditLimit ? "text-red-400" : "text-muted-foreground"
+                  creditsRemaining <= 0 ? "text-red-400" : "text-muted-foreground"
                 }`}>
-                  {creditLimit - creditsUsed} remaining
+                  {creditsRemaining} remaining
                 </span>
                 <span className="text-[10px] text-muted-foreground">
-                  {creditsUsed}/{creditLimit}
+                  {totalCredits - creditsRemaining}/{totalCredits}
                 </span>
               </div>
             </div>

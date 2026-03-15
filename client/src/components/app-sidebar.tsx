@@ -27,7 +27,7 @@ export function AppSidebar({ onNewProject }: { onNewProject?: () => void } = {})
   const [location, navigate] = useLocation();
   const { isSignedIn, isLoaded, getToken } = useAuth();
 
-  const { data: subscription } = useQuery<{ plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number }>({
+  const { data: subscription } = useQuery<{ plan: string; active: boolean; totalCredits: number; creditsUsed: number; creditsRemaining: number }>({
     queryKey: ["/api/user/subscription"],
     enabled: !!isSignedIn,
     queryFn: async () => {

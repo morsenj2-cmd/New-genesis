@@ -161,7 +161,7 @@ export function UpgradeDialog({ trigger, open: controlledOpen, onOpenChange }: U
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm" data-testid="feature-credits">
                 <Zap className="h-4 w-4 text-yellow-500 shrink-0" />
-                <span>4,000 AI edit credits per project</span>
+                <span>4,000 additional AI credits</span>
               </div>
               <div className="flex items-center gap-2 text-sm" data-testid="feature-export">
                 <Download className="h-4 w-4 text-yellow-500 shrink-0" />

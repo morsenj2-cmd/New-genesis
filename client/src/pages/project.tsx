@@ -859,7 +859,7 @@ function LeftPanel({
   onToggleLayoutLock: () => void;
   onNLApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch | Record<string, string>) => void;
   integrations: IntegrationItem[];
-  subscription?: { plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number; hasExhaustedProject: boolean; perProjectLimit: number };
+  subscription?: { plan: string; active: boolean; totalCredits: number; creditsUsed: number; creditsRemaining: number };
 }) {
   const [showTokens, setShowTokens] = useState(false);
   const isLocked = !!project.layoutLocked;
@@ -903,8 +903,8 @@ function LeftPanel({
         <Separator />
         <NLDesigner
           projectId={project.id}
-          creditsUsed={project.nlCreditsUsed ?? 0}
-          creditLimit={subscription?.perProjectLimit ?? 500}
+          creditsRemaining={subscription?.creditsRemaining ?? 0}
+          totalCredits={subscription?.totalCredits ?? 500}
           userPlan={subscription?.plan ?? "free"}
           onApplied={onNLApplied}
         />
@@ -1113,9 +1113,8 @@ export default function ProjectPage() {
     plan: string;
     active: boolean;
     totalCredits: number;
-    creditsUsedAcrossProjects: number;
-    hasExhaustedProject: boolean;
-    perProjectLimit: number;
+    creditsUsed: number;
+    creditsRemaining: number;
   }>({
     queryKey: ["/api/user/subscription"],
     queryFn: async () => {
@@ -1408,10 +1407,15 @@ export default function ProjectPage() {
           setActiveSeed(data.styleSeed ?? data.project?.styleSeed ?? project.seed);
           setIteration(prev => prev + 1);
           queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+          queryClient.invalidateQueries({ queryKey: ["/api/user/subscription"] });
         }
       } else if (res.status === 429) {
         const errData = await res.json();
-        toast({ title: "Credit limit reached", description: errData.message, variant: "destructive" });
+        if (errData.requiresUpgrade) {
+          setShowExportUpgrade(true);
+        }
+        toast({ title: "Credits exhausted", description: errData.message, variant: "destructive" });
+        queryClient.invalidateQueries({ queryKey: ["/api/user/subscription"] });
       }
     } catch (err) {
       console.error("Style regeneration failed:", err);
@@ -1440,9 +1444,14 @@ export default function ProjectPage() {
         }
         setIteration(prev => prev + 1);
         queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+        queryClient.invalidateQueries({ queryKey: ["/api/user/subscription"] });
       } else if (res.status === 429) {
         const errData = await res.json();
-        toast({ title: "Credit limit reached", description: errData.message, variant: "destructive" });
+        if (errData.requiresUpgrade) {
+          setShowExportUpgrade(true);
+        }
+        toast({ title: "Credits exhausted", description: errData.message, variant: "destructive" });
+        queryClient.invalidateQueries({ queryKey: ["/api/user/subscription"] });
       }
     } catch (err) {
       console.error("Layout regeneration failed:", err);
@@ -1764,8 +1773,8 @@ export default function ProjectPage() {
                     contentOverrides={contentOverrides}
                     onContentChange={setContentOverrides}
                     onLayoutChange={(newLayout) => setActiveLayout(newLayout)}
-                    creditsUsed={project.nlCreditsUsed ?? 0}
-                    creditLimit={subscription?.perProjectLimit ?? 500}
+                    creditsRemaining={subscription?.creditsRemaining ?? 0}
+                    totalCredits={subscription?.totalCredits ?? 500}
                     userPlan={subscription?.plan ?? "free"}
                     geminiAppHtml={safeGeminiHtml}
                     onSaveHtml={(html) => updateHtmlMutation.mutate(html)}

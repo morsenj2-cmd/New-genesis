@@ -17,29 +17,29 @@ export interface NLContentPatch {
 
 interface NLDesignerProps {
   projectId: string;
-  creditsUsed: number;
-  creditLimit: number;
+  creditsRemaining: number;
+  totalCredits: number;
   userPlan: string;
   onApplied: (genome: DesignGenome, layout: LayoutGraph, contentPatch?: NLContentPatch) => void;
 }
 
 
-export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditLimit, userPlan, onApplied }: NLDesignerProps) {
+export function NLDesigner({ projectId, creditsRemaining: initialRemaining, totalCredits: initialTotal, userPlan, onApplied }: NLDesignerProps) {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [command, setCommand] = useState("");
   const [isPending, setIsPending] = useState(false);
-  const [creditsUsed, setCreditsUsed] = useState(initialCreditsUsed);
-  const [currentLimit, setCurrentLimit] = useState(creditLimit);
+  const [creditsRemaining, setCreditsRemaining] = useState(initialRemaining);
+  const [totalCredits, setTotalCredits] = useState(initialTotal);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
-    setCreditsUsed(initialCreditsUsed);
-  }, [initialCreditsUsed]);
+    setCreditsRemaining(initialRemaining);
+  }, [initialRemaining]);
 
   useEffect(() => {
-    setCurrentLimit(creditLimit);
-  }, [creditLimit]);
+    setTotalCredits(initialTotal);
+  }, [initialTotal]);
 
   const [result, setResult] = useState<{
     description: string[];
@@ -47,7 +47,6 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditL
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const creditsRemaining = Math.max(0, currentLimit - creditsUsed);
   const isOutOfCredits = creditsRemaining <= 0;
   const isFree = userPlan === "free";
 
@@ -69,11 +68,11 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditL
       });
       if (!res.ok) {
         const err = await res.json();
-        if (err.creditsUsed !== undefined) {
-          setCreditsUsed(err.creditsUsed);
+        if (err.creditsRemaining !== undefined) {
+          setCreditsRemaining(err.creditsRemaining);
         }
-        if (err.creditsLimit !== undefined) {
-          setCurrentLimit(err.creditsLimit);
+        if (err.totalCredits !== undefined) {
+          setTotalCredits(err.totalCredits);
         }
         if (err.requiresUpgrade) {
           setShowUpgrade(true);
@@ -83,11 +82,11 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditL
       const data = await res.json();
       setResult({ description: data.description, patchCount: data.patchCount });
 
-      if (data.creditsUsed !== undefined) {
-        setCreditsUsed(data.creditsUsed);
+      if (data.creditsRemaining !== undefined) {
+        setCreditsRemaining(data.creditsRemaining);
       }
-      if (data.creditsLimit !== undefined) {
-        setCurrentLimit(data.creditsLimit);
+      if (data.totalCredits !== undefined) {
+        setTotalCredits(data.totalCredits);
       }
 
       if (data.project?.genomeJson && data.project?.layoutJson) {
@@ -97,6 +96,7 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditL
         onApplied(newGenome, newLayout, contentPatch);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/subscription"] });
       setCommand("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -114,29 +114,27 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditL
         <div className="flex items-center gap-1 text-xs" data-testid="text-credits-remaining">
           <Zap className={`h-3 w-3 ${isOutOfCredits ? "text-destructive" : creditsRemaining <= 50 ? "text-yellow-500" : "text-muted-foreground"}`} />
           <span className={isOutOfCredits ? "text-destructive font-medium" : creditsRemaining <= 50 ? "text-yellow-500" : "text-muted-foreground"}>
-            {creditsRemaining}/{currentLimit}
+            {creditsRemaining} credits left
           </span>
         </div>
       </div>
 
       {isOutOfCredits ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-center space-y-2" data-testid="credits-exhausted">
-          <p className="text-xs text-destructive font-medium">Credit limit reached</p>
+          <p className="text-xs text-destructive font-medium">All credits used</p>
           <p className="text-xs text-muted-foreground">
-            You've used all {currentLimit} AI edits for this project.
+            You've used all {totalCredits} credits.
           </p>
-          {isFree && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs h-7 mt-1"
-              onClick={() => setShowUpgrade(true)}
-              data-testid="button-upgrade-from-nl"
-            >
-              <Crown className="h-3 w-3 text-yellow-500" />
-              Upgrade to Morse Black
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs h-7 mt-1"
+            onClick={() => setShowUpgrade(true)}
+            data-testid="button-upgrade-from-nl"
+          >
+            <Crown className="h-3 w-3 text-yellow-500" />
+            {isFree ? "Upgrade to Morse Black" : "Get More Credits"}
+          </Button>
         </div>
       ) : (
         <>
@@ -180,7 +178,7 @@ export function NLDesigner({ projectId, creditsUsed: initialCreditsUsed, creditL
           ))}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
             <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-            <span>AI is rebuilding your app with this change\u2026</span>
+            <span>AI is rebuilding your app with this change…</span>
           </div>
         </div>
       )}

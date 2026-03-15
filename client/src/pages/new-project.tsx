@@ -91,7 +91,7 @@ export default function NewProjectPage() {
 
   const { data: subscription } = useQuery<{
     plan: string;
-    hasExhaustedProject: boolean;
+    creditsRemaining: number;
   }>({
     queryKey: ["/api/user/subscription"],
     queryFn: async () => {
@@ -105,7 +105,7 @@ export default function NewProjectPage() {
     },
   });
 
-  const isBlocked = subscription?.plan === "free" && subscription?.hasExhaustedProject;
+  const isBlocked = subscription !== undefined && subscription.creditsRemaining <= 0;
 
   const [step, setStep] = useState(1);
   const [selectedFont, setSelectedFont] = useState("Arimo");

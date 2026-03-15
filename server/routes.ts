@@ -115,7 +115,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   const MORSE_BLACK_PRICE = 12900;
   const MORSE_BLACK_CREDITS = 4000;
-  const FREE_TIER_PER_PROJECT_CREDITS = 500;
   const TOKENS_PER_CREDIT = 1000;
 
   const razorpayInstance = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
@@ -127,8 +126,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { userId } = getAuth(req);
       const status = await storage.getUserSubscriptionStatus(userId!);
       if (!status) return res.status(404).json({ message: "User not found" });
-      const exhausted = await storage.hasExhaustedCreditsOnAnyProject(userId!);
-      res.json({ ...status, hasExhaustedProject: exhausted, perProjectLimit: status.plan === "morse_black" ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS });
+      res.json(status);
     } catch (err) {
       console.error("Error fetching subscription:", err);
       res.status(500).json({ message: "Failed to fetch subscription status" });
@@ -162,19 +160,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Missing payment verification fields" });
       }
 
-      const existingPayment = await storage.getPaymentByRazorpayId(razorpay_payment_id);
-      if (existingPayment) {
-        console.log("[Payment] Already processed, returning success");
-        const user = await storage.getUser(userId!);
-        return res.json({ success: true, plan: user?.plan || "morse_black", alreadyProcessed: true });
-      }
-
       const expectedSig = createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
       if (expectedSig !== razorpay_signature) {
         console.error("[Payment] Signature mismatch");
         return res.status(400).json({ message: "Payment verification failed" });
+      }
+
+      const existingPayment = await storage.getPaymentByRazorpayId(razorpay_payment_id);
+      if (existingPayment) {
+        console.log("[Payment] Already processed, returning success");
+        const user = await storage.getUser(userId!);
+        return res.json({ success: true, plan: user?.plan || "morse_black", alreadyProcessed: true });
       }
 
       if (razorpayInstance) {
@@ -212,8 +210,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         console.error(`[Payment] upgradeUserPlan returned null for ${userId}`);
         return res.status(404).json({ message: "User not found after payment - please contact support" });
       }
-      console.log(`[Payment] User ${userId} upgraded to morse_black, expires ${expiresAt.toISOString()}`);
-      res.json({ success: true, plan: "morse_black", expiresAt: expiresAt.toISOString(), totalCredits: MORSE_BLACK_CREDITS });
+      console.log(`[Payment] User ${userId} upgraded to morse_black, total credits: ${user.totalCredits}, expires ${expiresAt.toISOString()}`);
+      res.json({ success: true, plan: "morse_black", expiresAt: expiresAt.toISOString(), totalCredits: user.totalCredits, creditsRemaining: user.totalCredits - user.creditsUsed });
     } catch (err) {
       console.error("[Payment] Error verifying payment:", err);
       res.status(500).json({ message: "Payment verification failed" });
@@ -283,12 +281,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { userId } = getAuth(req);
 
       const user = await storage.getUser(userId!);
-      if (user && !isActivePremium(user)) {
-        const exhausted = await storage.hasExhaustedCreditsOnAnyProject(userId!);
-        if (exhausted) {
+      if (user) {
+        const remaining = await storage.getUserCreditsRemaining(userId!);
+        if (remaining <= 0) {
           return res.status(403).json({
-            message: "You've exhausted credits on a project. Upgrade to Morse Black to continue creating projects.",
+            message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
             requiresUpgrade: true,
+            creditsRemaining: 0,
           });
         }
       }
@@ -637,13 +636,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
       const user = await storage.getUser(userId!);
-      const perProjectLimit = user && isActivePremium(user) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
-      const creditsUsed = project.nlCreditsUsed ?? 0;
-      if (creditsUsed >= perProjectLimit) {
+      const creditsRemaining = user ? Math.max(0, user.totalCredits - user.creditsUsed) : 0;
+      if (creditsRemaining <= 0) {
         return res.status(429).json({
-          message: `Credit limit reached. You've used all ${perProjectLimit} AI edits for this project.`,
-          creditsUsed,
-          creditsLimit: perProjectLimit,
+          message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
+          creditsUsed: user?.creditsUsed ?? 0,
+          totalCredits: user?.totalCredits ?? 0,
+          creditsRemaining: 0,
           requiresUpgrade: !(user && isActivePremium(user)),
         });
       }
@@ -781,12 +780,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         (currentSettings as any).geminiStatus = "pending";
       }
 
-      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
-      if (newCreditsUsed === null) {
+      const creditResult = await storage.deductUserCredits(userId!, 1);
+      if (!creditResult) {
         return res.status(429).json({
-          message: `Credit limit reached. You've used all ${perProjectLimit} AI edits for this project.`,
-          creditsUsed: perProjectLimit,
-          creditsLimit: perProjectLimit,
+          message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
+          creditsUsed: user?.creditsUsed ?? 0,
+          totalCredits: user?.totalCredits ?? 0,
+          creditsRemaining: 0,
           requiresUpgrade: !(user && isActivePremium(user)),
         });
       }
@@ -808,8 +808,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         patchCount: totalPatchCount,
         intents,
         contentPatch,
-        creditsUsed: newCreditsUsed,
-        creditsLimit: perProjectLimit,
+        creditsUsed: creditResult.creditsUsed,
+        totalCredits: creditResult.totalCredits,
+        creditsRemaining: creditResult.totalCredits - creditResult.creditsUsed,
       });
 
       // Fire AI edit (or re-generation) async with the NL instruction applied
@@ -863,8 +864,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const tokenCredits = Math.max(0, Math.ceil(totalTokensUsed / TOKENS_PER_CREDIT) - 1);
             if (tokenCredits > 0) {
-              await storage.incrementNlCredits(project.id, userId!, perProjectLimit, tokenCredits);
-              console.log(`[Groq] Deducted ${tokenCredits} additional token credits (${totalTokensUsed} tokens) for project ${project.id}`);
+              await storage.deductUserCredits(userId!, tokenCredits);
+              console.log(`[Groq] Deducted ${tokenCredits} additional token credits (${totalTokensUsed} tokens) for user ${userId}`);
             }
 
             const latestProject = await storage.getProject(project.id);
@@ -928,14 +929,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
       const user = await storage.getUser(userId!);
-      const perProjectLimit = (user && isActivePremium(user)) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
-      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
-      if (newCreditsUsed === null) {
+      const creditsRemaining = user ? Math.max(0, user.totalCredits - user.creditsUsed) : 0;
+      if (creditsRemaining <= 0) {
         return res.status(429).json({
-          message: `Credit limit reached. You've used all ${perProjectLimit} credits for this project.`,
-          creditsUsed: perProjectLimit,
-          creditsLimit: perProjectLimit,
+          message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
+          creditsUsed: user?.creditsUsed ?? 0,
+          totalCredits: user?.totalCredits ?? 0,
+          creditsRemaining: 0,
           requiresUpgrade: !(user && isActivePremium(user)),
+        });
+      }
+      const creditResult = await storage.deductUserCredits(userId!, 1);
+      if (!creditResult) {
+        return res.status(429).json({
+          message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
+          creditsRemaining: 0,
+          requiresUpgrade: true,
         });
       }
 
@@ -1096,7 +1105,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const tokenCredits = Math.max(0, Math.ceil(appResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
             if (tokenCredits > 0) {
-              await storage.incrementNlCredits(project.id, userId!, perProjectLimit, tokenCredits);
+              await storage.deductUserCredits(userId!, tokenCredits);
+              console.log(`[Groq] Deducted ${tokenCredits} additional token credits for user ${userId}`);
             }
 
             const latestProject = await storage.getProject(project.id);
@@ -1138,14 +1148,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (project.layoutLocked) return res.status(400).json({ message: "Layout is locked" });
 
       const user = await storage.getUser(userId!);
-      const perProjectLimit = (user && isActivePremium(user)) ? MORSE_BLACK_CREDITS : FREE_TIER_PER_PROJECT_CREDITS;
-      const newCreditsUsed = await storage.incrementNlCredits(project.id, userId!, perProjectLimit);
-      if (newCreditsUsed === null) {
+      const creditsRemaining = user ? Math.max(0, user.totalCredits - user.creditsUsed) : 0;
+      if (creditsRemaining <= 0) {
         return res.status(429).json({
-          message: `Credit limit reached. You've used all ${perProjectLimit} credits for this project.`,
-          creditsUsed: perProjectLimit,
-          creditsLimit: perProjectLimit,
+          message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
+          creditsUsed: user?.creditsUsed ?? 0,
+          totalCredits: user?.totalCredits ?? 0,
+          creditsRemaining: 0,
           requiresUpgrade: !(user && isActivePremium(user)),
+        });
+      }
+      const creditResult = await storage.deductUserCredits(userId!, 1);
+      if (!creditResult) {
+        return res.status(429).json({
+          message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
+          creditsRemaining: 0,
+          requiresUpgrade: true,
         });
       }
 
@@ -1252,7 +1270,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const tokenCredits = Math.max(0, Math.ceil(appResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
             if (tokenCredits > 0) {
-              await storage.incrementNlCredits(project.id, userId!, perProjectLimit, tokenCredits);
+              await storage.deductUserCredits(userId!, tokenCredits);
+              console.log(`[Groq] Deducted ${tokenCredits} additional token credits for user ${userId}`);
             }
 
             const latestProject = await storage.getProject(project.id);

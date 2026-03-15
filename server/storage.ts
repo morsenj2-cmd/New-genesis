@@ -5,10 +5,10 @@ import { users, projects, promptLogs, contextKnowledge, blogPosts, payments, typ
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: InsertUser): Promise<User>;
-  upgradeUserPlan(id: string, plan: string, expiresAt: Date, totalCredits: number): Promise<User | undefined>;
-  getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number } | undefined>;
-  getTotalCreditsUsedByUser(userId: string): Promise<number>;
-  hasExhaustedCreditsOnAnyProject(userId: string): Promise<boolean>;
+  upgradeUserPlan(id: string, plan: string, expiresAt: Date, creditsToAdd: number): Promise<User | undefined>;
+  getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsed: number; creditsRemaining: number } | undefined>;
+  deductUserCredits(userId: string, amount: number): Promise<{ creditsUsed: number; totalCredits: number } | null>;
+  getUserCreditsRemaining(userId: string): Promise<number>;
   getProject(id: string): Promise<Project | undefined>;
   getProjectsByUser(userId: string): Promise<Project[]>;
   logPrompt(data: InsertPromptLog): Promise<PromptLog>;
@@ -49,7 +49,6 @@ export interface IStorage {
     previousGenomesJson?: string;
     nlCreditsUsed?: number;
   }): Promise<Project | undefined>;
-  incrementNlCredits(id: string, userId: string, limit: number, amount?: number): Promise<number | null>;
   deleteProject(id: string, userId: string): Promise<void>;
   getContextByHash(promptHash: string): Promise<ContextKnowledge | undefined>;
   getContextByDomain(domain: string): Promise<ContextKnowledge[]>;
@@ -72,47 +71,53 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async upgradeUserPlan(id: string, plan: string, expiresAt: Date, totalCredits: number): Promise<User | undefined> {
+  async upgradeUserPlan(id: string, plan: string, expiresAt: Date, creditsToAdd: number): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ plan, planExpiresAt: expiresAt, totalCredits })
+      .set({
+        plan,
+        planExpiresAt: expiresAt,
+        totalCredits: sql`${users.totalCredits} + ${creditsToAdd}`,
+      })
       .where(eq(users.id, id))
       .returning();
     return user;
   }
 
-  async getTotalCreditsUsedByUser(userId: string): Promise<number> {
-    const result = await db
-      .select({ total: sql<number>`COALESCE(SUM(${projects.nlCreditsUsed}), 0)` })
-      .from(projects)
-      .where(eq(projects.userId, userId));
-    return Number(result[0]?.total ?? 0);
+  async deductUserCredits(userId: string, amount: number): Promise<{ creditsUsed: number; totalCredits: number } | null> {
+    const safeAmount = Math.max(1, Math.ceil(amount));
+    const [result] = await db
+      .update(users)
+      .set({ creditsUsed: sql`LEAST(${users.creditsUsed} + ${safeAmount}, ${users.totalCredits})` })
+      .where(
+        and(
+          eq(users.id, userId),
+          sql`${users.creditsUsed} < ${users.totalCredits}`
+        )
+      )
+      .returning({ creditsUsed: users.creditsUsed, totalCredits: users.totalCredits });
+    return result || null;
   }
 
-  async hasExhaustedCreditsOnAnyProject(userId: string): Promise<boolean> {
+  async getUserCreditsRemaining(userId: string): Promise<number> {
     const user = await this.getUser(userId);
-    if (!user) return false;
-    const isPremium = user.plan === "morse_black" && user.planExpiresAt && user.planExpiresAt > new Date();
-    const perProjectLimit = isPremium ? 4000 : 500;
-    const [row] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(projects)
-      .where(and(eq(projects.userId, userId), sql`${projects.nlCreditsUsed} >= ${perProjectLimit}`));
-    return Number(row?.count ?? 0) > 0;
+    if (!user) return 0;
+    return Math.max(0, user.totalCredits - user.creditsUsed);
   }
 
-  async getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsedAcrossProjects: number } | undefined> {
+  async getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsed: number; creditsRemaining: number } | undefined> {
     const user = await this.getUser(id);
     if (!user) return undefined;
-    const creditsUsed = await this.getTotalCreditsUsedByUser(id);
     const isPremiumActive = user.plan === "morse_black" && user.planExpiresAt ? user.planExpiresAt > new Date() : false;
     const isActive = isPremiumActive || user.plan === "free";
     const effectivePlan = isPremiumActive ? "morse_black" : "free";
+    const creditsRemaining = Math.max(0, user.totalCredits - user.creditsUsed);
     return {
       plan: effectivePlan,
       active: isActive,
       totalCredits: user.totalCredits,
-      creditsUsedAcrossProjects: creditsUsed,
+      creditsUsed: user.creditsUsed,
+      creditsRemaining,
     };
   }
 
@@ -169,19 +174,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async incrementNlCredits(id: string, userId: string, limit: number, amount: number = 1): Promise<number | null> {
-    const safeAmount = Math.max(1, Math.ceil(amount));
-    const [result] = await db
-      .update(projects)
-      .set({ nlCreditsUsed: sql`LEAST(${projects.nlCreditsUsed} + ${safeAmount}, ${limit})` })
-      .where(
-        and(
-          eq(projects.id, id),
-          eq(projects.userId, userId),
-          sql`${projects.nlCreditsUsed} < ${limit}`
-        )
-      )
-      .returning({ nlCreditsUsed: projects.nlCreditsUsed });
-    return result ? result.nlCreditsUsed : null;
+    return null;
   }
 
   async deleteProject(id: string, userId: string): Promise<void> {

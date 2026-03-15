@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   plan: text("plan").default("free").notNull(),
   planExpiresAt: timestamp("plan_expires_at"),
   totalCredits: integer("total_credits").default(500).notNull(),
+  creditsUsed: integer("credits_used").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
