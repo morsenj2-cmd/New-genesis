@@ -80,10 +80,28 @@ async function checkProjectAccess(projectId: string, userId: string): Promise<Pr
   if (project.userId === userId) return { allowed: true, project, role: "owner", ownerId: project.userId };
   const collabRole = await storage.getCollaboratorRole(projectId, userId);
   if (collabRole) {
-    console.log(`[Collab] Access granted: userId=${userId}, projectId=${projectId}, role=${collabRole}`);
+    console.log(`[Collab] Access granted (by userId): userId=${userId}, projectId=${projectId}, role=${collabRole}`);
     return { allowed: true, project, role: collabRole as "editor" | "viewer", ownerId: project.userId };
   }
-  console.log(`[Collab] Access denied: userId=${userId}, projectId=${projectId}, ownerId=${project.userId}`);
+
+  const currentUser = await storage.getUser(userId);
+  if (currentUser?.email) {
+    const emailMatch = await storage.getCollaboratorRoleByEmail(projectId, currentUser.email);
+    if (emailMatch) {
+      try {
+        const existingById = await storage.getCollaboratorRole(projectId, userId);
+        if (!existingById) {
+          await storage.fixCollaboratorUserId(emailMatch.id, userId);
+        }
+      } catch (e) {
+        console.error("[Collab] Failed to fix stale collaborator record:", e);
+      }
+      console.log(`[Collab] Access granted (by email fallback): userId=${userId}, email=${currentUser.email}, projectId=${projectId}, role=${emailMatch.role}`);
+      return { allowed: true, project, role: emailMatch.role as "editor" | "viewer", ownerId: project.userId };
+    }
+  }
+
+  console.log(`[Collab] Access denied: userId=${userId}, email=${currentUser?.email}, projectId=${projectId}, ownerId=${project.userId}`);
   return { allowed: false, status: 403, message: "Forbidden" };
 }
 
@@ -159,7 +177,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { userId } = getAuth(req);
       const { email } = req.body;
       if (!email) return res.status(400).json({ message: "Email is required" });
-      const user = await storage.upsertUser({ id: userId!, email });
+
+      const existingUser = await storage.getUser(userId!);
+      const syncEmail = existingUser?.email || email;
+
+      const user = await storage.upsertUser({ id: userId!, email: syncEmail });
       res.json(user);
     } catch (err) {
       console.error("Error syncing user:", err);

@@ -297,6 +297,19 @@ export class DatabaseStorage implements IStorage {
     return collab?.role ?? null;
   }
 
+  async getCollaboratorRoleByEmail(projectId: string, email: string): Promise<{ role: string; id: string } | null> {
+    const [collab] = await db.select().from(projectCollaborators).where(
+      and(eq(projectCollaborators.projectId, projectId), ilike(projectCollaborators.email, email))
+    );
+    return collab ? { role: collab.role, id: collab.id } : null;
+  }
+
+  async fixCollaboratorUserId(collaboratorId: string, newUserId: string): Promise<void> {
+    await db.update(projectCollaborators)
+      .set({ userId: newUserId })
+      .where(eq(projectCollaborators.id, collaboratorId));
+  }
+
   async updateCollaboratorRole(projectId: string, userId: string, role: string): Promise<ProjectCollaborator | undefined> {
     const [updated] = await db.update(projectCollaborators)
       .set({ role })
@@ -306,12 +319,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSharedProjects(userId: string): Promise<(Project & { collaboratorRole: string })[]> {
-    const collabs = await db.select().from(projectCollaborators).where(eq(projectCollaborators.userId, userId));
+    const user = await this.getUser(userId);
+    const collabs = await db.select().from(projectCollaborators).where(
+      user?.email
+        ? or(eq(projectCollaborators.userId, userId), ilike(projectCollaborators.email, user.email))
+        : eq(projectCollaborators.userId, userId)
+    );
     if (collabs.length === 0) return [];
+    const seen = new Set<string>();
     const results: (Project & { collaboratorRole: string })[] = [];
     for (const c of collabs) {
+      if (seen.has(c.projectId)) continue;
+      seen.add(c.projectId);
       const [project] = await db.select().from(projects).where(eq(projects.id, c.projectId));
-      if (project) results.push({ ...project, collaboratorRole: c.role });
+      if (project) {
+        results.push({ ...project, collaboratorRole: c.role });
+        if (c.userId !== userId) {
+          try {
+            const existing = await this.getCollaboratorRole(c.projectId, userId);
+            if (existing) {
+              await db.delete(projectCollaborators).where(eq(projectCollaborators.id, c.id));
+            } else {
+              await this.fixCollaboratorUserId(c.id, userId);
+            }
+          } catch (e) {
+            console.error("[Collab] Failed to fix stale collaborator record:", e);
+          }
+        }
+      }
     }
     return results;
   }

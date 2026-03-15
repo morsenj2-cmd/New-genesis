@@ -103,7 +103,9 @@ Key features:
   - **Frontend hook**: `client/src/hooks/use-collaboration.ts` — WebSocket connection with auto-reconnect, presence state, send helpers
   - **ShareDialog**: `client/src/components/ShareDialog.tsx` — invite by email, role selector (viewer/editor), list members, remove/change role; owner-only controls
   - **Project page**: Share button + presence avatars in header; HTML changes broadcast to collaborators in real-time
-  - **Dashboard**: "Shared with you" section shows projects others have shared with the current user, with role badge
+  - **Dashboard**: Shared projects appear alongside own projects with "Invited" badge
+  - **Email notifications**: Resend integration sends invite emails with project link (requires `RESEND_API_KEY` env var, sends from `noreply@morse.co.in`)
+  - **Email-based access fallback**: `checkProjectAccess` tries userId match first, then email-based lookup (auto-fixes stale userId records)
   - **Limits**: Max 6 collaborators per project; Morse Black required on owner's account to invite
 - **Client-side CSS Sanitizer**: `safeGeminiHtml` useMemo in `project.tsx` applies the same `max-width` → `font-size` heading fix as the server-side `sanitizeGeneratedCss()`, fixing existing stored projects on display
 - NL brand rename fully wired: `/apply-nl` runs unified interpreter → if `change_name` detected, saves `brandName` to `settingsJson`, returns `contentPatch` in response → client updates `contentOverrides.brandName` immediately
