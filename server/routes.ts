@@ -1507,34 +1507,63 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         attempts: uniqueDNA.attempts,
       });
 
-      // Fire AI app regeneration async
+      // Fire AI layout rearrangement async (edit existing HTML, don't regenerate from scratch)
       if (isGeminiAvailable() && updated) {
         const genome = project.genomeJson ? JSON.parse(project.genomeJson) : generateGenome(project.seed);
         const layoutRegenSettings = parseSettings(updated.settingsJson);
-        const existingInterpret = (layoutRegenSettings as any).geminiInterpret || null;
-        const layoutRegenBrand = (layoutRegenSettings as any).brandName || project.name;
-        const layoutRegenIntegrations: Integration[] = (layoutRegenSettings as any).integrations ?? [];
+        const existingHtml = (layoutRegenSettings as any).geminiAppHtml;
 
         (async () => {
           try {
-            console.log(`[Groq] Layout re-generation for project ${project.id}`);
-            const interpret = existingInterpret ?? await geminiInterpret(project.prompt, project.name);
-            if (!interpret) throw new Error("Interpret returned null");
+            if (!existingHtml) {
+              console.log(`[Groq] No existing HTML for layout rearrangement, skipping for project ${project.id}`);
+              const latestProject = await storage.getProject(project.id);
+              if (latestProject) {
+                const latestSettings = parseSettings(latestProject.settingsJson);
+                (latestSettings as any).geminiStatus = "ready";
+                await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
+              }
+              return;
+            }
 
-            const appResult = await geminiGenerateApp(
-              project.prompt,
-              project.name,
+            console.log(`[Groq] Layout rearrangement (edit) for project ${project.id}`);
+            const layoutRegenBrand = (layoutRegenSettings as any).brandName || project.name;
+
+            const editInstruction = `Rearrange the layout of this page. Keep ALL existing content, text, data, features, and functionality exactly the same. Only change the visual arrangement:
+1. Reorder sections into a different but logical sequence
+2. Change card grid layouts (e.g., 3-column to 2-column, or vice versa)
+3. Swap between left-aligned and centered section layouts
+4. Adjust spacing and padding between sections
+5. Keep the navigation bar at the very top of the page
+6. Keep the footer at the very bottom
+7. Do NOT change any text content, colors, fonts, images, or JavaScript functionality
+8. Do NOT remove or add any sections — only rearrange existing ones`;
+
+            const editResult = await geminiEditApp(
+              existingHtml,
+              editInstruction,
               layoutRegenBrand,
               genome,
-              interpret,
-              project.fontUrl,
-              project.logoUrl,
-              null,
-              layoutRegenIntegrations,
             );
-            if (!appResult) throw new Error("App generation returned null");
 
-            const tokenCredits = Math.max(0, Math.ceil(appResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
+            if (!editResult) {
+              console.warn(`[Groq] Layout edit returned null for project ${project.id}, keeping existing HTML`);
+              const latestProject = await storage.getProject(project.id);
+              if (latestProject) {
+                const latestSettings = parseSettings(latestProject.settingsJson);
+                (latestSettings as any).geminiStatus = "ready";
+                await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
+                broadcastToRoom(project.id, {
+                  type: "project-updated",
+                  userId: project.userId,
+                  source: "regenerate-layout-ai",
+                  timestamp: Date.now(),
+                });
+              }
+              return;
+            }
+
+            const tokenCredits = Math.max(0, Math.ceil(editResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
             if (tokenCredits > 0) {
               await storage.deductUserCredits(creditUserId, tokenCredits);
               console.log(`[Groq] Deducted ${tokenCredits} additional token credits for owner ${creditUserId}`);
@@ -1544,8 +1573,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             if (!latestProject) return;
             const latestSettings = parseSettings(latestProject.settingsJson);
             (latestSettings as any).geminiStatus = "ready";
-            (latestSettings as any).geminiAppHtml = appResult.html;
-            (latestSettings as any).geminiInterpret = interpret;
+            (latestSettings as any).geminiAppHtml = editResult.html;
 
             await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(latestSettings),
@@ -1556,9 +1584,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               source: "regenerate-layout-ai",
               timestamp: Date.now(),
             });
-            console.log(`[Groq] Layout re-generation complete for project ${project.id} (${tokenCredits + 1} credits used)`);
+            console.log(`[Groq] Layout rearrangement complete for project ${project.id} (${tokenCredits + 1} credits used)`);
           } catch (err) {
-            console.error(`[Groq] Layout re-generation failed for project ${project.id}:`, err);
+            console.error(`[Groq] Layout rearrangement failed for project ${project.id}:`, err);
             try {
               const latestProject = await storage.getProject(project.id);
               if (latestProject) {

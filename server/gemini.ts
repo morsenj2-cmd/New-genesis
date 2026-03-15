@@ -165,6 +165,31 @@ function fixOverlappingLayout(html: string): string {
   return html;
 }
 
+function ensureNavAtTop(html: string): string {
+  const navMatch = html.match(/(<nav\b[^>]*>[\s\S]*?<\/nav>)/i);
+  if (!navMatch) return html;
+
+  const nav = navMatch[1];
+  const bodyMatch = html.match(/<body[^>]*>/i);
+  if (!bodyMatch) return html;
+
+  const bodyTag = bodyMatch[0];
+  const bodyIndex = html.indexOf(bodyTag);
+  const navIndex = html.indexOf(nav);
+
+  if (navIndex <= bodyIndex + bodyTag.length + 50) return html;
+
+  const heroPattern = /<(?:section|div|header)[^>]*(?:class|id)\s*=\s*"[^"]*hero[^"]*"[^>]*>/i;
+  const heroMatch = html.match(heroPattern);
+
+  if (heroMatch && navIndex > html.indexOf(heroMatch[0])) {
+    html = html.replace(nav, "");
+    html = html.replace(bodyTag, bodyTag + "\n" + nav);
+  }
+
+  return html;
+}
+
 function extractHtml(text: string): string {
   const htmlBlock = text.match(/```html\s*([\s\S]*?)\s*```/);
   if (htmlBlock) return htmlBlock[1].trim();
@@ -509,7 +534,7 @@ LAYOUT QUALITY (critical — the design must look professional):
 - Hero section: full-width, min-height: 60vh, display: flex, flex-direction: column, align-items: center, justify-content: center. Place heading, subtitle, and CTA in normal flow — never use absolute positioning for hero text.
 - Container max-width: 1200px centered with margin: 0 auto and padding: 0 24px for content areas.
 - Section headings: center-aligned with margin-bottom: 48px before content grids.
-- Navigation: sticky top, full-width, with proper padding and clear active state. Brand on left, links on right.
+- Navigation: MUST be the FIRST visible element on the page, ABOVE the hero section. Use position: sticky; top: 0; z-index: 1000; full-width, with proper padding and clear active state. Brand on left, links on right. The nav bar must NEVER appear below the hero or any other content section.
 - No content should ever overflow its container or overlap other elements. If you need a background image on a section, use background-image CSS property on the section itself — do NOT create an absolute-positioned img behind the content.
 - Modals must have proper overlay (fixed, inset 0, semi-transparent background), centered content, and a visible close button.
 
@@ -553,6 +578,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       html = sanitizeGeneratedCss(html);
       html = enforceGenomeColors(html, genome);
       html = fixOverlappingLayout(html);
+      html = ensureNavAtTop(html);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
 
@@ -630,6 +656,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = sanitizeGeneratedCss(html);
     html = enforceGenomeColors(html, genome);
     html = fixOverlappingLayout(html);
+    html = ensureNavAtTop(html);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
