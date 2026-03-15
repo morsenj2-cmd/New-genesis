@@ -32,6 +32,9 @@ import {
   Undo2,
   Redo2,
   Crown,
+  Minus,
+  AArrowUp,
+  AArrowDown,
 } from "lucide-react";
 
 interface IframeSelectedElement {
@@ -42,6 +45,7 @@ interface IframeSelectedElement {
   y: number;
   width: number;
   height: number;
+  fontSize: number;
 }
 
 const IFRAME_EDITOR_SCRIPT = `
@@ -95,6 +99,7 @@ const IFRAME_EDITOR_SCRIPT = `
       return;
     }
     var r = selected.getBoundingClientRect();
+    var cs = window.getComputedStyle(selected);
     window.parent.postMessage({
       type: 'morse-editor-select',
       element: {
@@ -104,7 +109,8 @@ const IFRAME_EDITOR_SCRIPT = `
         x: Math.round(r.left + window.scrollX),
         y: Math.round(r.top + window.scrollY),
         width: Math.round(r.width),
-        height: Math.round(r.height)
+        height: Math.round(r.height),
+        fontSize: Math.round(parseFloat(cs.fontSize) || 16)
       },
       hasChanges: hasChanges
     }, '*');
@@ -287,6 +293,7 @@ const IFRAME_EDITOR_SCRIPT = `
     if (e.data.cmd === 'getHtml') {
       document.querySelectorAll('#__morse_overlay').forEach(function(o){o.remove();});
       document.querySelectorAll('.__morse_handle').forEach(function(h){h.remove();});
+      document.querySelectorAll('#__morse_font_scale').forEach(function(s){s.remove();});
       document.querySelectorAll('[contenteditable]').forEach(function(el) { el.removeAttribute('contenteditable'); });
       document.querySelectorAll('[style]').forEach(function(el) {
         var s = el.style;
@@ -341,6 +348,23 @@ const IFRAME_EDITOR_SCRIPT = `
       selected.style.overflow = 'hidden';
       positionOverlay(selected);
       sendState();
+    }
+    if (e.data.cmd === 'setFontSize' && selected && e.data.value !== undefined) {
+      saveUndo();
+      selected.style.fontSize = e.data.value + 'px';
+      positionOverlay(selected);
+      sendState();
+    }
+    if (e.data.cmd === 'fontScale' && e.data.value !== undefined) {
+      var styleId = '__morse_font_scale';
+      var existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+      if (e.data.value !== 100) {
+        var s = document.createElement('style');
+        s.id = styleId;
+        s.textContent = 'html { font-size: ' + e.data.value + '% !important; }';
+        document.head.appendChild(s);
+      }
     }
   });
 
@@ -734,8 +758,20 @@ export function CanvasEditor({
   const fullWidth = previewWidth + SIDEBAR_WIDTH;
   const previewScale = previewWidth > 0 ? previewWidth / fullWidth : 1;
 
+  const [fontScale, setFontScale] = useState(100);
+
+  const scaledHtml = useMemo(() => {
+    if (!geminiAppHtml || fontScale === 100) return geminiAppHtml;
+    const scaleStyle = `<style id="__morse_font_scale">html { font-size: ${fontScale}% !important; }</style>`;
+    if (geminiAppHtml.includes("</head>")) {
+      return geminiAppHtml.replace("</head>", `${scaleStyle}</head>`);
+    }
+    return scaleStyle + geminiAppHtml;
+  }, [geminiAppHtml, fontScale]);
+
   const iframeEditorRef = useRef<HTMLIFrameElement>(null);
   const [iframeSelectedEl, setIframeSelectedEl] = useState<IframeSelectedElement | null>(null);
+  const [elFontDraft, setElFontDraft] = useState("16");
   const [iframeHasChanges, setIframeHasChanges] = useState(false);
   const [iframeCanUndo, setIframeCanUndo] = useState(false);
   const [iframeCanRedo, setIframeCanRedo] = useState(false);
@@ -754,13 +790,26 @@ export function CanvasEditor({
     return html + IFRAME_EDITOR_SCRIPT;
   }, [geminiAppHtml, isElementsMode]);
 
+  const fontScaleRef = useRef(fontScale);
+  fontScaleRef.current = fontScale;
+
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
       if (!e.data || typeof e.data.type !== "string") return;
       if (iframeEditorRef.current && e.source !== iframeEditorRef.current.contentWindow) return;
+      if (e.data.type === "morse-editor-ready") {
+        if (fontScaleRef.current !== 100) {
+          iframeEditorRef.current?.contentWindow?.postMessage(
+            { source: "morse-editor-cmd", cmd: "fontScale", value: fontScaleRef.current }, "*"
+          );
+        }
+      }
       if (e.data.type === "morse-editor-select") {
         setIframeSelectedEl(e.data.element || null);
-        if (e.data.element) setIframeEditText(e.data.element.text || "");
+        if (e.data.element) {
+          setIframeEditText(e.data.element.text || "");
+          setElFontDraft(String(e.data.element.fontSize || 16));
+        }
         if (e.data.hasChanges !== undefined) setIframeHasChanges(e.data.hasChanges);
       }
       if (e.data.type === "morse-editor-changes") {
@@ -771,6 +820,13 @@ export function CanvasEditor({
       if (e.data.type === "morse-editor-html" && htmlSaveResolve.current) {
         htmlSaveResolve.current(e.data.html);
         htmlSaveResolve.current = null;
+        if (fontScaleRef.current !== 100) {
+          setTimeout(() => {
+            iframeEditorRef.current?.contentWindow?.postMessage(
+              { source: "morse-editor-cmd", cmd: "fontScale", value: fontScaleRef.current }, "*"
+            );
+          }, 50);
+        }
       }
     }
     window.addEventListener("message", handleMessage);
@@ -923,6 +979,65 @@ export function CanvasEditor({
           </div>
         </div>
 
+        {geminiAppHtml && (
+          <div className="px-3 py-2 border-b border-border shrink-0" data-testid="canvas-font-scale">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Font Size</span>
+              <span className="text-[10px] font-medium text-muted-foreground">{fontScale}%</span>
+            </div>
+            <div className="flex items-center gap-1 mt-1.5">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => {
+                  const v = Math.max(50, fontScale - 10);
+                  setFontScale(v);
+                  sendEditorCmd("fontScale", { value: v });
+                }}
+                disabled={fontScale <= 50}
+                title="Decrease font size"
+                data-testid="button-font-decrease"
+              >
+                <AArrowDown className="h-3.5 w-3.5" />
+              </Button>
+              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden relative">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-200"
+                  style={{ width: `${((fontScale - 50) / 100) * 100}%` }}
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => {
+                  const v = Math.min(150, fontScale + 10);
+                  setFontScale(v);
+                  sendEditorCmd("fontScale", { value: v });
+                }}
+                disabled={fontScale >= 150}
+                title="Increase font size"
+                data-testid="button-font-increase"
+              >
+                <AArrowUp className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {fontScale !== 100 && (
+              <button
+                className="text-[10px] text-primary hover:underline mt-1"
+                onClick={() => {
+                  setFontScale(100);
+                  sendEditorCmd("fontScale", { value: 100 });
+                }}
+                data-testid="button-font-reset"
+              >
+                Reset to 100%
+              </button>
+            )}
+          </div>
+        )}
+
         {isElementsMode && geminiAppHtml && (
           <div className="flex flex-col flex-1 min-h-0">
             <div className="px-3 py-2 border-b border-border space-y-2 shrink-0">
@@ -1052,6 +1167,65 @@ export function CanvasEditor({
                       data-testid="button-iframe-shorter"
                     >
                       <ChevronUp className="h-3 w-3" /> Shorter
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase text-muted-foreground block mb-1.5">Element Font Size</span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => {
+                        const v = Math.max(8, iframeSelectedEl.fontSize - 2);
+                        sendEditorCmd("setFontSize", { value: v });
+                        setElFontDraft(String(v));
+                      }}
+                      disabled={iframeSelectedEl.fontSize <= 8}
+                      title="Decrease element font size"
+                      data-testid="button-el-font-decrease"
+                    >
+                      <AArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Input
+                      type="number"
+                      value={elFontDraft}
+                      min={8}
+                      max={200}
+                      step={1}
+                      onChange={e => setElFontDraft(e.target.value)}
+                      onBlur={() => {
+                        const v = Math.min(200, Math.max(8, parseInt(elFontDraft) || iframeSelectedEl.fontSize));
+                        sendEditorCmd("setFontSize", { value: v });
+                        setElFontDraft(String(v));
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          const v = Math.min(200, Math.max(8, parseInt(elFontDraft) || iframeSelectedEl.fontSize));
+                          sendEditorCmd("setFontSize", { value: v });
+                          setElFontDraft(String(v));
+                        }
+                      }}
+                      className="h-7 text-xs text-center flex-1"
+                      data-testid="input-el-font-size"
+                    />
+                    <span className="text-[10px] text-muted-foreground">px</span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => {
+                        const v = Math.min(200, iframeSelectedEl.fontSize + 2);
+                        sendEditorCmd("setFontSize", { value: v });
+                        setElFontDraft(String(v));
+                      }}
+                      disabled={iframeSelectedEl.fontSize >= 200}
+                      title="Increase element font size"
+                      data-testid="button-el-font-increase"
+                    >
+                      <AArrowUp className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -1461,7 +1635,7 @@ export function CanvasEditor({
             }}
           >
             <iframe
-              srcDoc={geminiAppHtml}
+              srcDoc={scaledHtml || geminiAppHtml}
               sandbox="allow-scripts allow-forms allow-popups"
               className="h-full w-full border-0"
               title="AI Generated App"
