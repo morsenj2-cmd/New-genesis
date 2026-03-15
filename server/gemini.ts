@@ -436,9 +436,9 @@ function injectPremiumPolish(html: string, genome: DesignGenome): string {
     transform: translateY(0) scale(0.98);
   }
 
-  /* Gradient primary CTA buttons */
+  /* Gradient primary CTA buttons — primary color dominant */
   .btn-primary, .cta, .cta-btn, .cta-button, .hero button, .hero .btn, section:first-of-type button {
-    background-image: linear-gradient(135deg, var(--color-primary, ${genome.colors.primary}), var(--color-accent, ${genome.colors.accent}));
+    background-image: linear-gradient(135deg, var(--color-primary, ${genome.colors.primary}) 0%, var(--color-primary, ${genome.colors.primary}) 60%, var(--color-accent, ${genome.colors.accent}) 100%);
     border: none;
     color: #fff;
   }
@@ -450,34 +450,18 @@ function injectPremiumPolish(html: string, genome: DesignGenome): string {
     border-color: rgba(${hexToRgbComponents(genome.colors.primary)}, 0.25);
   }
 
-  /* Hero gradient overlay for smooth section transition */
-  .hero::after, section:first-of-type::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 120px;
-    background: linear-gradient(to top, var(--color-bg, ${genome.colors.background}), transparent);
-    pointer-events: none;
-    z-index: 1;
-  }
-  .hero, section:first-of-type {
-    position: relative;
-  }
-
-  /* Gradient text accent for main heading */
+  /* Gradient text accent for main heading — primary dominant */
   h1 {
-    background: linear-gradient(135deg, var(--color-text, #f1f5f9) 60%, var(--color-primary, ${genome.colors.primary}));
+    background: linear-gradient(135deg, var(--color-text, #f1f5f9) 0%, var(--color-text, #f1f5f9) 70%, var(--color-primary, ${genome.colors.primary}) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     color: var(--color-text, #f1f5f9);
   }
 
-  /* Gradient badge/pill styling */
+  /* Gradient badge/pill styling — primary dominant */
   .badge, .tag, .pill {
-    background: linear-gradient(135deg, rgba(${hexToRgbComponents(genome.colors.primary)}, 0.15), rgba(${hexToRgbComponents(genome.colors.accent)}, 0.15));
+    background: linear-gradient(135deg, rgba(${hexToRgbComponents(genome.colors.primary)}, 0.2), rgba(${hexToRgbComponents(genome.colors.primary)}, 0.08));
     border: 1px solid rgba(${hexToRgbComponents(genome.colors.primary)}, 0.25);
   }
 
@@ -487,7 +471,7 @@ function injectPremiumPolish(html: string, genome: DesignGenome): string {
     box-shadow: 0 0 0 3px rgba(${hexToRgbComponents(genome.colors.primary)}, 0.15);
   }
 
-  /* Section divider gradient line */
+  /* Section divider gradient line — primary dominant */
   hr, .divider {
     border: none;
     height: 2px;
@@ -543,6 +527,29 @@ function extractHtml(text: string): string {
   }
   if (start !== -1) return text.slice(start).trim();
   return text.trim();
+}
+
+function fixBrokenSvgIcons(html: string, genome: DesignGenome): string {
+  const svgPattern = /<svg[^>]*>([\s\S]*?)<\/svg>/gi;
+  
+  html = html.replace(svgPattern, (fullMatch, innerContent) => {
+    const trimmed = innerContent.trim();
+    const elementCount = (trimmed.match(/<(?:path|rect|line|polyline|polygon|ellipse|circle|text|use|g)\b/gi) || []).length;
+    
+    if (elementCount <= 1 && trimmed.length < 150) {
+      const isJustCircle = /^\s*<circle[^>]*\/?>\s*$/i.test(trimmed);
+      const isJustEllipse = /^\s*<ellipse[^>]*\/?>\s*$/i.test(trimmed);
+      const isEmpty = trimmed.length === 0;
+      
+      if (isJustCircle || isJustEllipse || isEmpty) {
+        return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--color-primary, ${genome.colors.primary})" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`;
+      }
+    }
+    
+    return fullMatch;
+  });
+  
+  return html;
 }
 
 // Inject safety script into generated HTML to fix navigation, external redirects, etc.
@@ -858,13 +865,15 @@ CRITICAL DESIGN RULES:
 - MODERN TYPOGRAPHY: Hero text clamp(2.5rem, 5vw, 4.5rem), tight letter-spacing (-0.03em), line-height 1.75, weight contrast (headings 800, body 400).
 - COLOR MASTERY: Use provided color tokens with gradients. Hero backgrounds use radial/linear gradients, NOT flat colors. Sections alternate between --color-bg and --color-surface.
 - GRADIENT VARIETY: Gradients should appear in DIFFERENT places across the site — not just as section backgrounds. Use them on:
-  * Button backgrounds (primary→accent diagonal)
+  * Button backgrounds (primary 70% → accent 30%)
   * Text (gradient text on key headings using background-clip:text)
   * Card borders (gradient border using border-image or pseudo-element trick)
   * Icon containers (subtle gradient background behind icons)
   * Decorative elements (gradient lines, accent bars, underlines)
   * Section accent details (gradient top-border on cards, gradient sidebar accents)
+  IMPORTANT: The user's PRIMARY COLOR must be the DOMINANT color in all gradients (at least 60-70% of the gradient). The accent color is a subtle complement, not an equal partner. Do NOT create gradients where the accent overpowers the primary.
   Randomize which elements get gradients — each project should use them differently.
+- SECTION BACKGROUNDS: Hero can use a radial/linear gradient but it must blend SMOOTHLY into the next section. Do NOT create hard color bands between sections. Use the SAME background family (var(--color-bg) or var(--color-surface)) and transition smoothly. If using a gradient hero, end it with var(--color-bg) so the next section flows naturally.
 - DEPTH & DIMENSION: Multi-layered box-shadows (e.g. 0 1px 2px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12), 0 16px 48px rgba(0,0,0,0.08)). Hover states lift elements with shadow bloom.
 - ICONOGRAPHY: Draw CUSTOM inline SVG icons that are SPECIFIC to the product domain — not generic shapes. Every icon must visually represent what it describes. Use varied stroke patterns, not just circles and lines.
 
@@ -999,7 +1008,7 @@ SVG ICONS — DOMAIN-SPECIFIC, NOT GENERIC:
   * "File Management" → draw a folder with document corner
   * "User Profile" → draw a person silhouette with badge
 - SVG format: viewBox="0 0 24 24", width="24", height="24", stroke="var(--color-primary)", stroke-width="1.5", fill="none"
-- Make icons DETAILED — use 3-5 SVG elements per icon minimum. Add small details that make them feel hand-crafted.
+- Make icons DETAILED — use 3-5 SVG elements (paths, lines, rects) per icon minimum. NEVER create an SVG with just a single <circle> or <ellipse> — that looks like a loading spinner, not an icon. Each icon must have recognizable shape detail.
 - Each icon inside a container: width:52px, height:52px, border-radius:14px, background: linear-gradient(135deg, rgba(primary,0.15), rgba(primary,0.05)), display:flex, align-items:center, justify-content:center
 - NEVER reuse the same icon. Each MUST be unique to its feature.
 
@@ -1042,6 +1051,7 @@ OUTPUT REQUIREMENTS: Write 800+ lines minimum. The CSS alone should be 250+ line
       html = enforceVisualHierarchy(html);
       html = enforceStructuralGrids(html);
       html = enforceFontFamily(html, genome);
+      html = fixBrokenSvgIcons(html, genome);
       html = injectPremiumPolish(html, genome);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
@@ -1125,6 +1135,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = enforceVisualHierarchy(html);
     html = enforceStructuralGrids(html);
     html = enforceFontFamily(html, genome);
+    html = fixBrokenSvgIcons(html, genome);
     html = injectPremiumPolish(html, genome);
 
     const lineCount = html.split("\n").length;
