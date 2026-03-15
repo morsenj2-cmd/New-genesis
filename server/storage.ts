@@ -113,7 +113,7 @@ export class DatabaseStorage implements IStorage {
     return Math.max(0, user.totalCredits - user.creditsUsed);
   }
 
-  async getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsed: number; creditsRemaining: number } | undefined> {
+  async getUserSubscriptionStatus(id: string): Promise<{ plan: string; active: boolean; totalCredits: number; creditsUsed: number; creditsRemaining: number; planExpiresAt: string | null } | undefined> {
     const user = await this.getUser(id);
     if (!user) return undefined;
     const isPremiumActive = user.plan === "morse_black" && user.planExpiresAt ? user.planExpiresAt > new Date() : false;
@@ -126,6 +126,7 @@ export class DatabaseStorage implements IStorage {
       totalCredits: user.totalCredits,
       creditsUsed: user.creditsUsed,
       creditsRemaining,
+      planExpiresAt: user.planExpiresAt ? user.planExpiresAt.toISOString() : null,
     };
   }
 
@@ -358,6 +359,40 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(ilike(users.email, email));
+    return user;
+  }
+
+  async getUsersWithExpiringSubscriptions(hoursUntilExpiry: number): Promise<User[]> {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() + hoursUntilExpiry * 60 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + (hoursUntilExpiry + 1) * 60 * 60 * 1000);
+    const result = await db.select().from(users).where(
+      and(
+        eq(users.plan, "morse_black"),
+        sql`${users.planExpiresAt} >= ${windowStart}`,
+        sql`${users.planExpiresAt} < ${windowEnd}`
+      )
+    );
+    return result;
+  }
+
+  async getExpiredPremiumUsers(): Promise<User[]> {
+    const now = new Date();
+    const result = await db.select().from(users).where(
+      and(
+        eq(users.plan, "morse_black"),
+        sql`${users.planExpiresAt} < ${now}`
+      )
+    );
+    return result;
+  }
+
+  async downgradeUserToFree(userId: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ plan: "free", planExpiresAt: null })
+      .where(eq(users.id, userId))
+      .returning();
     return user;
   }
 

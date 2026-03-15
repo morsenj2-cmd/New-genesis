@@ -141,6 +141,99 @@ async function sendCollaborationInviteEmail(
   console.log(`[Collab] Invite email sent to ${toEmail} for project "${projectName}"`);
 }
 
+async function sendSubscriptionExpiryReminder(toEmail: string) {
+  if (!resend) {
+    console.log(`[Subscription] Resend not configured, skipping expiry reminder to ${toEmail}`);
+    return;
+  }
+  await resend.emails.send({
+    from: "Morse <noreply@morse.co.in>",
+    to: toEmail,
+    subject: "Your Morse Black subscription expires tomorrow",
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="font-size: 24px; font-weight: 700; color: #fff; background: #111; padding: 16px 24px; border-radius: 12px; display: inline-block;">Morse</h1>
+        </div>
+        <div style="background: #fafafa; border: 1px solid #e5e5e5; border-radius: 12px; padding: 32px;">
+          <h2 style="margin: 0 0 8px; font-size: 20px; color: #111;">Your Morse Black subscription is ending</h2>
+          <p style="color: #666; margin: 0 0 16px; font-size: 15px;">Your Morse Black subscription will expire <strong>tomorrow</strong>. After expiry, you'll lose access to premium features including:</p>
+          <ul style="color: #666; font-size: 14px; margin: 0 0 24px; padding-left: 20px; line-height: 1.8;">
+            <li>Real-time collaboration</li>
+            <li>Project export</li>
+            <li>Premium AI credits</li>
+            <li>Unlimited project creation</li>
+          </ul>
+          <p style="color: #666; margin: 0 0 24px; font-size: 15px;">Renew now to keep all your premium features and avoid any disruption.</p>
+          <a href="https://morse.co.in/dashboard" style="display: inline-block; background: #111; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">Renew Subscription</a>
+          <p style="color: #999; font-size: 13px; margin: 24px 0 0;">Your existing projects and data will remain safe. You'll just be on the free tier until you renew.</p>
+        </div>
+        <p style="text-align: center; color: #bbb; font-size: 12px; margin-top: 24px;">&copy; Morse. All rights reserved.</p>
+      </div>
+    `,
+  });
+  console.log(`[Subscription] Expiry reminder sent to ${toEmail}`);
+}
+
+async function sendSubscriptionExpiredEmail(toEmail: string) {
+  if (!resend) {
+    console.log(`[Subscription] Resend not configured, skipping expired notification to ${toEmail}`);
+    return;
+  }
+  await resend.emails.send({
+    from: "Morse <noreply@morse.co.in>",
+    to: toEmail,
+    subject: "Your Morse Black subscription has expired",
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="font-size: 24px; font-weight: 700; color: #fff; background: #111; padding: 16px 24px; border-radius: 12px; display: inline-block;">Morse</h1>
+        </div>
+        <div style="background: #fafafa; border: 1px solid #e5e5e5; border-radius: 12px; padding: 32px;">
+          <h2 style="margin: 0 0 8px; font-size: 20px; color: #111;">Your Morse Black subscription has expired</h2>
+          <p style="color: #666; margin: 0 0 16px; font-size: 15px;">Your account has been moved back to the <strong>Free</strong> tier. You can continue using Morse with free features, but premium features are no longer available.</p>
+          <p style="color: #666; margin: 0 0 24px; font-size: 15px;">Renew anytime to get your premium features back instantly.</p>
+          <a href="https://morse.co.in/dashboard" style="display: inline-block; background: #111; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">Renew Now</a>
+        </div>
+        <p style="text-align: center; color: #bbb; font-size: 12px; margin-top: 24px;">&copy; Morse. All rights reserved.</p>
+      </div>
+    `,
+  });
+  console.log(`[Subscription] Expired notification sent to ${toEmail}`);
+}
+
+async function runSubscriptionLifecycleCheck() {
+  try {
+    const expiringUsers = await storage.getUsersWithExpiringSubscriptions(24);
+    for (const user of expiringUsers) {
+      if (user.email) {
+        sendSubscriptionExpiryReminder(user.email).catch((err) => {
+          console.error(`[Subscription] Failed to send reminder to ${user.email}:`, err);
+        });
+      }
+    }
+    if (expiringUsers.length > 0) {
+      console.log(`[Subscription] Sent ${expiringUsers.length} expiry reminder(s)`);
+    }
+
+    const expiredUsers = await storage.getExpiredPremiumUsers();
+    for (const user of expiredUsers) {
+      await storage.downgradeUserToFree(user.id);
+      console.log(`[Subscription] Downgraded user ${user.id} (${user.email}) to free tier`);
+      if (user.email) {
+        sendSubscriptionExpiredEmail(user.email).catch((err) => {
+          console.error(`[Subscription] Failed to send expired notification to ${user.email}:`, err);
+        });
+      }
+    }
+    if (expiredUsers.length > 0) {
+      console.log(`[Subscription] Downgraded ${expiredUsers.length} expired subscription(s)`);
+    }
+  } catch (err) {
+    console.error("[Subscription] Lifecycle check failed:", err);
+  }
+}
+
 const MAX_COLLABORATORS = 6;
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
@@ -149,6 +242,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     retrainModel();
     console.log("[Learning] Retraining complete.");
   });
+
+  runSubscriptionLifecycleCheck();
+  setInterval(runSubscriptionLifecycleCheck, 60 * 60 * 1000);
+  console.log("[Subscription] Lifecycle check scheduler started (runs every hour)");
 
   try {
     const storedLogs = await storage.getRecentPromptLogs(500);

@@ -109,6 +109,11 @@ Key features:
   - **Pending invite linking**: Non-existing users can be invited via email (`pending_{email}` userId placeholder); when user signs up, `/api/user/sync` calls `linkPendingCollaborators()` to convert pending records to real userId
   - **Full real-time sync**: All edit paths broadcast changes — NL design edits, style regeneration, layout regeneration, manual HTML code edits; collaborators receive genome/layout/HTML updates via WebSocket
   - **Collaborator cursors**: Mouse position tracked on preview area (iframe + GenomePreview); cursor overlay renders colored SVG pointer + name label for each remote collaborator; 50ms throttle on cursor sends; cursors auto-removed on user disconnect
+  - **Inline upgrade in ShareDialog**: Non-premium users see Razorpay payment option directly in the share popup — "View Morse Black" expands to show features + pay button
+  - **Subscription lifecycle**: Hourly server-side check handles 30-day billing cycle:
+    - **Day 29 reminder**: Email sent when subscription expires within 24-25 hours (1-hour window prevents duplicates)
+    - **Auto-downgrade**: Expired subscriptions automatically set to free tier (`plan: "free"`, `planExpiresAt: null`); notification email sent
+    - Users keep their projects/data but lose premium features (collaboration, export, extra credits) until they renew
   - **Limits**: Max 6 collaborators per project; Morse Black required on owner's account to invite
 - **Client-side CSS Sanitizer**: `safeGeminiHtml` useMemo in `project.tsx` applies the same `max-width` → `font-size` heading fix as the server-side `sanitizeGeneratedCss()`, fixing existing stored projects on display
 - NL brand rename fully wired: `/apply-nl` runs unified interpreter → if `change_name` detected, saves `brandName` to `settingsJson`, returns `contentPatch` in response → client updates `contentOverrides.brandName` immediately
