@@ -117,17 +117,13 @@ function sanitizeGeneratedCss(html: string): string {
 function fixOverlappingLayout(html: string): string {
   const overlapFixCSS = `
   /* Morse layout safety — prevent overlapping content */
-  section, header, main, footer, nav, .hero, [class*="hero"], [class*="section"], [class*="container"] {
-    position: relative !important;
-    overflow: hidden;
+  section, header, main, footer, .hero, [class*="hero"], [class*="section"] {
+    position: relative;
     clear: both;
   }
-  body > *, main > *, .app > *, #app > *, .container > * {
+  body > *, main > *, .app > *, #app > * {
     position: relative;
     float: none;
-  }
-  h1, h2, h3, h4, h5, h6, p, span, a, button, img {
-    position: relative;
   }
   `;
 
@@ -167,57 +163,43 @@ function fixOverlappingLayout(html: string): string {
 
 function enforceVisualHierarchy(html: string): string {
   const hierarchyCSS = `
-  /* Morse visual hierarchy enforcement */
-  h1 { font-size: clamp(2.5rem, 5vw, 4rem) !important; font-weight: 800 !important; line-height: 1.1 !important; letter-spacing: -0.03em !important; }
-  h2 { font-size: 1.85rem !important; font-weight: 700 !important; line-height: 1.25 !important; }
-  h3 { font-size: 1.35rem !important; font-weight: 600 !important; line-height: 1.35 !important; }
-  h4 { font-size: 1.1rem !important; font-weight: 600 !important; }
+  /* Morse visual hierarchy — minimal overrides, let AI designs breathe */
+  h1 { font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
+  h2 { font-size: 1.85rem; font-weight: 700; line-height: 1.25; }
+  h3 { font-size: 1.35rem; font-weight: 600; line-height: 1.35; }
   p, li, td, th { font-size: 1rem; line-height: 1.7; }
-  section, [class*="section"] { padding-top: 100px !important; padding-bottom: 100px !important; }
+  section, [class*="section"] { padding-top: 80px; padding-bottom: 80px; }
 
-  /* Nav layout enforcement — target only nav element and navbar class */
+  /* Nav layout — structural only */
   nav, .navbar, .nav-bar, .navigation {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    padding: 12px 24px !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    width: 100%;
+    box-sizing: border-box;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
   }
   nav > ul, .navbar > ul, nav > ol, .navbar > ol {
     display: flex !important;
-    gap: 24px !important;
+    gap: 28px !important;
     list-style: none !important;
     margin: 0 !important;
     padding: 0 !important;
     align-items: center !important;
   }
-  nav li, .navbar li {
-    list-style: none !important;
-  }
-  nav li::marker, .navbar li::marker {
-    content: "" !important;
-    display: none !important;
-  }
+  nav li, .navbar li { list-style: none !important; }
+  nav li::marker, .navbar li::marker { content: "" !important; display: none !important; }
 
-  /* Hero section layout enforcement */
+  /* Hero section — generous vertical space */
   .hero, [class*="hero-section"], [class*="hero-banner"], #hero {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
-    min-height: 80vh !important;
-    padding: 80px 24px !important;
-  }
-  .hero h1, [class*="hero-section"] h1, #hero h1 {
-    max-width: 800px !important;
-  }
-  .hero p, [class*="hero-section"] p, #hero p {
-    max-width: 600px !important;
+    min-height: 80vh;
+    padding: 80px 24px;
   }
 
-  /* Feature cards grid enforcement — prevent vertical stacking */
+  /* Feature cards grid — prevent vertical stacking */
   .features, .cards, [class*="card-grid"], [class*="card-list"], [class*="features-grid"], [class*="feature-list"],
   .services, .team, .testimonials, .pricing, [class*="pricing"], [class*="services"], [class*="team-grid"] {
     display: grid !important;
@@ -226,23 +208,7 @@ function enforceVisualHierarchy(html: string): string {
     width: 100% !important;
   }
 
-  /* Individual card styling */
-  .card, .feature-card, .feature-item, .service-card, .pricing-card, .team-card, .testimonial-card {
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 24px !important;
-    border-radius: 12px !important;
-    overflow: hidden !important;
-  }
-  .card img, .feature-card img, .feature-item img {
-    width: 100% !important;
-    max-height: 200px !important;
-    object-fit: cover !important;
-    border-radius: 8px !important;
-    margin-bottom: 16px !important;
-  }
-
-  /* Content container */
+  /* Content container max-width */
   .container, .wrapper, .content-wrapper, main > section > .inner {
     max-width: 1200px;
     margin-left: auto;
@@ -290,11 +256,12 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
     }
   }
 
+  const rgbComponents = hexToRgbComponents(bgColor);
   html = html.replace(
     /(<nav\b[^>]*style="[^"]*?)background(?:-color)?\s*:\s*([^";]+)/gi,
     (match, prefix, color) => {
-      if (color.includes("var(--color-bg)") || color.includes("var(--color-surface)")) return match;
-      return `${prefix}background-color: var(--color-bg, ${bgColor})`;
+      if (color.includes("rgba") || color.includes("backdrop-filter") || color.includes("blur")) return match;
+      return `${prefix}background-color: rgba(${rgbComponents}, 0.85)`;
     }
   );
 
@@ -396,6 +363,79 @@ function enforceStructuralGrids(html: string): string {
       return beforeClose + ' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;"' + close;
     });
   }
+
+  return html;
+}
+
+function enforceFontFamily(html: string, genome: DesignGenome): string {
+  const headingFont = genome.typography?.heading;
+  const bodyFont = genome.typography?.body;
+  if (!headingFont && !bodyFont) return html;
+
+  const families: string[] = [];
+  if (headingFont) families.push(`family=${encodeURIComponent(headingFont)}:wght@400;600;700;800`);
+  if (bodyFont && bodyFont !== headingFont) families.push(`family=${encodeURIComponent(bodyFont)}:wght@400;500;600`);
+  const fontLink = families.length > 0
+    ? `<link href="https://fonts.googleapis.com/css2?${families.join("&")}&display=swap" rel="stylesheet">`
+    : "";
+
+  if (fontLink) {
+    const needsLink = (headingFont && !html.includes(headingFont)) || (bodyFont && !html.includes(bodyFont));
+    if (needsLink) {
+      if (html.includes("</head>")) {
+        html = html.replace("</head>", `${fontLink}\n</head>`);
+      } else if (html.includes("<body")) {
+        html = html.replace("<body", `${fontLink}\n<body`);
+      }
+    }
+  }
+
+  const fontCSS = `
+  /* Morse font enforcement */
+  ${bodyFont ? `body, html, p, span, li, td, th, label, input, textarea, select, button, a { font-family: '${bodyFont}', sans-serif; }` : ""}
+  ${headingFont ? `h1, h2, h3, h4, h5, h6 { font-family: '${headingFont}', sans-serif; }` : ""}
+  `;
+
+  if (html.includes("</style>")) {
+    html = html.replace("</style>", `${fontCSS}\n</style>`);
+  } else if (html.includes("</head>")) {
+    html = html.replace("</head>", `<style>${fontCSS}</style>\n</head>`);
+  }
+
+  return html;
+}
+
+function ensureSvgIcons(html: string, genome: DesignGenome): string {
+  const svgCount = (html.match(/<svg\b/gi) || []).length;
+  if (svgCount >= 3) return html;
+
+  const cardSelectors = ['.feature-card', '.feature-item', '.card', '.service-card', '[class*="feature"]'];
+  let hasCards = false;
+  for (const sel of cardSelectors) {
+    const className = sel.replace(/^\./, '').replace(/\[class\*="/, '').replace(/"\]/, '');
+    if (html.includes(className)) { hasCards = true; break; }
+  }
+  if (!hasCards) return html;
+
+  const defaultIcons = [
+    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
+    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+  ];
+
+  let iconIndex = 0;
+  html = html.replace(
+    /(<(?:div|article)[^>]*class\s*=\s*"[^"]*(?:feature-card|feature-item|card|service-card)[^"]*"[^>]*>)\s*(<h[2-4])/gi,
+    (match, openTag, heading) => {
+      const icon = defaultIcons[iconIndex % defaultIcons.length];
+      iconIndex++;
+      const iconContainer = `<div style="width:48px;height:48px;border-radius:12px;background:rgba(${hexToRgbComponents(genome.colors.primary)},0.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">${icon}</div>`;
+      return `${openTag}${iconContainer}${heading}`;
+    }
+  );
 
   return html;
 }
@@ -923,11 +963,21 @@ CONTRAST & READABILITY (non-negotiable):
 - Buttons: white text on colored backgrounds. Inputs: visible borders and light text.
 - Adjacent sections: use ONLY --color-bg or --color-surface. Never two custom shades that create visible seams.
 
-SVG ICON RULES (instead of images for features/services):
-- Draw simple inline SVG icons: viewBox="0 0 24 24", stroke="currentColor", stroke-width="1.5", fill="none", stroke-linecap="round", stroke-linejoin="round"
-- Common icon shapes: circle + lines for analytics, shield for security, zap/lightning for speed, users for team, lock for privacy, globe for global, code brackets for dev, chart bars for data, etc.
-- Each icon must be UNIQUE and relevant to its feature
-- Place icons inside a styled container: width:48px, height:48px, border-radius:12px, background:rgba(primary, 0.1), display:flex, align-items:center, justify-content:center
+SVG ICON RULES (MANDATORY — this is what makes Morse designs unique):
+- EVERY feature card, service card, and benefit card MUST have an inline SVG icon at the top. This is NON-NEGOTIABLE.
+- Draw simple inline SVG icons: viewBox="0 0 24 24", width="24", height="24", stroke="var(--color-primary)", stroke-width="1.5", fill="none", stroke-linecap="round", stroke-linejoin="round"
+- Use SIMPLE GEOMETRIC SHAPES — do NOT over-complicate. Examples:
+  * Clock/time: <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  * Shield/security: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+  * Lightning/speed: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  * Users/team: <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+  * Globe/worldwide: <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/>
+  * Monitor/tech: <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+  * Chart/analytics: <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+  * Lock/privacy: <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+- Each icon MUST be UNIQUE and relevant to its feature — never repeat the same icon
+- Wrap each icon in: <div style="width:48px;height:48px;border-radius:12px;background:rgba(var(--color-primary-rgb, 99,102,241),0.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+- If you skip SVG icons, the design WILL look incomplete and generic. Include at least 4-6 unique SVG icons.
 
 ${imageInstruction}
 
@@ -967,6 +1017,8 @@ OUTPUT REQUIREMENTS: Write 800+ lines minimum. The CSS alone should be 250+ line
       html = enforceContrastAndBackgrounds(html, genome);
       html = enforceVisualHierarchy(html);
       html = enforceStructuralGrids(html);
+      html = enforceFontFamily(html, genome);
+      html = ensureSvgIcons(html, genome);
       html = injectPremiumPolish(html, genome);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
@@ -1049,6 +1101,8 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = enforceContrastAndBackgrounds(html, genome);
     html = enforceVisualHierarchy(html);
     html = enforceStructuralGrids(html);
+    html = enforceFontFamily(html, genome);
+    html = ensureSvgIcons(html, genome);
     html = injectPremiumPolish(html, genome);
 
     const lineCount = html.split("\n").length;

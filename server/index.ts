@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { setupWebSocket } from "./websocket";
 import { createServer } from "http";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -99,8 +100,16 @@ app.use((req, res, next) => {
       host: "0.0.0.0",
       reusePort: true,
     },
-    () => {
+    async () => {
       log(`serving on port ${port}`);
+      try {
+        const normalized = await storage.normalizeCreditsForFreeUsers();
+        if (normalized > 0) {
+          log(`[Credits] Normalized ${normalized} free users to 80 credits`);
+        }
+      } catch (err) {
+        console.error("[Credits] Failed to normalize credits:", err);
+      }
     },
   );
 })();

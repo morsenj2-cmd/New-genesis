@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, or, ilike } from "drizzle-orm";
+import { eq, and, desc, sql, or, ilike, gt, isNull } from "drizzle-orm";
 import { db } from "./db";
 import { users, projects, promptLogs, contextKnowledge, blogPosts, payments, projectCollaborators, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost, type Payment, type ProjectCollaborator } from "@shared/schema";
 
@@ -128,6 +128,23 @@ export class DatabaseStorage implements IStorage {
       creditsRemaining,
       planExpiresAt: user.planExpiresAt ? user.planExpiresAt.toISOString() : null,
     };
+  }
+
+  async normalizeCreditsForFreeUsers(): Promise<number> {
+    const result = await db
+      .update(users)
+      .set({ totalCredits: 80 })
+      .where(
+        and(
+          gt(users.totalCredits, 80),
+          or(
+            eq(users.plan, "free"),
+            isNull(users.plan)
+          )
+        )
+      )
+      .returning({ id: users.id });
+    return result.length;
   }
 
   async getProject(id: string): Promise<Project | undefined> {
