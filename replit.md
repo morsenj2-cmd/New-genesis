@@ -357,6 +357,12 @@ Safety: `injectSafetyScript()` blocks external navigation, window.open, external
 Images: Always picsum.photos with seeded URLs. Auto-detected visual product types (ecommerce, fashion, restaurant, etc.) get prominent image instructions. NEVER via.placeholder.com, source.unsplash.com, or placehold.co.
 Regeneration: Both `regenerate-style` and `regenerate-layout` routes trigger async AI HTML regeneration.
 
+Post-processors applied in order: `sanitizeGeneratedCss` → `enforceGenomeColors` → `fixOverlappingLayout` → `ensureNavAtTop` → `enforceContrastAndBackgrounds` → `enforceVisualHierarchy` → `enforceStructuralGrids` → `injectSafetyScript`.
+- `enforceVisualHierarchy`: Injects CSS with !important for heading sizes, nav flex layout (nav element + .navbar only), hero centering (.hero, #hero), feature grid containers, and card styling
+- `enforceStructuralGrids`: Scans HTML for container elements with known class names (features, cards, services, pricing-cards, etc.) and injects inline grid styles if no display:grid/flex already present
+- Nav enforcement: Forces flex layout on nav element, removes bullet points from nav lists
+- Grid enforcement: CSS targets .features, .cards, .services, .pricing, .team, .testimonials containers; JS targets 20+ container class name patterns
+
 ### AI System — Local Prototype Network
 
 Morse also includes a locally-run AI model for prompt interpretation — no external API calls needed.

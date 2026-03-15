@@ -168,12 +168,88 @@ function fixOverlappingLayout(html: string): string {
 function enforceVisualHierarchy(html: string): string {
   const hierarchyCSS = `
   /* Morse visual hierarchy enforcement */
-  h1 { font-size: 2.75rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
-  h2 { font-size: 1.85rem; font-weight: 700; line-height: 1.25; }
-  h3 { font-size: 1.35rem; font-weight: 600; line-height: 1.35; }
-  h4 { font-size: 1.1rem; font-weight: 600; }
+  h1 { font-size: 2.75rem !important; font-weight: 800 !important; line-height: 1.15 !important; letter-spacing: -0.02em !important; }
+  h2 { font-size: 1.85rem !important; font-weight: 700 !important; line-height: 1.25 !important; }
+  h3 { font-size: 1.35rem !important; font-weight: 600 !important; line-height: 1.35 !important; }
+  h4 { font-size: 1.1rem !important; font-weight: 600 !important; }
   p, li, td, th { font-size: 1rem; line-height: 1.7; }
-  section, [class*="section"] { padding-top: 80px; padding-bottom: 80px; }
+  section, [class*="section"] { padding-top: 80px !important; padding-bottom: 80px !important; }
+
+  /* Nav layout enforcement — target only nav element and navbar class */
+  nav, .navbar, .nav-bar, .navigation {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 12px 24px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  nav > ul, .navbar > ul, nav > ol, .navbar > ol {
+    display: flex !important;
+    gap: 24px !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
+  }
+  nav li, .navbar li {
+    list-style: none !important;
+  }
+  nav li::marker, .navbar li::marker {
+    content: "" !important;
+    display: none !important;
+  }
+
+  /* Hero section layout enforcement */
+  .hero, [class*="hero-section"], [class*="hero-banner"], #hero {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    min-height: 60vh !important;
+    padding: 80px 24px !important;
+  }
+  .hero h1, [class*="hero-section"] h1, #hero h1 {
+    max-width: 800px !important;
+  }
+  .hero p, [class*="hero-section"] p, #hero p {
+    max-width: 600px !important;
+  }
+
+  /* Feature cards grid enforcement — prevent vertical stacking */
+  .features, .cards, [class*="card-grid"], [class*="card-list"], [class*="features-grid"], [class*="feature-list"],
+  .services, .team, .testimonials, .pricing, [class*="pricing"], [class*="services"], [class*="team-grid"] {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    gap: 24px !important;
+    width: 100% !important;
+  }
+
+  /* Individual card styling */
+  .card, .feature-card, .feature-item, .service-card, .pricing-card, .team-card, .testimonial-card {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 24px !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+  }
+  .card img, .feature-card img, .feature-item img {
+    width: 100% !important;
+    max-height: 200px !important;
+    object-fit: cover !important;
+    border-radius: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Content container */
+  .container, .wrapper, .content-wrapper, main > section > .inner {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
   `;
 
   if (html.includes("</style>")) {
@@ -278,6 +354,36 @@ function ensureNavAtTop(html: string): string {
   if (heroMatch && navIndex > html.indexOf(heroMatch[0])) {
     html = html.replace(nav, "");
     html = html.replace(bodyTag, bodyTag + "\n" + nav);
+  }
+
+  return html;
+}
+
+function enforceStructuralGrids(html: string): string {
+  const containerClassPatterns = [
+    "features", "cards", "services", "pricing-cards", "team-members",
+    "testimonials", "benefits", "advantages", "products", "offerings",
+    "solutions", "capabilities", "feature-grid", "card-grid", "services-grid",
+    "feature-list", "card-list", "feature-container", "cards-container",
+    "features-section", "grid-container", "items-grid", "items-container"
+  ];
+
+  for (const className of containerClassPatterns) {
+    const escapedClass = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(
+      `(<(?:section|div)[^>]*class\\s*=\\s*"[^"]*\\b${escapedClass}\\b[^"]*"[^>]*)(>)`,
+      'gi'
+    );
+    html = html.replace(pattern, (match, beforeClose, close) => {
+      if (/display\s*:\s*(grid|flex)/i.test(match)) return match;
+      if (/style\s*=\s*"/i.test(beforeClose)) {
+        return beforeClose.replace(
+          /style\s*=\s*"/i,
+          'style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;'
+        ) + close;
+      }
+      return beforeClose + ' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;"' + close;
+    });
   }
 
   return html;
@@ -670,11 +776,11 @@ LAYOUT QUALITY (critical — the design must look professional):
 - Use CSS Grid or Flexbox for ALL layouts. NEVER use position: absolute for layout structure, text placement, or section content. Only use position: absolute for overlays, modals, dropdowns, and tooltips.
 - ZERO OVERLAPPING: No text, heading, button, or content element may visually overlap another. Every element must occupy its own space in the document flow. Hero sections must use flexbox column layout (display: flex; flex-direction: column; align-items: center; justify-content: center;) — NEVER stack elements with position: absolute inside heroes.
 - Consistent spacing: use a spacing scale (8px, 16px, 24px, 32px, 48px, 64px, 80px). Sections should have padding: 80px 0 or more.
-- Cards must have equal heights in a row (use grid with auto-rows or flex with stretch). Card grids: use gap: 24px minimum.
+- FEATURE/CARD SECTIONS MUST USE CSS GRID: When displaying multiple items (features, services, products, team members, testimonials), ALWAYS use CSS Grid with display:grid, grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)), gap:24px. NEVER stack cards in a single vertical column — this looks amateur. Minimum 2 columns on desktop, 3 columns preferred for 3+ items. Cards must have equal heights (use grid auto-rows or flex stretch).
 - Hero section: full-width, min-height: 60vh, display: flex, flex-direction: column, align-items: center, justify-content: center. Place heading, subtitle, and CTA in normal flow — never use absolute positioning for hero text.
 - Container max-width: 1200px centered with margin: 0 auto and padding: 0 24px for content areas.
 - Section headings: center-aligned with margin-bottom: 48px before content grids.
-- Navigation: MUST be the FIRST visible element on the page, ABOVE the hero section. Use position: sticky; top: 0; z-index: 1000; full-width, with proper padding and clear active state. Brand on left, links on right. The nav bar must NEVER appear below the hero or any other content section.
+- NAVIGATION STRUCTURE (mandatory): The nav element must use display:flex, align-items:center, justify-content:space-between, padding:12px 24px, position:sticky, top:0, z-index:1000, background:var(--color-bg). Brand/logo goes on the LEFT side. Navigation links go on the RIGHT side in a flex row using a ul with display:flex, gap:24px, list-style:none, margin:0, padding:0. The nav MUST be the FIRST element in the body, ABOVE the hero. NEVER use bullet points — always set list-style:none on nav ul and li. NEVER use ol for nav links.
 - No content should ever overflow its container or overlap other elements. If you need a background image on a section, use background-image CSS property on the section itself — do NOT create an absolute-positioned img behind the content.
 - Modals must have proper overlay (fixed, inset 0, semi-transparent background), centered content, and a visible close button.
 
@@ -721,6 +827,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       html = ensureNavAtTop(html);
       html = enforceContrastAndBackgrounds(html, genome);
       html = enforceVisualHierarchy(html);
+      html = enforceStructuralGrids(html);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
 
@@ -801,6 +908,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = ensureNavAtTop(html);
     html = enforceContrastAndBackgrounds(html, genome);
     html = enforceVisualHierarchy(html);
+    html = enforceStructuralGrids(html);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
