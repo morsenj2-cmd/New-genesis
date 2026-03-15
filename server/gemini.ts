@@ -171,7 +171,7 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
   const primaryColor = genome.colors.primary;
 
   const darkThemeCSS = `
-  /* Morse contrast, hierarchy & background consistency enforcement */
+  /* Morse contrast & readability enforcement (dark theme) */
   body, html {
     color: #f1f5f9;
   }
@@ -190,15 +190,16 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
   `;
 
   const hierarchyCSS = `
-  /* Morse typographic hierarchy & emphasis control */
+  /* Morse typographic hierarchy, emphasis control & spacing grid */
   nav, nav a, nav span, .navbar, .navbar a {
     font-size: 0.875rem;
   }
   h1 { font-size: clamp(2rem, 5vw, 3rem); }
   h2 { font-size: clamp(1.5rem, 3vw, 1.75rem); }
   h3 { font-size: clamp(1.1rem, 2vw, 1.25rem); }
+  body { font-size: 1rem; line-height: 1.7; }
 
-  /* Hero CTA — proportional sizing, not oversized */
+  /* Hero CTA — proportional sizing, single dominant action */
   .hero button, .hero a[class*="btn"], .hero a[class*="button"],
   [class*="hero"] button, [class*="hero"] a[class*="btn"],
   #hero button, #hero a[class*="btn"],
@@ -206,6 +207,59 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
     padding: 12px 28px !important;
     font-size: 1rem !important;
     max-width: 220px;
+  }
+  /* Hide extra hero CTAs — only the first button should be dominant */
+  .hero button ~ button, .hero a[class*="btn"] ~ a[class*="btn"],
+  [class*="hero"] button ~ button, [class*="hero"] a[class*="btn"] ~ a[class*="btn"],
+  #hero button ~ button, #hero a[class*="btn"] ~ a[class*="btn"] {
+    background: transparent !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    color: var(--color-text-muted, #94a3b8) !important;
+    font-size: 0.875rem !important;
+    padding: 8px 20px !important;
+  }
+
+  /* Overlay legibility — ensure overlays on hero images don't reduce contrast */
+  .hero::before, [class*="hero"]::before, #hero::before,
+  .hero .overlay, [class*="hero"] .overlay, #hero .overlay {
+    background: rgba(0,0,0,0.6) !important;
+  }
+
+  /* Hero responsive stability */
+  @media (max-width: 768px) {
+    .hero, [class*="hero"], #hero, section:first-of-type {
+      min-height: 50vh;
+      padding: 48px 16px;
+      text-align: center;
+    }
+    .hero h1, [class*="hero"] h1, #hero h1 {
+      font-size: clamp(1.75rem, 6vw, 2.5rem);
+    }
+    .hero p, [class*="hero"] p, #hero p {
+      font-size: 1rem;
+    }
+  }
+
+  /* Spacing grid enforcement — 8px base */
+  section {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+  .container, [class*="container"] {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  /* Card grid responsive */
+  @media (max-width: 1024px) {
+    .grid, [class*="grid"] {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    }
+  }
+  @media (max-width: 640px) {
+    .grid, [class*="grid"] {
+      grid-template-columns: 1fr !important;
+    }
   }
   `;
 
