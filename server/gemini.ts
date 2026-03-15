@@ -125,6 +125,13 @@ function fixOverlappingLayout(html: string): string {
     position: relative;
     float: none;
   }
+  /* Content fitting — ensure nothing overflows */
+  img, video, svg { max-width: 100%; height: auto; }
+  img { object-fit: cover; display: block; }
+  .card, [class*="card"], .feature, [class*="feature"] { overflow: hidden; }
+  * { box-sizing: border-box; }
+  body { overflow-x: hidden; }
+  section, [class*="section"] { overflow: hidden; }
   `;
 
   html = html.replace(
@@ -829,7 +836,13 @@ IMAGE SEED SELECTION RULES (read carefully):
 - FEATURE/CARD IMAGES: Each must relate to a SPECIFIC feature of ${interpret.productName}:
   * For each feature (${interpret.features.slice(0, 4).join(", ")}), pick a seed that visually represents THAT feature
   * Example for a CRM: "Contact Management" → seed/business-contacts-networking, "Sales Pipeline" → seed/sales-chart-growth, "Email Campaigns" → seed/email-marketing-digital
-- ABOUT/TEAM: seed/professional-team-office/400/400 or seed/business-meeting-collaboration/400/400
+- ABOUT/TEAM: Choose a seed RELEVANT to this product's industry — NOT generic palm trees or stock office photos.
+  * For a tech company → seed/modern-tech-workspace/500/400 or seed/software-engineering-team/500/400
+  * For a restaurant → seed/chef-kitchen-cooking/500/400 or seed/restaurant-staff/500/400
+  * For education → seed/teachers-students-classroom/500/400 or seed/campus-university/500/400
+  * For healthcare → seed/medical-professionals-hospital/500/400
+  * For finance → seed/financial-analysts-office/500/400
+  * ALWAYS include the product's industry keyword in the seed
 - NEVER use generic seeds like: seed/image1, seed/photo, seed/random, seed/placeholder, seed/test, seed/example, seed/picture
 - NEVER use seeds unrelated to the product (e.g., food images for a tech company, nature for a fintech)
 - Each image MUST have a COMPLETELY UNIQUE seed — never repeat the same seed
@@ -844,6 +857,14 @@ CRITICAL DESIGN RULES:
 - VISUAL SOPHISTICATION: Gradient overlays, glassmorphism (backdrop-filter: blur(20px)), layered multi-stop shadows, animated gradient borders, micro-interactions. Never flat or plain.
 - MODERN TYPOGRAPHY: Hero text clamp(2.5rem, 5vw, 4.5rem), tight letter-spacing (-0.03em), line-height 1.75, weight contrast (headings 800, body 400).
 - COLOR MASTERY: Use provided color tokens with gradients. Hero backgrounds use radial/linear gradients, NOT flat colors. Sections alternate between --color-bg and --color-surface.
+- GRADIENT VARIETY: Gradients should appear in DIFFERENT places across the site — not just as section backgrounds. Use them on:
+  * Button backgrounds (primary→accent diagonal)
+  * Text (gradient text on key headings using background-clip:text)
+  * Card borders (gradient border using border-image or pseudo-element trick)
+  * Icon containers (subtle gradient background behind icons)
+  * Decorative elements (gradient lines, accent bars, underlines)
+  * Section accent details (gradient top-border on cards, gradient sidebar accents)
+  Randomize which elements get gradients — each project should use them differently.
 - DEPTH & DIMENSION: Multi-layered box-shadows (e.g. 0 1px 2px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12), 0 16px 48px rgba(0,0,0,0.08)). Hover states lift elements with shadow bloom.
 - ICONOGRAPHY: Draw CUSTOM inline SVG icons that are SPECIFIC to the product domain — not generic shapes. Every icon must visually represent what it describes. Use varied stroke patterns, not just circles and lines.
 
@@ -932,6 +953,20 @@ CONTENT SECTIONS:
 - Each card: background:var(--color-surface), border:1px solid rgba(255,255,255,0.06), border-radius:var(--radius-lg), padding:32px
 - Card hover: translateY(-4px), shadow bloom, border-color change
 - Section padding: 80-120px vertical. Alternate backgrounds between var(--color-bg) and var(--color-surface).
+- ALL ELEMENTS MUST FIT: Never let content overflow its container. Images must have max-width:100%, object-fit:cover. Text must not overflow cards. Cards must fit within their grid. Use overflow:hidden on containers.
+- RICH TEXT CONTENT IS MANDATORY: Each section must have substantial text — not just a title and one sentence.
+  * Feature cards: Title + 2-3 sentences explaining the feature in detail. What does it do? How does it help?
+  * About section: At LEAST 3 paragraphs — (1) Who we are and what we do specific to "${interpret.productName}", (2) Our mission/values related to ${interpret.industry}, (3) Why choose us / what sets us apart. NO GENERIC "We are passionate about helping businesses succeed" — write content SPECIFIC to this product.
+  * CTA sections: Compelling headline + supporting paragraph + clear value proposition.
+  * Footer: Include brief company description, actual feature links, and contact info.
+
+ABOUT SECTION (CRITICAL — READ CAREFULLY):
+- The About section is NOT just a title and one line of text. It needs SUBSTANTIAL content:
+  * Start with a compelling introduction about "${interpret.productName}" and its origin story (make it up, be creative and specific to ${interpret.industry}).
+  * Include 2-3 value propositions specific to what this product does.
+  * Add concrete details: years of experience, number of users served, mission statement, team expertise — all made up but realistic for ${interpret.industry}.
+  * Layout: Use a 2-column layout (text on one side, relevant stats/highlights on the other) or a full-width editorial layout with multiple paragraphs.
+  * Do NOT use a generic stock photo as the only content. The text IS the content.
 
 FOOTER:
 - Full-width, darker background. Multi-column grid (brand, links, contact).
