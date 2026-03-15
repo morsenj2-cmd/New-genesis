@@ -222,7 +222,7 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
     margin-right: auto;
     margin-bottom: 24px;
     font-size: 1.05rem;
-    opacity: 0.85;
+    color: rgba(255,255,255,0.9);
   }
   header + section {
     text-align: center;
@@ -375,6 +375,56 @@ function ensureNavAtTop(html: string): string {
     html = html.replace(nav, "");
     html = html.replace(bodyTag, bodyTag + "\n" + nav);
   }
+
+  return html;
+}
+
+function ensureHeroImage(html: string, imageKeywords: string): string {
+  const heroHasBackgroundImage = /\.hero[^{]*\{[^}]*background-image/i.test(html) ||
+    /#hero[^{]*\{[^}]*background-image/i.test(html) ||
+    /\[class\*="hero"\][^{]*\{[^}]*background-image/i.test(html) ||
+    /class="[^"]*hero[^"]*"[^>]*style="[^"]*background-image/i.test(html) ||
+    /id="hero"[^>]*style="[^"]*background-image/i.test(html) ||
+    /section:first-of-type[^{]*\{[^}]*background-image/i.test(html);
+
+  if (heroHasBackgroundImage) return html;
+
+  const heroImageCSS = `
+  .hero, #hero, [class^="hero-"], [class$="-hero"], header + section {
+    background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.6)), url('https://picsum.photos/seed/${imageKeywords}-hero-bg/1400/800') !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+  }
+  .hero h1, #hero h1, header + section h1,
+  .hero h2, #hero h2, header + section h2,
+  .hero p, #hero p, header + section p,
+  .hero span, #hero span, header + section span {
+    color: #ffffff !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  `;
+
+  if (html.includes("</style>")) {
+    html = html.replace("</style>", `${heroImageCSS}\n</style>`);
+  }
+
+  return html;
+}
+
+function ensureCardImages(html: string, imageKeywords: string): string {
+  const hasCardImages = /<div[^>]*class="[^"]*\bcard\b[^"]*"[^>]*>[\s\S]{0,300}<img/i.test(html);
+  if (hasCardImages) return html;
+
+  let cardIdx = 0;
+  html = html.replace(
+    /(<div[^>]*class="[^"]*\bcard\b[^"]*"[^>]*>)/gi,
+    (match, cardOpen) => {
+      cardIdx++;
+      const img = `<img src="https://picsum.photos/seed/${imageKeywords}-card-${cardIdx}/600/400" alt="" style="width:100%;height:200px;object-fit:cover;display:block;margin-bottom:16px;">`;
+      return `${cardOpen}\n${img}`;
+    }
+  );
 
   return html;
 }
@@ -646,19 +696,31 @@ export async function geminiGenerateApp(
     const isVisualProduct = visualTypes.some(t => combinedText.includes(t) || (interpret.productType || "").toLowerCase().includes(t) || (interpret.pageType || "").toLowerCase().includes(t));
     const hasImages = isVisualProduct || combinedText.includes("picture") || combinedText.includes("photo") || combinedText.includes("image") || combinedText.includes("gallery") || combinedText.includes("banner") || combinedText.includes("hero image");
 
-    const imageInstruction = `IMAGES: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/{descriptive-keyword}/width/height".
-CRITICAL IMAGE RULES:
-- Every image seed MUST be contextually relevant to "${interpret.productName}" in the "${interpret.industry}" industry.
-- For a car company, use seeds like: seed/sports-car-red/1200/600, seed/luxury-sedan/400/300, seed/car-interior/400/300, seed/racing-track/800/400
-- For a restaurant, use seeds like: seed/gourmet-food/1200/600, seed/restaurant-dining/400/300, seed/chef-cooking/400/300
-- For a museum, use seeds like: seed/art-gallery/1200/600, seed/sculpture/400/300, seed/painting-exhibition/400/300
-- Base prefix: "${imageKeywords}" — combine with domain-specific suffixes for each image context
-- Hero images: seed/${imageKeywords}-hero-main/1200/600 (use wide aspect ratio)
-- Cards/features: seed/${imageKeywords}-feature-1/400/300, seed/${imageKeywords}-feature-2/400/300 (each UNIQUE seed)
-- Team/about: seed/${imageKeywords}-team-portrait/400/400
+    const imageInstruction = `IMAGES ARE MANDATORY — every website MUST be visually rich with high-quality images.
+
+IMAGE SOURCE: Use picsum.photos for ALL images. Format: src="https://picsum.photos/seed/{unique-keyword}/width/height"
+- Use UNIQUE descriptive seeds for each image: seed/${imageKeywords}-hero/1400/800, seed/${imageKeywords}-feature1/600/400, seed/${imageKeywords}-about/800/600
 - Each image MUST have a COMPLETELY DIFFERENT seed — never repeat seeds
 - NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com
-${hasImages ? "- This product is VISUAL — include prominent product/hero images throughout with large, high-quality image areas." : ""}`;
+
+MANDATORY IMAGE PLACEMENT (every site MUST include ALL of these):
+1. HERO BACKGROUND IMAGE: The hero section MUST have a full-width background image using CSS:
+   background-image: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('https://picsum.photos/seed/${imageKeywords}-hero/1400/800');
+   background-size: cover; background-position: center; background-repeat: no-repeat;
+   The dark overlay gradient ensures text readability. Hero text must be white (#ffffff) over this image.
+2. FEATURE/CARD IMAGES: Every card in a grid/list MUST include an <img> at the top with:
+   width: 100%; height: 200px; object-fit: cover; border-radius matching card radius;
+   Use different seeds for each card image.
+3. ABOUT/SHOWCASE SECTION: Include at least one large image (width: 100%, max-height: 400px, object-fit: cover) in a non-hero section.
+4. TEAM/TESTIMONIAL IMAGES: If showing people, use circular images (border-radius: 50%; width: 64px; height: 64px; object-fit: cover).
+
+IMAGE STYLING RULES:
+- ALL images must have: object-fit: cover; display: block; width: 100%;
+- Card images: consistent height (180-220px) with object-fit: cover
+- Hero background: ALWAYS use CSS background-image with dark overlay gradient — never an <img> tag for hero backgrounds
+- Section accent images: use border-radius matching the design tokens
+- Add subtle box-shadow to standalone images: box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+${hasImages ? "- This product is HIGHLY VISUAL — use EXTRA LARGE hero images, product galleries, and prominent image areas throughout." : ""}`;
 
     const system = `You are an elite full-stack web developer. You build production-quality, fully functional applications as single self-contained HTML files. You analyze the user's product description and autonomously decide the best architecture, layout, navigation style, data model, and UI patterns. You never build generic templates — every app is unique to the user's domain. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
@@ -734,13 +796,14 @@ LAYOUT QUALITY (critical — the design must look professional):
 - Modals must have proper overlay (fixed, inset 0, semi-transparent background), centered content, and a visible close button.
 
 HERO SECTION DESIGN (the most important part of the page):
+- The hero MUST have a FULL-WIDTH BACKGROUND IMAGE with a dark gradient overlay for text readability. Use CSS background-image property (never an <img> tag for the hero background). Example: background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.6)), url('https://picsum.photos/seed/KEYWORD/1400/800'); background-size: cover; background-position: center;
 - The hero establishes ONE clear focal path: headline → visual/subtext → CTA. Nothing else.
 - Use flexbox column layout (display: flex; flex-direction: column; align-items: center; justify-content: center;). NEVER use absolute positioning for hero text.
-- Full-width, min-height: 60vh.
-- Hero headline: the LARGEST text on the page. Use a clear typographic scale — headline (2.5-3rem) → subheadline (1.1-1.3rem) → CTA button text (1rem). The headline must NOT overpower a central visual asset if one exists.
-- Hero subtext MUST maintain sufficient contrast against the background at ALL viewport sizes. No text should be clipped, overlapped, or fade into gradients/images. If using background images or overlays, ensure overlay opacity keeps text fully legible.
+- Full-width, min-height: 70vh.
+- Hero headline: the LARGEST text on the page. Use a clear typographic scale — headline (2.5-3rem) → subheadline (1.1-1.3rem) → CTA button text (1rem). ALL hero text must be white (#ffffff) to contrast against the background image overlay.
+- Hero subtext MUST maintain sufficient contrast against the background at ALL viewport sizes. No text should be clipped, overlapped, or fade into gradients/images.
 - Only ONE dominant CTA button in the hero. No competing actions, no secondary buttons, no multiple links. The CTA is the single clear action.
-- CTA button: must NOT be overly saturated or visually dominant relative to the rest of the palette. Use the primary color but at appropriate weight — if the design is minimal/calm, use muted tones, reduced opacity, or a subtle variant. Button size must be proportional to surrounding typography (padding: 12px 28px, font-size: 1rem — NOT oversized).
+- CTA button: must NOT be overly saturated or visually dominant relative to the rest of the palette. Use the primary color but at appropriate weight. Button size must be proportional to surrounding typography (padding: 12px 28px, font-size: 1rem — NOT oversized).
 - Brand name in the hero must use correct capitalization. Present but low-intensity — not competing with the headline for attention.
 - Remove or defer ALL non-essential UI elements above the fold. The hero presents one clear message and one action, nothing more.
 
@@ -807,6 +870,8 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       html = fixOverlappingLayout(html);
       html = ensureNavAtTop(html);
       html = enforceContrastAndBackgrounds(html, genome);
+      html = ensureHeroImage(html, imageKeywords);
+      html = ensureCardImages(html, imageKeywords);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
 
@@ -881,11 +946,15 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
       html += "\n</body>\n</html>";
     }
 
+    const editKeywords = brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30);
+
     html = sanitizeGeneratedCss(html);
     html = enforceGenomeColors(html, genome);
     html = fixOverlappingLayout(html);
     html = ensureNavAtTop(html);
     html = enforceContrastAndBackgrounds(html, genome);
+    html = ensureHeroImage(html, editKeywords);
+    html = ensureCardImages(html, editKeywords);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
