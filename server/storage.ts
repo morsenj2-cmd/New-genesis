@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, or } from "drizzle-orm";
+import { eq, and, desc, sql, or, ilike } from "drizzle-orm";
 import { db } from "./db";
 import { users, projects, promptLogs, contextKnowledge, blogPosts, payments, projectCollaborators, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost, type Payment, type ProjectCollaborator } from "@shared/schema";
 
@@ -322,7 +322,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const [user] = await db.select().from(users).where(ilike(users.email, email));
     return user;
   }
 }

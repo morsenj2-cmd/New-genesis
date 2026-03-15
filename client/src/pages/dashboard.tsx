@@ -225,7 +225,7 @@ export default function DashboardPage() {
     navigate("/new");
   }, [navigate]);
 
-  const projectCount = projects?.length ?? 0;
+  const projectCount = (projects?.length ?? 0) + (sharedProjects?.length ?? 0);
 
   return (
     <SidebarProvider>
@@ -331,39 +331,25 @@ export default function DashboardPage() {
               <GuestHero />
             ) : isLoading ? (
               <ProjectGridSkeleton />
-            ) : !projects || projects.length === 0 ? (
+            ) : projectCount === 0 ? (
               <EmptyState />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {projects.map((project) => (
+                {projects?.map((project) => (
                   <ProjectCard key={project.id} project={project} />
                 ))}
-              </div>
-            )}
-
-            {sharedProjects && sharedProjects.length > 0 && (
-              <div className="mt-8" data-testid="shared-projects-section">
-                <div className="flex items-center gap-2 mb-4">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-semibold text-foreground">Shared with you</h2>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {sharedProjects.length}
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sharedProjects.map((project) => (
-                    <div key={project.id} className="relative">
-                      <ProjectCard project={project} />
-                      <Badge
-                        variant="outline"
-                        className="absolute top-2 right-2 text-[10px] capitalize"
-                        data-testid={`badge-role-${project.id}`}
-                      >
-                        {project.collaboratorRole}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
+                {sharedProjects?.map((project) => (
+                  <div key={`shared-${project.id}`} className="relative" data-testid={`shared-project-${project.id}`}>
+                    <ProjectCard project={project} />
+                    <Badge
+                      className="absolute top-2 right-2 text-[10px] bg-violet-600 text-white border-0 pointer-events-none"
+                      data-testid={`badge-invited-${project.id}`}
+                    >
+                      <Users className="h-3 w-3 mr-1" />
+                      Invited
+                    </Badge>
+                  </div>
+                ))}
               </div>
             )}
           </main>

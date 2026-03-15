@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { clerkMiddleware, getAuth } from "@clerk/express";
+import { Resend } from "resend";
 import { createHash, randomUUID, createHmac } from "crypto";
 import archiver from "archiver";
 import Razorpay from "razorpay";
@@ -78,8 +79,48 @@ async function checkProjectAccess(projectId: string, userId: string): Promise<Pr
   if (!project) return { allowed: false, status: 404, message: "Project not found" };
   if (project.userId === userId) return { allowed: true, project, role: "owner", ownerId: project.userId };
   const collabRole = await storage.getCollaboratorRole(projectId, userId);
-  if (collabRole) return { allowed: true, project, role: collabRole as "editor" | "viewer", ownerId: project.userId };
+  if (collabRole) {
+    console.log(`[Collab] Access granted: userId=${userId}, projectId=${projectId}, role=${collabRole}`);
+    return { allowed: true, project, role: collabRole as "editor" | "viewer", ownerId: project.userId };
+  }
+  console.log(`[Collab] Access denied: userId=${userId}, projectId=${projectId}, ownerId=${project.userId}`);
   return { allowed: false, status: 403, message: "Forbidden" };
+}
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+async function sendCollaborationInviteEmail(
+  toEmail: string,
+  projectName: string,
+  projectId: string,
+  role: string,
+  inviterEmail: string,
+) {
+  if (!resend) {
+    console.log(`[Collab] Resend not configured, skipping invite email to ${toEmail}`);
+    return;
+  }
+  const projectUrl = `https://morse.co.in/project/${projectId}`;
+  await resend.emails.send({
+    from: "Morse <noreply@morse.co.in>",
+    to: toEmail,
+    subject: `You've been invited to collaborate on "${projectName}" — Morse`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="font-size: 24px; font-weight: 700; color: #fff; background: #111; padding: 16px 24px; border-radius: 12px; display: inline-block;">Morse</h1>
+        </div>
+        <div style="background: #fafafa; border: 1px solid #e5e5e5; border-radius: 12px; padding: 32px;">
+          <h2 style="margin: 0 0 8px; font-size: 20px; color: #111;">You've been invited to collaborate</h2>
+          <p style="color: #666; margin: 0 0 24px; font-size: 15px;"><strong>${inviterEmail}</strong> has invited you as a <strong style="text-transform: capitalize;">${role}</strong> on the project <strong>"${projectName}"</strong>.</p>
+          <a href="${projectUrl}" style="display: inline-block; background: #111; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">Open Project</a>
+          <p style="color: #999; font-size: 13px; margin: 24px 0 0;">If you don't have a Morse account yet, sign up at <a href="https://morse.co.in" style="color: #666;">morse.co.in</a> with this email address first.</p>
+        </div>
+        <p style="text-align: center; color: #bbb; font-size: 12px; margin-top: 24px;">&copy; Morse. All rights reserved.</p>
+      </div>
+    `,
+  });
+  console.log(`[Collab] Invite email sent to ${toEmail} for project "${projectName}"`);
 }
 
 const MAX_COLLABORATORS = 6;
@@ -1674,7 +1715,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existingRole = await storage.getCollaboratorRole(req.params.id, targetUser.id);
       if (existingRole) return res.status(400).json({ message: "This user is already a collaborator" });
 
+      console.log(`[Collab] Adding collaborator: projectId=${req.params.id}, targetUserId=${targetUser.id}, email=${email}, role=${role}`);
       const collab = await storage.addCollaborator(req.params.id, targetUser.id, email, role, userId!);
+
+      sendCollaborationInviteEmail(email, project.name, req.params.id, role, owner.email).catch((err) => {
+        console.error("[Collab] Failed to send invite email:", err);
+      });
+
       res.json(collab);
     } catch (err) {
       console.error("Error adding collaborator:", err);
