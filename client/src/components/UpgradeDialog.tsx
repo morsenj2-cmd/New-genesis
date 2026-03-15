@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Crown, Zap, Download, Infinity, Loader2, CheckCircle, Shield } from "lucide-react";
+import { Crown, Zap, Download, Infinity, Loader2, CheckCircle, Shield, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 declare global {
@@ -170,6 +170,10 @@ export function UpgradeDialog({ trigger, open: controlledOpen, onOpenChange }: U
               <div className="flex items-center gap-2 text-sm" data-testid="feature-projects">
                 <Infinity className="h-4 w-4 text-yellow-500 shrink-0" />
                 <span>Unlimited project creation</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm" data-testid="feature-collab">
+                <Users className="h-4 w-4 text-yellow-500 shrink-0" />
+                <span>Real-time collaboration (up to 6 people)</span>
               </div>
               <div className="flex items-center gap-2 text-sm" data-testid="feature-support">
                 <Shield className="h-4 w-4 text-yellow-500 shrink-0" />

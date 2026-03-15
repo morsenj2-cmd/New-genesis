@@ -101,6 +101,9 @@ import { NLDesigner } from "@/components/NLDesigner";
 import { UpgradeDialog } from "@/components/UpgradeDialog";
 import { CanvasEditor, type ContentOverrides } from "@/components/CanvasEditor";
 import type { NLContentPatch } from "@/components/NLDesigner";
+import { ShareDialog } from "@/components/ShareDialog";
+import { useCollaboration } from "@/hooks/use-collaboration";
+import { useUser } from "@clerk/react";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -904,7 +907,7 @@ function LeftPanel({
         <NLDesigner
           projectId={project.id}
           creditsRemaining={subscription?.creditsRemaining ?? 0}
-          totalCredits={subscription?.totalCredits ?? 500}
+          totalCredits={subscription?.totalCredits ?? 350}
           userPlan={subscription?.plan ?? "free"}
           onApplied={onNLApplied}
         />
@@ -1090,6 +1093,7 @@ export default function ProjectPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { getToken } = useAuth();
+  const { user: clerkUser } = useUser();
   const { toast } = useToast();
 
   const { data: project, isLoading, error } = useQuery<Project>({
@@ -1126,6 +1130,42 @@ export default function ProjectPage() {
       if (!res.ok) throw new Error("Failed to fetch subscription");
       return res.json();
     },
+  });
+
+  const userRole = (project as any)?._userRole as "owner" | "editor" | "viewer" | undefined;
+  const isOwner = userRole === "owner";
+  const isViewer = userRole === "viewer";
+  const isMorseBlack = subscription?.plan === "morse_black" && subscription?.active;
+
+  const handleRemoteHtmlUpdate = useCallback((html: string, _fromUserId: string) => {
+    setGeminiAppHtml(html);
+  }, []);
+
+  const handleRemoteSettingsUpdate = useCallback((settingsJson: string, _fromUserId: string) => {
+    try {
+      const settings = JSON.parse(settingsJson);
+      if (settings.geminiAppHtml) setGeminiAppHtml(settings.geminiAppHtml);
+      if (settings.geminiStatus) setGeminiStatus(settings.geminiStatus);
+    } catch {}
+  }, []);
+
+  const handleRemoteGenomeUpdate = useCallback((genomeJson: string, layoutJson: string, _fromUserId: string) => {
+    try {
+      if (genomeJson) setActiveGenome(JSON.parse(genomeJson));
+      if (layoutJson) setActiveLayout(JSON.parse(layoutJson));
+      setIteration((i) => i + 1);
+    } catch {}
+  }, []);
+
+  const collaboration = useCollaboration({
+    projectId: params.id || "",
+    userId: clerkUser?.id,
+    email: clerkUser?.primaryEmailAddress?.emailAddress || "",
+    displayName: clerkUser?.firstName || clerkUser?.primaryEmailAddress?.emailAddress?.split("@")[0] || "User",
+    enabled: !!project && !!clerkUser,
+    onHtmlUpdate: handleRemoteHtmlUpdate,
+    onSettingsUpdate: handleRemoteSettingsUpdate,
+    onGenomeUpdate: handleRemoteGenomeUpdate,
   });
 
   useEffect(() => {
@@ -1489,6 +1529,7 @@ export default function ProjectPage() {
       setGeminiAppHtml(html);
       setShowCodeView(false);
       queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+      collaboration.sendHtmlUpdate(html);
       toast({ title: "Code applied", description: "Your changes are now live in the preview." });
     },
     onError: () => {
@@ -1621,12 +1662,36 @@ export default function ProjectPage() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {collaboration.presence.length > 1 && (
+                    <div className="flex items-center -space-x-1.5 mr-1" data-testid="presence-avatars">
+                      {collaboration.presence.filter(p => p.userId !== clerkUser?.id).slice(0, 5).map((p) => (
+                        <div
+                          key={p.userId}
+                          className="h-6 w-6 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-medium text-white"
+                          style={{ backgroundColor: p.color }}
+                          title={`${p.displayName} (online)`}
+                          data-testid={`avatar-${p.userId}`}
+                        >
+                          {p.displayName.charAt(0).toUpperCase()}
+                        </div>
+                      ))}
+                      {collaboration.connected && (
+                        <div className="h-2 w-2 rounded-full bg-green-500 ml-1 shrink-0" title="Connected" />
+                      )}
+                    </div>
+                  )}
+                  <ShareDialog
+                    projectId={params.id || ""}
+                    isOwner={isOwner}
+                    isPremium={!!isMorseBlack}
+                  />
                   <Button
                     variant={canvasMode ? "default" : "outline"}
                     size="sm"
                     className="gap-1.5 text-xs h-8"
                     onClick={() => setCanvasMode(!canvasMode)}
                     data-testid="button-canvas-mode"
+                    disabled={isViewer}
                   >
                     <PenLine className="h-3.5 w-3.5" />
                     {canvasMode ? "Exit Canvas" : "Canvas"}
@@ -1775,7 +1840,7 @@ export default function ProjectPage() {
                     onContentChange={setContentOverrides}
                     onLayoutChange={(newLayout) => setActiveLayout(newLayout)}
                     creditsRemaining={subscription?.creditsRemaining ?? 0}
-                    totalCredits={subscription?.totalCredits ?? 500}
+                    totalCredits={subscription?.totalCredits ?? 350}
                     userPlan={subscription?.plan ?? "free"}
                     geminiAppHtml={safeGeminiHtml}
                     onSaveHtml={(html) => updateHtmlMutation.mutate(html)}

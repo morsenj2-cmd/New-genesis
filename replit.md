@@ -84,8 +84,8 @@ Key features:
 - pageType detection in intent interpreter: `shared/intentInterpreter.ts` detects "landing_page", "web_app", "dashboard", "blog", "ecommerce_store", "social_platform", "portfolio" from free-form prompts
 - Unified NL pipeline: `shared/semanticInterpreter.ts` (Jaro-Winkler fuzzy matching, multi-intent detection via `interpretSemanticMulti()`, compound command splitting on "and"/","), `shared/semanticDictionary.ts` (synonym maps), `shared/patchGenerator.ts` (`generateMultiPatches()` — iterates all intents, generates combined genomePatch + settingsPatch + contentPatch)
 - **Morse Black Subscription** (Razorpay integration):
-  - **Free tier**: 500 credits GLOBAL (shared across all projects); no export
-  - **Morse Black** (₹129/month): +4,000 credits ADDED to existing balance; export enabled; unlimited project creation; 30-day subscription
+  - **Free tier**: 350 credits GLOBAL (shared across all projects); no export
+  - **Morse Black** (₹129/month): +4,000 credits ADDED to existing balance; export enabled; unlimited project creation; real-time collaboration (up to 6 people); 30-day subscription
   - **Global credit system**: Credits tracked at user level (`creditsUsed` column on users table), shared across ALL projects. Using credits on project A reduces available credits for project B.
   - **Credit deduction**: All AI operations (NL edits, Regenerate Style, Regenerate Layout) deduct 1 credit synchronously via `deductUserCredits()`, then `ceil(totalTokens/1000) - 1` additional credits asynchronously after the Groq AI call completes
   - **Payment flow**: `POST /api/payment/create-order` creates Razorpay order → client opens Razorpay Checkout (fresh auth token on callback) → `POST /api/payment/verify` validates HMAC signature → upgrades user plan in DB (additive credits)
@@ -94,6 +94,17 @@ Key features:
   - **Client components**: `UpgradeDialog` (Razorpay checkout flow), upgrade prompts in NLDesigner (credit exhaustion), new-project page (creation blocked), export button (Crown icon for free users)
   - **Subscription status**: `GET /api/user/subscription` returns plan, active status, totalCredits, creditsUsed, creditsRemaining
   - **Morse Black badge**: Shown in sidebar footer and dashboard header when user has active Morse Black subscription
+- **Real-time Collaboration** (Morse Black feature):
+  - **Schema**: `projectCollaborators` table (projectId, userId, email, role: viewer|editor, invitedBy, createdAt)
+  - **Access control**: `checkProjectAccess()` helper in routes — owner has full access, editor can modify, viewer is read-only
+  - **API routes**: `POST/GET/PATCH/DELETE /api/project/:id/collaborators`, `GET /api/project/shared`
+  - **Credits**: All AI operations deduct from the project **owner's** credits, not the collaborator's
+  - **WebSocket server**: `server/websocket.ts` — room-based presence per project, broadcasts cursor-move, html-update, settings-update, genome-update; ping/pong keepalive; auth via userId query param
+  - **Frontend hook**: `client/src/hooks/use-collaboration.ts` — WebSocket connection with auto-reconnect, presence state, send helpers
+  - **ShareDialog**: `client/src/components/ShareDialog.tsx` — invite by email, role selector (viewer/editor), list members, remove/change role; owner-only controls
+  - **Project page**: Share button + presence avatars in header; HTML changes broadcast to collaborators in real-time
+  - **Dashboard**: "Shared with you" section shows projects others have shared with the current user, with role badge
+  - **Limits**: Max 6 collaborators per project; Morse Black required on owner's account to invite
 - **Client-side CSS Sanitizer**: `safeGeminiHtml` useMemo in `project.tsx` applies the same `max-width` → `font-size` heading fix as the server-side `sanitizeGeneratedCss()`, fixing existing stored projects on display
 - NL brand rename fully wired: `/apply-nl` runs unified interpreter → if `change_name` detected, saves `brandName` to `settingsJson`, returns `contentPatch` in response → client updates `contentOverrides.brandName` immediately
 - NL pipeline architecture: single-pass semantic interpreter replaces the legacy dual-pass system; `interpretSemanticMulti()` detects all intents from a single command; `generateMultiPatches()` combines patches; route applies once; legacy `parseNLCommand` in `nlParser.ts` retained but no longer called from routes (only `applyPatchesToGenome` is used)

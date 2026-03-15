@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Hash, Clock, ChevronRight, X, Info, Crown } from "lucide-react";
+import { Plus, Hash, Clock, ChevronRight, X, Info, Crown, Users } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import type { Project } from "@shared/schema";
 import spiralBg from "../assets/spiral-bg.png";
@@ -196,6 +196,20 @@ export default function DashboardPage() {
 
   const isMorseBlack = subscription?.plan === "morse_black" && subscription?.active;
 
+  const { data: sharedProjects } = useQuery<(Project & { collaboratorRole: string })[]>({
+    queryKey: ["/api/project/shared"],
+    enabled: !!isSignedIn,
+    queryFn: async () => {
+      const token = await getToken();
+      const res = await fetch("/api/project/shared", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch shared projects");
+      return res.json();
+    },
+  });
+
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   const handleCreateClick = () => {
@@ -324,6 +338,32 @@ export default function DashboardPage() {
                 {projects.map((project) => (
                   <ProjectCard key={project.id} project={project} />
                 ))}
+              </div>
+            )}
+
+            {sharedProjects && sharedProjects.length > 0 && (
+              <div className="mt-8" data-testid="shared-projects-section">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold text-foreground">Shared with you</h2>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {sharedProjects.length}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sharedProjects.map((project) => (
+                    <div key={project.id} className="relative">
+                      <ProjectCard project={project} />
+                      <Badge
+                        variant="outline"
+                        className="absolute top-2 right-2 text-[10px] capitalize"
+                        data-testid={`badge-role-${project.id}`}
+                      >
+                        {project.collaboratorRole}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </main>

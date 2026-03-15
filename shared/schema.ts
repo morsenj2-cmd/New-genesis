@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, varchar, boolean, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, varchar, boolean, integer, real, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -8,7 +8,7 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   plan: text("plan").default("free").notNull(),
   planExpiresAt: timestamp("plan_expires_at"),
-  totalCredits: integer("total_credits").default(500).notNull(),
+  totalCredits: integer("total_credits").default(350).notNull(),
   creditsUsed: integer("credits_used").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -122,6 +122,25 @@ export const payments = pgTable("payments", {
 });
 
 export type Payment = typeof payments.$inferSelect;
+
+export const projectCollaborators = pgTable("project_collaborators", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("viewer"),
+  invitedBy: text("invited_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("project_collaborator_unique").on(table.projectId, table.userId),
+]);
+
+export const insertCollaboratorSchema = createInsertSchema(projectCollaborators).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCollaborator = z.infer<typeof insertCollaboratorSchema>;
+export type ProjectCollaborator = typeof projectCollaborators.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;

@@ -1,6 +1,6 @@
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, or } from "drizzle-orm";
 import { db } from "./db";
-import { users, projects, promptLogs, contextKnowledge, blogPosts, payments, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost, type Payment } from "@shared/schema";
+import { users, projects, promptLogs, contextKnowledge, blogPosts, payments, projectCollaborators, type User, type InsertUser, type Project, type PromptLog, type InsertPromptLog, type ContextKnowledge, type InsertContextKnowledge, type BlogPost, type InsertBlogPost, type Payment, type ProjectCollaborator } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -54,6 +54,14 @@ export interface IStorage {
   getContextByDomain(domain: string): Promise<ContextKnowledge[]>;
   storeContext(data: InsertContextKnowledge): Promise<ContextKnowledge>;
   incrementContextUsage(id: string): Promise<void>;
+  addCollaborator(projectId: string, userId: string, email: string, role: string, invitedBy: string): Promise<ProjectCollaborator>;
+  removeCollaborator(projectId: string, userId: string): Promise<void>;
+  getCollaborators(projectId: string): Promise<ProjectCollaborator[]>;
+  getCollaboratorRole(projectId: string, userId: string): Promise<string | null>;
+  updateCollaboratorRole(projectId: string, userId: string, role: string): Promise<ProjectCollaborator | undefined>;
+  getSharedProjects(userId: string): Promise<(Project & { collaboratorRole: string })[]>;
+  getCollaboratorCount(projectId: string): Promise<number>;
+  getUserByEmail(email: string): Promise<User | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -259,6 +267,63 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBlogPost(id: string): Promise<void> {
     await db.delete(blogPosts).where(eq(blogPosts.id, id));
+  }
+
+  async addCollaborator(projectId: string, userId: string, email: string, role: string, invitedBy: string): Promise<ProjectCollaborator> {
+    const [collab] = await db.insert(projectCollaborators).values({
+      projectId,
+      userId,
+      email,
+      role,
+      invitedBy,
+    }).returning();
+    return collab;
+  }
+
+  async removeCollaborator(projectId: string, userId: string): Promise<void> {
+    await db.delete(projectCollaborators).where(
+      and(eq(projectCollaborators.projectId, projectId), eq(projectCollaborators.userId, userId))
+    );
+  }
+
+  async getCollaborators(projectId: string): Promise<ProjectCollaborator[]> {
+    return db.select().from(projectCollaborators).where(eq(projectCollaborators.projectId, projectId));
+  }
+
+  async getCollaboratorRole(projectId: string, userId: string): Promise<string | null> {
+    const [collab] = await db.select().from(projectCollaborators).where(
+      and(eq(projectCollaborators.projectId, projectId), eq(projectCollaborators.userId, userId))
+    );
+    return collab?.role ?? null;
+  }
+
+  async updateCollaboratorRole(projectId: string, userId: string, role: string): Promise<ProjectCollaborator | undefined> {
+    const [updated] = await db.update(projectCollaborators)
+      .set({ role })
+      .where(and(eq(projectCollaborators.projectId, projectId), eq(projectCollaborators.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async getSharedProjects(userId: string): Promise<(Project & { collaboratorRole: string })[]> {
+    const collabs = await db.select().from(projectCollaborators).where(eq(projectCollaborators.userId, userId));
+    if (collabs.length === 0) return [];
+    const results: (Project & { collaboratorRole: string })[] = [];
+    for (const c of collabs) {
+      const [project] = await db.select().from(projects).where(eq(projects.id, c.projectId));
+      if (project) results.push({ ...project, collaboratorRole: c.role });
+    }
+    return results;
+  }
+
+  async getCollaboratorCount(projectId: string): Promise<number> {
+    const collabs = await db.select().from(projectCollaborators).where(eq(projectCollaborators.projectId, projectId));
+    return collabs.length;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 }
 

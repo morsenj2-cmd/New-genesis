@@ -71,6 +71,19 @@ function isActivePremium(user: { plan: string; planExpiresAt: Date | null }): bo
   return user.planExpiresAt > new Date();
 }
 
+type ProjectAccess = { allowed: true; project: any; role: "owner" | "editor" | "viewer"; ownerId: string } | { allowed: false; status: number; message: string };
+
+async function checkProjectAccess(projectId: string, userId: string): Promise<ProjectAccess> {
+  const project = await storage.getProject(projectId);
+  if (!project) return { allowed: false, status: 404, message: "Project not found" };
+  if (project.userId === userId) return { allowed: true, project, role: "owner", ownerId: project.userId };
+  const collabRole = await storage.getCollaboratorRole(projectId, userId);
+  if (collabRole) return { allowed: true, project, role: collabRole as "editor" | "viewer", ownerId: project.userId };
+  return { allowed: false, status: 403, message: "Forbidden" };
+}
+
+const MAX_COLLABORATORS = 6;
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   onRetrain(async () => {
     console.log("[Learning] Auto-retraining model with accumulated data...");
@@ -497,7 +510,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             (settings as any).geminiInterpret = interpret;
             if (serverJs) (settings as any).geminiServerJs = serverJs;
 
-            await storage.updateProject(project.id, userId!, {
+            await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(settings),
             });
             console.log(`[Groq] Pipeline complete for project ${project.id}`);
@@ -508,7 +521,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               if (currentProject) {
                 const settings = parseSettings(currentProject.settingsJson);
                 (settings as any).geminiStatus = "failed";
-                await storage.updateProject(project.id, userId!, {
+                await storage.updateProject(project.id, project.userId, {
                   settingsJson: JSON.stringify(settings),
                 });
               }
@@ -528,9 +541,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/:id/generate-app", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
 
       if (!isGeminiAvailable()) {
         return res.status(503).json({ message: "AI API not configured" });
@@ -546,7 +560,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Mark as pending immediately
       const settings = parseSettings(project.settingsJson);
       (settings as any).geminiStatus = "pending";
-      await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
+      await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(settings) });
 
       res.json({ status: "pending", message: "AI generation started" });
 
@@ -582,7 +596,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           (latestSettings as any).geminiInterpret = interpret;
           if (serverJs) (latestSettings as any).geminiServerJs = serverJs;
 
-          await storage.updateProject(project.id, userId!, {
+          await storage.updateProject(project.id, project.userId, {
             settingsJson: JSON.stringify(latestSettings),
           });
           console.log(`[Groq] Regeneration complete for project ${project.id}`);
@@ -593,7 +607,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             if (latestProject) {
               const latestSettings = parseSettings(latestProject.settingsJson);
               (latestSettings as any).geminiStatus = "failed";
-              await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+              await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
             }
           } catch {}
         }
@@ -615,13 +629,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  app.get("/api/project/shared", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const sharedProjects = await storage.getSharedProjects(userId!);
+      res.json(sharedProjects);
+    } catch (err) {
+      console.error("Error listing shared projects:", err);
+      res.status(500).json({ message: "Failed to list shared projects" });
+    }
+  });
+
   app.get("/api/project/:id", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
-      res.json(project);
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      res.json({ ...access.project, _userRole: access.role });
     } catch (err) {
       console.error("Error fetching project:", err);
       res.status(500).json({ message: "Failed to fetch project" });
@@ -631,11 +655,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/:id/apply-nl", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
 
-      const user = await storage.getUser(userId!);
+      const creditUserId = access.ownerId;
+      const user = await storage.getUser(creditUserId);
       const creditsRemaining = user ? Math.max(0, user.totalCredits - user.creditsUsed) : 0;
       if (creditsRemaining <= 0) {
         return res.status(429).json({
@@ -780,7 +806,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         (currentSettings as any).geminiStatus = "pending";
       }
 
-      const creditResult = await storage.deductUserCredits(userId!, 1);
+      const creditResult = await storage.deductUserCredits(creditUserId, 1);
       if (!creditResult) {
         return res.status(429).json({
           message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
@@ -791,7 +817,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         });
       }
 
-      const updated = await storage.updateProject(project.id, userId!, {
+      const updated = await storage.updateProject(project.id, project.userId, {
         genomeJson: JSON.stringify(currentGenome),
         layoutJson: JSON.stringify(currentLayout),
         settingsJson: JSON.stringify(currentSettings),
@@ -864,8 +890,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const tokenCredits = Math.max(0, Math.ceil(totalTokensUsed / TOKENS_PER_CREDIT) - 1);
             if (tokenCredits > 0) {
-              await storage.deductUserCredits(userId!, tokenCredits);
-              console.log(`[Groq] Deducted ${tokenCredits} additional token credits (${totalTokensUsed} tokens) for user ${userId}`);
+              await storage.deductUserCredits(project.userId, tokenCredits);
+              console.log(`[Groq] Deducted ${tokenCredits} additional token credits (${totalTokensUsed} tokens) for owner ${project.userId}`);
             }
 
             const latestProject = await storage.getProject(project.id);
@@ -875,7 +901,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             (latestSettings as any).geminiAppHtml = appHtml;
             if (usedInterpret) (latestSettings as any).geminiInterpret = usedInterpret;
 
-            await storage.updateProject(project.id, userId!, {
+            await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(latestSettings),
             });
             console.log(`[Groq] NL edit complete for project ${project.id}`);
@@ -886,7 +912,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               if (latestProject) {
                 const latestSettings = parseSettings(latestProject.settingsJson);
                 (latestSettings as any).geminiStatus = "failed";
-                await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+                await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
               }
             } catch {}
           }
@@ -924,11 +950,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/:id/regenerate-style", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
 
-      const user = await storage.getUser(userId!);
+      const creditUserId = access.ownerId;
+      const user = await storage.getUser(creditUserId);
       const creditsRemaining = user ? Math.max(0, user.totalCredits - user.creditsUsed) : 0;
       if (creditsRemaining <= 0) {
         return res.status(429).json({
@@ -939,7 +967,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           requiresUpgrade: !(user && isActivePremium(user)),
         });
       }
-      const creditResult = await storage.deductUserCredits(userId!, 1);
+      const creditResult = await storage.deductUserCredits(creditUserId, 1);
       if (!creditResult) {
         return res.status(429).json({
           message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
@@ -1066,7 +1094,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         (currentSettings as any).geminiStatus = "pending";
       }
 
-      const updated = await storage.updateProject(project.id, userId!, {
+      const updated = await storage.updateProject(project.id, project.userId, {
         genomeJson: JSON.stringify(newGenome),
         layoutJson: newLayoutJson ?? project.layoutJson ?? undefined,
         styleSeed: newStyleSeed,
@@ -1105,8 +1133,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const tokenCredits = Math.max(0, Math.ceil(appResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
             if (tokenCredits > 0) {
-              await storage.deductUserCredits(userId!, tokenCredits);
-              console.log(`[Groq] Deducted ${tokenCredits} additional token credits for user ${userId}`);
+              await storage.deductUserCredits(creditUserId, tokenCredits);
+              console.log(`[Groq] Deducted ${tokenCredits} additional token credits for owner ${creditUserId}`);
             }
 
             const latestProject = await storage.getProject(project.id);
@@ -1116,7 +1144,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             (latestSettings as any).geminiAppHtml = appResult.html;
             (latestSettings as any).geminiInterpret = interpret;
 
-            await storage.updateProject(project.id, userId!, {
+            await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(latestSettings),
             });
             console.log(`[Groq] Style re-generation complete for project ${project.id} (${tokenCredits + 1} credits used)`);
@@ -1127,7 +1155,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               if (latestProject) {
                 const latestSettings = parseSettings(latestProject.settingsJson);
                 (latestSettings as any).geminiStatus = "failed";
-                await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+                await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
               }
             } catch {}
           }
@@ -1142,12 +1170,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/:id/regenerate-layout", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
       if (project.layoutLocked) return res.status(400).json({ message: "Layout is locked" });
 
-      const user = await storage.getUser(userId!);
+      const creditUserId = access.ownerId;
+      const user = await storage.getUser(creditUserId);
       const creditsRemaining = user ? Math.max(0, user.totalCredits - user.creditsUsed) : 0;
       if (creditsRemaining <= 0) {
         return res.status(429).json({
@@ -1158,7 +1188,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           requiresUpgrade: !(user && isActivePremium(user)),
         });
       }
-      const creditResult = await storage.deductUserCredits(userId!, 1);
+      const creditResult = await storage.deductUserCredits(creditUserId, 1);
       if (!creditResult) {
         return res.status(429).json({
           message: "You've used all your credits. Upgrade to Morse Black to get more credits.",
@@ -1229,7 +1259,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         (currentSettings as any).geminiStatus = "pending";
       }
 
-      const updated = await storage.updateProject(project.id, userId!, {
+      const updated = await storage.updateProject(project.id, project.userId, {
         layoutJson: JSON.stringify(layout),
         settingsJson: JSON.stringify(currentSettings),
       });
@@ -1270,8 +1300,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
             const tokenCredits = Math.max(0, Math.ceil(appResult.tokensUsed / TOKENS_PER_CREDIT) - 1);
             if (tokenCredits > 0) {
-              await storage.deductUserCredits(userId!, tokenCredits);
-              console.log(`[Groq] Deducted ${tokenCredits} additional token credits for user ${userId}`);
+              await storage.deductUserCredits(creditUserId, tokenCredits);
+              console.log(`[Groq] Deducted ${tokenCredits} additional token credits for owner ${creditUserId}`);
             }
 
             const latestProject = await storage.getProject(project.id);
@@ -1281,7 +1311,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             (latestSettings as any).geminiAppHtml = appResult.html;
             (latestSettings as any).geminiInterpret = interpret;
 
-            await storage.updateProject(project.id, userId!, {
+            await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(latestSettings),
             });
             console.log(`[Groq] Layout re-generation complete for project ${project.id} (${tokenCredits + 1} credits used)`);
@@ -1292,7 +1322,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               if (latestProject) {
                 const latestSettings = parseSettings(latestProject.settingsJson);
                 (latestSettings as any).geminiStatus = "failed";
-                await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(latestSettings) });
+                await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
               }
             } catch {}
           }
@@ -1307,12 +1337,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/project/:id/layout-lock", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
       const { locked } = req.body;
       if (typeof locked !== "boolean") return res.status(400).json({ message: "locked boolean required" });
-      const updated = await storage.updateProject(project.id, userId!, { layoutLocked: locked });
+      const updated = await storage.updateProject(project.id, project.userId, { layoutLocked: locked });
       res.json(updated);
     } catch (err) {
       console.error("Error toggling layout lock:", err);
@@ -1323,9 +1354,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/:id/correct-context", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
 
       const { correction } = req.body;
       if (!correction || typeof correction !== "string") {
@@ -1362,7 +1394,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         contextLock: newContextLock,
       };
 
-      const updated = await storage.updateProject(project.id, userId!, {
+      const updated = await storage.updateProject(project.id, project.userId, {
         settingsJson: JSON.stringify(newSettings),
         productType: updatedCtx.productType ?? project.productType ?? undefined,
       });
@@ -1382,14 +1414,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/:id/integrations", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
       const { integrations } = req.body as { integrations: Integration[] };
       if (!Array.isArray(integrations)) return res.status(400).json({ message: "integrations must be an array" });
       const settings = parseSettings(project.settingsJson);
       (settings as any).integrations = integrations;
-      await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
+      await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(settings) });
       res.json({ ok: true });
     } catch (err) {
       console.error("Error saving integrations:", err);
@@ -1400,15 +1433,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/project/:id/update-html", requireAuth, async (req, res) => {
     try {
       const { userId } = getAuth(req);
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.role === "viewer") return res.status(403).json({ message: "Viewers cannot edit" });
+      const project = access.project;
       const { html } = req.body as { html: string };
       if (typeof html !== "string") return res.status(400).json({ message: "html must be a string" });
       const settings = parseSettings(project.settingsJson);
       (settings as any).geminiAppHtml = html;
       (settings as any).geminiStatus = "ready";
-      await storage.updateProject(project.id, userId!, { settingsJson: JSON.stringify(settings) });
+      await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(settings) });
       res.json({ ok: true });
     } catch (err) {
       console.error("Error updating HTML:", err);
@@ -1421,7 +1455,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { userId } = getAuth(req);
       const project = await storage.getProject(req.params.id);
       if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Only the owner can delete a project" });
       await storage.deleteProject(req.params.id, userId!);
       res.json({ message: "Project deleted" });
     } catch (err) {
@@ -1434,17 +1468,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { userId } = getAuth(req);
 
-      const user = await storage.getUser(userId!);
-      if (!user || !isActivePremium(user)) {
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      const project = access.project;
+
+      const owner = await storage.getUser(access.ownerId);
+      if (!owner || !isActivePremium(owner)) {
         return res.status(403).json({
           message: "Export is available exclusively for Morse Black subscribers.",
           requiresUpgrade: true,
         });
       }
-
-      const project = await storage.getProject(req.params.id);
-      if (!project) return res.status(404).json({ message: "Project not found" });
-      if (project.userId !== userId) return res.status(403).json({ message: "Forbidden" });
 
       const genome = project.genomeJson
         ? JSON.parse(project.genomeJson)
@@ -1592,6 +1626,93 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     } catch (err) {
       res.status(500).json({ message: "Failed to lookup contexts" });
+    }
+  });
+
+  app.get("/api/project/:id/collaborators", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const access = await checkProjectAccess(req.params.id, userId!);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      const collaborators = await storage.getCollaborators(req.params.id);
+      const owner = await storage.getUser(access.ownerId);
+      res.json({
+        owner: owner ? { userId: owner.id, email: owner.email, role: "owner" } : null,
+        collaborators,
+        maxCollaborators: MAX_COLLABORATORS,
+      });
+    } catch (err) {
+      console.error("Error listing collaborators:", err);
+      res.status(500).json({ message: "Failed to list collaborators" });
+    }
+  });
+
+  app.post("/api/project/:id/collaborators", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Only the project owner can invite collaborators" });
+
+      const owner = await storage.getUser(userId!);
+      if (!owner || !isActivePremium(owner)) {
+        return res.status(403).json({ message: "Collaboration is a Morse Black feature. Upgrade to invite collaborators.", requiresUpgrade: true });
+      }
+
+      const { email, role } = req.body;
+      if (!email || typeof email !== "string") return res.status(400).json({ message: "Email is required" });
+      if (!role || !["viewer", "editor"].includes(role)) return res.status(400).json({ message: "Role must be 'viewer' or 'editor'" });
+
+      if (email === owner.email) return res.status(400).json({ message: "You cannot invite yourself" });
+
+      const count = await storage.getCollaboratorCount(req.params.id);
+      if (count >= MAX_COLLABORATORS) return res.status(400).json({ message: `Maximum ${MAX_COLLABORATORS} collaborators per project` });
+
+      const targetUser = await storage.getUserByEmail(email);
+      if (!targetUser) return res.status(404).json({ message: "No Morse user found with that email. They need to sign up first." });
+
+      const existingRole = await storage.getCollaboratorRole(req.params.id, targetUser.id);
+      if (existingRole) return res.status(400).json({ message: "This user is already a collaborator" });
+
+      const collab = await storage.addCollaborator(req.params.id, targetUser.id, email, role, userId!);
+      res.json(collab);
+    } catch (err) {
+      console.error("Error adding collaborator:", err);
+      res.status(500).json({ message: "Failed to add collaborator" });
+    }
+  });
+
+  app.patch("/api/project/:id/collaborators/:collabUserId", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (project.userId !== userId) return res.status(403).json({ message: "Only the project owner can change roles" });
+      const { role } = req.body;
+      if (!role || !["viewer", "editor"].includes(role)) return res.status(400).json({ message: "Role must be 'viewer' or 'editor'" });
+      const updated = await storage.updateCollaboratorRole(req.params.id, req.params.collabUserId, role);
+      if (!updated) return res.status(404).json({ message: "Collaborator not found" });
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating collaborator role:", err);
+      res.status(500).json({ message: "Failed to update collaborator role" });
+    }
+  });
+
+  app.delete("/api/project/:id/collaborators/:collabUserId", requireAuth, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      const project = await storage.getProject(req.params.id);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const isSelfLeave = req.params.collabUserId === userId;
+      if (project.userId !== userId && !isSelfLeave) {
+        return res.status(403).json({ message: "Only the owner can remove collaborators" });
+      }
+      await storage.removeCollaborator(req.params.id, req.params.collabUserId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error removing collaborator:", err);
+      res.status(500).json({ message: "Failed to remove collaborator" });
     }
   });
 
