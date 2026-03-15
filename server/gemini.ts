@@ -199,15 +199,6 @@ function enforceVisualHierarchy(html: string): string {
     padding: 80px 24px;
   }
 
-  /* Feature cards grid — prevent vertical stacking */
-  .features, .cards, [class*="card-grid"], [class*="card-list"], [class*="features-grid"], [class*="feature-list"],
-  .services, .team, .testimonials, .pricing, [class*="pricing"], [class*="services"], [class*="team-grid"] {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-    gap: 24px !important;
-    width: 100% !important;
-  }
-
   /* Content container max-width */
   .container, .wrapper, .content-wrapper, main > section > .inner {
     max-width: 1200px;
@@ -338,15 +329,11 @@ function ensureNavAtTop(html: string): string {
 }
 
 function enforceStructuralGrids(html: string): string {
-  const containerClassPatterns = [
-    "features", "cards", "services", "pricing-cards", "team-members",
-    "testimonials", "benefits", "advantages", "products", "offerings",
-    "solutions", "capabilities", "feature-grid", "card-grid", "services-grid",
-    "feature-list", "card-list", "feature-container", "cards-container",
-    "features-section", "grid-container", "items-grid", "items-container"
+  const verticalStackPatterns = [
+    "feature-list", "card-list", "items-list"
   ];
 
-  for (const className of containerClassPatterns) {
+  for (const className of verticalStackPatterns) {
     const escapedClass = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const pattern = new RegExp(
       `(<(?:section|div)[^>]*class\\s*=\\s*"[^"]*\\b${escapedClass}\\b[^"]*"[^>]*)(>)`,
@@ -401,41 +388,6 @@ function enforceFontFamily(html: string, genome: DesignGenome): string {
   } else if (html.includes("</head>")) {
     html = html.replace("</head>", `<style>${fontCSS}</style>\n</head>`);
   }
-
-  return html;
-}
-
-function ensureSvgIcons(html: string, genome: DesignGenome): string {
-  const svgCount = (html.match(/<svg\b/gi) || []).length;
-  if (svgCount >= 3) return html;
-
-  const cardSelectors = ['.feature-card', '.feature-item', '.card', '.service-card', '[class*="feature"]'];
-  let hasCards = false;
-  for (const sel of cardSelectors) {
-    const className = sel.replace(/^\./, '').replace(/\[class\*="/, '').replace(/"\]/, '');
-    if (html.includes(className)) { hasCards = true; break; }
-  }
-  if (!hasCards) return html;
-
-  const defaultIcons = [
-    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
-    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
-    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
-    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-    `<svg viewBox="0 0 24 24" width="24" height="24" stroke="var(--color-primary)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
-  ];
-
-  let iconIndex = 0;
-  html = html.replace(
-    /(<(?:div|article)[^>]*class\s*=\s*"[^"]*(?:feature-card|feature-item|card|service-card)[^"]*"[^>]*>)\s*(<h[2-4])/gi,
-    (match, openTag, heading) => {
-      const icon = defaultIcons[iconIndex % defaultIcons.length];
-      iconIndex++;
-      const iconContainer = `<div style="width:48px;height:48px;border-radius:12px;background:rgba(${hexToRgbComponents(genome.colors.primary)},0.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">${icon}</div>`;
-      return `${openTag}${iconContainer}${heading}`;
-    }
-  );
 
   return html;
 }
@@ -830,16 +782,16 @@ IMAGE SEED SELECTION RULES (read carefully):
 - NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com
 ${hasImages ? "- This product is VISUAL — include prominent product/hero images throughout with large, high-quality image areas. Use at least 5 distinct contextual images." : ""}`;
 
-    const system = `You are a world-class UI/UX designer AND senior frontend engineer — the kind of person who designs websites featured on Awwwards, Dribbble, and SiteInspire. You combine stunning visual design with flawless engineering. Your output rivals tools like V0.dev, Lovable, and Bolt.new in quality.
+    const system = `You are an elite UI/UX designer AND senior frontend engineer whose portfolio is featured on Awwwards, Dribbble, and SiteInspire. Your designs rival V0.dev, Lovable, and Bolt.new. Each project you create is COMPLETELY UNIQUE — you never reuse the same layout pattern twice.
 
-Your design philosophy:
-- VISUAL SOPHISTICATION: Use gradient overlays, glassmorphism (backdrop-filter: blur), layered shadows, subtle grain textures, animated gradient borders, and refined micro-interactions
-- MODERN TYPOGRAPHY: Large hero text (clamp(2.5rem, 5vw, 4.5rem)), tight letter-spacing on headings (-0.03em), generous line-height on body text (1.75), font-weight contrast between headings (800) and body (400)
-- SPATIAL DESIGN: Generous whitespace is a FEATURE. Sections need 100-120px vertical padding. Cards need 32px padding. Everything breathes.
-- COLOR MASTERY: Use the provided color tokens with sophisticated gradients. Never flat single-color backgrounds on heroes — use radial gradients, mesh gradients, or gradient overlays. Accent colors for small highlights only.
-- DEPTH & DIMENSION: Cards float with multi-layered box-shadows. Hover states lift elements. Use subtle border effects (1px rgba borders that catch light).
-- ANIMATIONS: Smooth CSS transitions on everything interactive (0.3s cubic-bezier(0.4, 0, 0.2, 1)). Hover transforms (translateY(-4px)). Button press effects (scale(0.98)).
-- ICONOGRAPHY: Use inline SVG icons (simple, clean line icons) — never external icon libraries, never emoji, never image-based icons.
+CRITICAL DESIGN RULES:
+- EVERY PROJECT MUST HAVE A UNIQUE LAYOUT. Do NOT default to the standard "hero → 3 card grid → stats → testimonials → pricing → footer" template. Analyze what THIS specific product needs and design a layout that serves IT.
+- LAYOUT VARIETY — pick from approaches like: split-screen hero, asymmetric grids, bento box layouts, magazine-style layouts, overlapping sections, full-width feature showcases, sidebar + content, tabbed interfaces, timeline layouts, masonry grids, zigzag alternating sections (image left/text right, then swap), floating cards with offset positioning, diagonal section dividers, or dashboard-style panel layouts.
+- VISUAL SOPHISTICATION: Gradient overlays, glassmorphism (backdrop-filter: blur(20px)), layered multi-stop shadows, animated gradient borders, micro-interactions. Never flat or plain.
+- MODERN TYPOGRAPHY: Hero text clamp(2.5rem, 5vw, 4.5rem), tight letter-spacing (-0.03em), line-height 1.75, weight contrast (headings 800, body 400).
+- COLOR MASTERY: Use provided color tokens with gradients. Hero backgrounds use radial/linear gradients, NOT flat colors. Sections alternate between --color-bg and --color-surface.
+- DEPTH & DIMENSION: Multi-layered box-shadows (e.g. 0 1px 2px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12), 0 16px 48px rgba(0,0,0,0.08)). Hover states lift elements with shadow bloom.
+- ICONOGRAPHY: Draw CUSTOM inline SVG icons that are SPECIFIC to the product domain — not generic shapes. Every icon must visually represent what it describes. Use varied stroke patterns, not just circles and lines.
 
 You build production-quality, fully functional applications as single self-contained HTML files. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
@@ -891,93 +843,76 @@ ARCHITECTURE & ENGINEERING RULES:
 8. REALISTIC DATA: 15-25 seed records with real names, dates, numbers from this domain. No lorem ipsum, no generic labels.
 9. NO POPUPS ON LOAD: All modals/toasts start hidden (display:none). init() must NOT trigger any modal/toast/alert.
 
-PREMIUM DESIGN SYSTEM (this is what separates amateur from world-class):
+DESIGN SYSTEM — READ CAREFULLY:
 
-NAVIGATION (build this EXACT structure):
-- <nav> must be FIRST in <body>, ABOVE hero
-- display:flex, align-items:center, justify-content:space-between
-- padding: 16px 32px, position:sticky, top:0, z-index:1000
-- Background: add backdrop-filter:blur(20px) with semi-transparent bg (rgba version of --color-bg with 0.8 opacity)
-- Border-bottom: 1px solid rgba(255,255,255,0.06)
-- Brand/logo LEFT side, nav links RIGHT side in a <ul> with display:flex, gap:32px, list-style:none, margin:0, padding:0
-- Nav link hover: color transition to var(--color-primary)
-- Active nav link: color:var(--color-primary) with a subtle bottom indicator
+UNIQUENESS IS MANDATORY:
+- Do NOT use the standard "hero → 3 card grid → stats → testimonials → pricing → footer" template. That pattern is BANNED.
+- Each product type needs a DIFFERENT layout. Consider:
+  * BENTO GRID: Mixed-size cards in a 12-column CSS grid (some span 4 cols, some span 8, some span 6). Great for showcasing features with visual variety.
+  * ZIGZAG SECTIONS: Alternating left-right content blocks (image/visual on one side, text on the other, then swap). Feels editorial and premium.
+  * SPLIT HERO: Full-width hero divided into 2 columns (content left, visual/illustration right) instead of centered text.
+  * MAGAZINE LAYOUT: Large featured item + smaller items grid. Used by news, portfolios, product showcases.
+  * OVERLAPPING CARDS: Cards that slightly overlap each other or overlap section boundaries for depth.
+  * TABBED/FILTERED CONTENT: Interactive tabs or filter buttons that show/hide different content categories.
+  * TIMELINE/PROCESS FLOW: Vertical or horizontal timeline with connected nodes. Great for processes, roadmaps, how-it-works.
+  * SIDEBAR NAVIGATION: For tool-like products — fixed sidebar with icon nav, main content area with panels.
+  * FULL-BLEED SECTIONS: Some sections go edge-to-edge with no container constraints. Alternated with contained sections.
+  * CARD CAROUSEL: Horizontally scrollable cards with CSS scroll-snap. Modern and interactive.
+- Pick 2-3 different layout patterns and combine them. NEVER use the same pattern for adjacent sections.
 
-HERO SECTION (the first impression — must be BREATHTAKING):
-- min-height: 80vh, display:flex, flex-direction:column, align-items:center, justify-content:center, text-align:center
-- Background: NOT flat color. Use a radial gradient: radial-gradient(ellipse at 50% 0%, rgba(primary, 0.15) 0%, transparent 70%) layered on var(--color-bg)
-- Optional: add a subtle CSS dot pattern or grid pattern overlay for texture
-- Hero h1: clamp(2.5rem, 5vw, 4rem), font-weight:800, letter-spacing:-0.03em, max-width:800px, color: white
-- Subtitle: font-size:1.2rem, color:var(--color-text-muted), max-width:600px, margin-top:24px
-- CTA button: padding:16px 40px, font-size:1rem, font-weight:600, border-radius:var(--radius-lg), background:var(--color-primary), color:white, transition:all 0.3s, hover:translateY(-2px) + box-shadow
-- Add a subtle gradient glow behind the CTA button: box-shadow: 0 0 40px rgba(primary, 0.3)
-- Optional: small badge/pill above h1 with subtle border (e.g., "Introducing ${brandName}")
+NAVIGATION:
+- <nav> must be FIRST in <body>. position:sticky, top:0, z-index:1000
+- backdrop-filter:blur(20px), semi-transparent background, border-bottom: 1px solid rgba(255,255,255,0.06)
+- Brand/logo LEFT, nav links RIGHT in <ul> with display:flex, gap:32px, list-style:none
 
-FEATURE/CARD SECTIONS (use CSS GRID — NEVER a vertical list):
-- Section padding: 100px 24px
-- Section heading: center-aligned h2, with a small accent line or badge above it
-- Container: max-width:1200px, margin:0 auto
-- Card grid: display:grid, grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)), gap:24px
+HERO SECTION:
+- min-height: 80vh. Background: radial/linear gradient overlay, NOT flat color.
+- Choose a hero layout that fits THIS product: centered text, split (text+visual), or full-bleed with overlay.
+- CTA button: padding:16px 40px, font-weight:600, hover:translateY(-2px) + box-shadow glow
+
+CONTENT SECTIONS:
+- VARY the grid layout per section. Do NOT use the same 3-column grid everywhere.
+  * Use 2-column for some sections, 3 for others, bento-style mixed sizes, or zigzag rows.
+  * Consider: grid-template-columns: 2fr 1fr, or 1fr 1fr 1fr, or 8fr 4fr, etc.
+  * For card groups of 4+, use auto-fit with varying minmax sizes.
 - Each card: background:var(--color-surface), border:1px solid rgba(255,255,255,0.06), border-radius:var(--radius-lg), padding:32px
-- Card hover: transform:translateY(-4px), box-shadow:0 20px 40px rgba(0,0,0,0.15), border-color:rgba(primary, 0.3)
-- Card transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)
-- Card icon: Use a INLINE SVG icon (24x24, stroke-width:1.5, stroke:var(--color-primary), fill:none) at top of each card. Draw simple geometric line icons relevant to each feature. Place inside a 48x48 rounded div with background:rgba(primary, 0.1).
-- Card title: font-size:1.15rem, font-weight:700, color:var(--color-text), margin:16px 0 8px
-- Card description: font-size:0.95rem, color:var(--color-text-muted), line-height:1.7
-
-STATS/METRICS SECTION:
-- Use a row of 3-4 stat cards with large numbers (font-size:2.5rem, font-weight:800, color:var(--color-primary))
-- Label below in muted text
-- Subtle counter animation on scroll (IntersectionObserver + requestAnimationFrame)
-
-TESTIMONIALS (if appropriate):
-- Large quotation marks as decorative SVG
-- Italic quote text, author name with role, optional avatar circle
-
-PRICING (if appropriate):
-- 2-3 tier cards, highlight the recommended one with border:2px solid var(--color-primary) and a "Popular" badge
-- Use CSS grid, equal heights
+- Card hover: translateY(-4px), shadow bloom, border-color change
+- Section padding: 80-120px vertical. Alternate backgrounds between var(--color-bg) and var(--color-surface).
 
 FOOTER:
-- Full-width, darker background (slightly darker than --color-bg)
-- Multi-column grid layout (brand, links, contact, social)
-- Bottom bar with copyright and subtle separator line
-- Links with hover underline transitions
+- Full-width, darker background. Multi-column grid (brand, links, contact).
+- Bottom bar with copyright and separator line.
 
-PREMIUM CSS TECHNIQUES (use these throughout):
-- Smooth scrolling: html { scroll-behavior: smooth; }
-- Custom scrollbar: ::-webkit-scrollbar (thin, themed)
-- Selection styling: ::selection { background: var(--color-primary); color: white; }
-- Focus-visible rings: :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-- Hover transitions on ALL interactive elements: transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)
-- Button hover: translateY(-2px) + shadow increase. Button active: scale(0.98)
-- Card hover: translateY(-4px) + shadow bloom
-- Link hover: color shift to primary
-- Subtle gradient text on key headings: background: linear-gradient(135deg, white, var(--color-primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent (use sparingly)
-- Alternating section backgrounds: alternate between var(--color-bg) and var(--color-surface)
-- Section transitions: use IntersectionObserver to add a .visible class with opacity:1 transform:translateY(0) (from opacity:0 translateY(20px))
+PREMIUM CSS (use throughout):
+- html { scroll-behavior: smooth; }
+- Custom scrollbar: ::-webkit-scrollbar (thin, themed to primary color)
+- ::selection { background: var(--color-primary); color: white; }
+- Hover transitions: transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+- Multi-layered shadows: 0 1px 2px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12)
+- IntersectionObserver fade-in animations on sections (opacity 0→1, translateY 20px→0)
+- Diagonal or curved section dividers using CSS clip-path for visual breaks between sections
 
-CONTRAST & READABILITY (non-negotiable):
-- Dark backgrounds require light text. --color-text: #f1f5f9. --color-text-muted: #94a3b8.
-- EVERY text element must have an explicitly set color. NEVER rely on browser defaults.
-- Buttons: white text on colored backgrounds. Inputs: visible borders and light text.
-- Adjacent sections: use ONLY --color-bg or --color-surface. Never two custom shades that create visible seams.
+CONTRAST (non-negotiable):
+- Dark bg = light text. --color-text: #f1f5f9. --color-text-muted: #94a3b8.
+- EVERY text element gets explicitly set color.
+- Buttons: white text on colored backgrounds.
 
-SVG ICON RULES (MANDATORY — this is what makes Morse designs unique):
-- EVERY feature card, service card, and benefit card MUST have an inline SVG icon at the top. This is NON-NEGOTIABLE.
-- Draw simple inline SVG icons: viewBox="0 0 24 24", width="24", height="24", stroke="var(--color-primary)", stroke-width="1.5", fill="none", stroke-linecap="round", stroke-linejoin="round"
-- Use SIMPLE GEOMETRIC SHAPES — do NOT over-complicate. Examples:
-  * Clock/time: <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-  * Shield/security: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-  * Lightning/speed: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-  * Users/team: <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-  * Globe/worldwide: <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/>
-  * Monitor/tech: <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-  * Chart/analytics: <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-  * Lock/privacy: <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-- Each icon MUST be UNIQUE and relevant to its feature — never repeat the same icon
-- Wrap each icon in: <div style="width:48px;height:48px;border-radius:12px;background:rgba(var(--color-primary-rgb, 99,102,241),0.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
-- If you skip SVG icons, the design WILL look incomplete and generic. Include at least 4-6 unique SVG icons.
+SVG ICONS — DOMAIN-SPECIFIC, NOT GENERIC:
+- EVERY card/feature MUST have a custom inline SVG icon that is SPECIFIC to what that feature does.
+- DO NOT use generic shapes (shield, heart, star, lightning bolt) for everything. These look cheap and AI-generated.
+- Instead, draw icons that VISUALLY REPRESENT the actual feature. Examples:
+  * "Student Portfolio" → draw an open book or canvas/easel shape
+  * "Course Catalog" → draw a grid of squares with one enlarged
+  * "Payment Processing" → draw a credit card with chip detail
+  * "Message System" → draw a speech bubble with lines inside
+  * "Calendar/Scheduling" → draw a calendar with date squares
+  * "Analytics Dashboard" → draw a line chart with trend line and dots
+  * "File Management" → draw a folder with document corner
+  * "User Profile" → draw a person silhouette with badge
+- SVG format: viewBox="0 0 24 24", width="24", height="24", stroke="var(--color-primary)", stroke-width="1.5", fill="none"
+- Make icons DETAILED — use 3-5 SVG elements per icon minimum. Add small details that make them feel hand-crafted.
+- Each icon inside a container: width:52px, height:52px, border-radius:14px, background: linear-gradient(135deg, rgba(primary,0.15), rgba(primary,0.05)), display:flex, align-items:center, justify-content:center
+- NEVER reuse the same icon. Each MUST be unique to its feature.
 
 ${imageInstruction}
 
@@ -1018,7 +953,6 @@ OUTPUT REQUIREMENTS: Write 800+ lines minimum. The CSS alone should be 250+ line
       html = enforceVisualHierarchy(html);
       html = enforceStructuralGrids(html);
       html = enforceFontFamily(html, genome);
-      html = ensureSvgIcons(html, genome);
       html = injectPremiumPolish(html, genome);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
@@ -1102,7 +1036,6 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = enforceVisualHierarchy(html);
     html = enforceStructuralGrids(html);
     html = enforceFontFamily(html, genome);
-    html = ensureSvgIcons(html, genome);
     html = injectPremiumPolish(html, genome);
 
     const lineCount = html.split("\n").length;
