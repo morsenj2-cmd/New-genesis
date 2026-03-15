@@ -1930,7 +1930,7 @@ export default function ProjectPage() {
                     </div>
                   ) : (
                     <div
-                      className="flex-1 w-full relative"
+                      className="flex-1 w-full relative flex justify-center"
                       onMouseMove={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -1942,7 +1942,8 @@ export default function ProjectPage() {
                       <iframe
                         srcDoc={safeGeminiHtml}
                         sandbox="allow-scripts allow-forms allow-popups"
-                        className="w-full h-full border-0"
+                        className="h-full border-0"
+                        style={{ width: "calc(100% - 224px)" }}
                         title="AI Generated App"
                         data-testid="ai-app-preview"
                       />
