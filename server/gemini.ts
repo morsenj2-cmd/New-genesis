@@ -114,6 +114,57 @@ function sanitizeGeneratedCss(html: string): string {
   return html;
 }
 
+function fixOverlappingLayout(html: string): string {
+  const overlapFixCSS = `
+  /* Morse layout safety — prevent overlapping content */
+  section, header, main, footer, nav, .hero, [class*="hero"], [class*="section"], [class*="container"] {
+    position: relative !important;
+    overflow: hidden;
+    clear: both;
+  }
+  body > *, main > *, .app > *, #app > *, .container > * {
+    position: relative;
+    float: none;
+  }
+  h1, h2, h3, h4, h5, h6, p, span, a, button, img {
+    position: relative;
+  }
+  `;
+
+  html = html.replace(
+    /position\s*:\s*absolute\s*;([^}]*?)(top\s*:\s*\d+[^;]*;[^}]*?left\s*:\s*\d+[^;]*;)/g,
+    (match, mid, _rest) => {
+      if (/modal|overlay|popup|dropdown|menu|tooltip|toast|notification|backdrop|dialog/i.test(match)) {
+        return match;
+      }
+      if (/nav|sidebar|fixed/i.test(match)) {
+        return match;
+      }
+      return match.replace("position: absolute", "position: relative");
+    }
+  );
+
+  const heroPattern = /(<(?:section|div|header)[^>]*(?:class|id)\s*=\s*"[^"]*hero[^"]*"[^>]*>)([\s\S]*?)(<\/(?:section|div|header)>)/gi;
+  html = html.replace(heroPattern, (match, openTag, content, closeTag) => {
+    const fixedContent = content.replace(
+      /position\s*:\s*absolute/g,
+      (absMatch: string) => {
+        if (/overlay|backdrop|bg/i.test(content.slice(Math.max(0, content.indexOf(absMatch) - 100), content.indexOf(absMatch)))) {
+          return absMatch;
+        }
+        return "position: relative";
+      }
+    );
+    return openTag + fixedContent + closeTag;
+  });
+
+  if (html.includes("</style>")) {
+    html = html.replace("</style>", `${overlapFixCSS}\n</style>`);
+  }
+
+  return html;
+}
+
 function extractHtml(text: string): string {
   const htmlBlock = text.match(/```html\s*([\s\S]*?)\s*```/);
   if (htmlBlock) return htmlBlock[1].trim();
@@ -451,14 +502,15 @@ HARD RULES (non-negotiable):
 12. DO NOT show any "Hello, world!" messages, demo popups, test notifications, or placeholder alerts on page load. The app must load cleanly into its main view without any introductory popups or modals.
 
 LAYOUT QUALITY (critical — the design must look professional):
-- Use CSS Grid or Flexbox for ALL layouts. Never use floats or absolute positioning for layout structure.
+- Use CSS Grid or Flexbox for ALL layouts. NEVER use position: absolute for layout structure, text placement, or section content. Only use position: absolute for overlays, modals, dropdowns, and tooltips.
+- ZERO OVERLAPPING: No text, heading, button, or content element may visually overlap another. Every element must occupy its own space in the document flow. Hero sections must use flexbox column layout (display: flex; flex-direction: column; align-items: center; justify-content: center;) — NEVER stack elements with position: absolute inside heroes.
 - Consistent spacing: use a spacing scale (8px, 16px, 24px, 32px, 48px, 64px). Sections should have padding: 64px 0 or more.
 - Cards must have equal heights in a row (use grid with auto-rows or flex with stretch). Card grids: use gap: 24px minimum.
-- Hero section: full-width, min-height: 60vh, with clear visual hierarchy (large heading, subtext, CTA button).
+- Hero section: full-width, min-height: 60vh, display: flex, flex-direction: column, align-items: center, justify-content: center. Place heading, subtitle, and CTA in normal flow — never use absolute positioning for hero text.
 - Container max-width: 1200px centered with margin: 0 auto and padding: 0 24px for content areas.
 - Section headings: center-aligned with margin-bottom: 48px before content grids.
 - Navigation: sticky top, full-width, with proper padding and clear active state. Brand on left, links on right.
-- No content should ever overflow its container or overlap other elements.
+- No content should ever overflow its container or overlap other elements. If you need a background image on a section, use background-image CSS property on the section itself — do NOT create an absolute-positioned img behind the content.
 - Modals must have proper overlay (fixed, inset 0, semi-transparent background), centered content, and a visible close button.
 
 CONTENT REQUIREMENTS (the app must have ALL of these):
@@ -500,6 +552,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
 
       html = sanitizeGeneratedCss(html);
       html = enforceGenomeColors(html, genome);
+      html = fixOverlappingLayout(html);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
 
@@ -576,6 +629,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
 
     html = sanitizeGeneratedCss(html);
     html = enforceGenomeColors(html, genome);
+    html = fixOverlappingLayout(html);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
