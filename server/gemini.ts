@@ -9,9 +9,8 @@ const client = apiKey
 
 const MODEL_PREFERENCE = [
   "llama-3.3-70b-versatile",
+  "llama-3.1-70b-versatile",
   "llama-3.1-8b-instant",
-  "gemma2-9b-it",
-  "llama-3.2-3b-preview",
 ];
 
 export interface GeminiInterpretResult {
@@ -40,6 +39,57 @@ function extractJson(text: string): string {
   const jsonEnd = text.lastIndexOf("}");
   if (jsonStart !== -1 && jsonEnd !== -1) return text.slice(jsonStart, jsonEnd + 1);
   return text;
+}
+
+function hasGenericPlaceholders(html: string): boolean {
+  const genericPatterns = [
+    /\bSection\s+\d\b/i,
+    /\bHeader\s+\d\b/i,
+    /\bData\s+\d\b/i,
+    /\bButton\s+\d\b/i,
+    /\bMain\s+Content\b/i,
+    /\bItem\s+\d\b/i,
+    /\bColumn\s+\d\b/i,
+    /\bRow\s+\d\b/i,
+    /\bSample\s+Text\b/i,
+    /\bPlaceholder\b/i,
+    /\bLorem\s+ipsum\b/i,
+  ];
+  const text = html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<style[\s\S]*?<\/style>/g, "");
+  let matches = 0;
+  for (const p of genericPatterns) {
+    if (p.test(text)) matches++;
+  }
+  return matches >= 3;
+}
+
+function enforceGenomeColors(html: string, genome: DesignGenome): string {
+  const rootVars = genomeToColorVars(genome);
+  const rootBlock = `:root {\n    ${rootVars}\n  }`;
+
+  if (html.includes(":root")) {
+    html = html.replace(/:root\s*\{[^}]*\}/g, rootBlock);
+  } else if (html.includes("<style>")) {
+    html = html.replace("<style>", `<style>\n  ${rootBlock}\n`);
+  } else if (html.includes("</head>")) {
+    html = html.replace("</head>", `<style>\n  ${rootBlock}\n</style>\n</head>`);
+  }
+
+  const bodyBgMatch = html.match(/body\s*\{([^}]*)\}/);
+  if (bodyBgMatch && !bodyBgMatch[1].includes("var(--color-bg)")) {
+    html = html.replace(
+      bodyBgMatch[0],
+      bodyBgMatch[0].replace(
+        bodyBgMatch[1],
+        bodyBgMatch[1].replace(
+          /background(-color)?\s*:\s*[^;]+;/,
+          `background-color: var(--color-bg, ${genome.colors.background});`
+        )
+      )
+    );
+  }
+
+  return html;
 }
 
 function sanitizeGeneratedCss(html: string): string {
@@ -208,8 +258,9 @@ async function chat(
 
   let lastError: Error | null = null;
   for (const model of MODEL_PREFERENCE) {
-    for (let retry = 0; retry < 2; retry++) {
+    for (let retry = 0; retry < 3; retry++) {
       try {
+        console.log(`[Groq] Trying model ${model} (attempt ${retry + 1})...`);
         const completion = await client.chat.completions.create({
           model,
           messages: [
@@ -217,22 +268,24 @@ async function chat(
             { role: "user", content: userContent },
           ],
           max_tokens: maxTokens,
-          temperature: 0.7,
+          temperature: 0.6,
         });
         const tokensUsed = completion.usage?.total_tokens ?? 0;
         const content = completion.choices[0]?.message?.content ?? "";
+        console.log(`[Groq] Model ${model} succeeded — ${tokensUsed} tokens used`);
         return { content, tokensUsed };
       } catch (err: any) {
         const msg = err?.message ?? "";
         const isRateLimit = msg.includes("429") || msg.includes("rate") || msg.includes("quota");
         const isModelError = msg.includes("decommissioned") || msg.includes("not found") || msg.includes("not supported") || msg.includes("model_");
-        console.warn(`[Groq] Model ${model} failed (attempt ${retry + 1}):`, msg.slice(0, 100));
+        console.warn(`[Groq] Model ${model} failed (attempt ${retry + 1}):`, msg.slice(0, 200));
         lastError = err;
 
         if (isModelError) break;
-        if (isRateLimit && retry === 0) {
-          console.log(`[Groq] Rate limited on ${model}, waiting 3s before retry...`);
-          await new Promise(r => setTimeout(r, 3000));
+        if (isRateLimit) {
+          const waitTime = (retry + 1) * 3000;
+          console.log(`[Groq] Rate limited on ${model}, waiting ${waitTime / 1000}s before retry...`);
+          await new Promise(r => setTimeout(r, waitTime));
           continue;
         }
         if (!isRateLimit && !isModelError) throw err;
@@ -385,16 +438,17 @@ ${imageInstruction}
 
 HARD RULES (non-negotiable):
 1. SINGLE FILE: All HTML, CSS in <style>, JS in <script>. No external libraries or CDN imports.
-2. CONTRAST: Dark backgrounds require light text (#f1f5f9). Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root. Explicitly set color on ALL text elements — never rely on browser defaults. Buttons use white text on colored backgrounds. Inputs have visible borders (rgba(255,255,255,0.1)).
-3. TYPOGRAPHY: Apply the Google Fonts import and use the heading/body fonts on ALL text elements. Set font-family on body, h1-h6, buttons, inputs, labels, nav links, cards — EVERY text element must inherit the chosen fonts, never fall back to browser defaults. Use font-size (NOT max-width) for headings: h1 { font-size: 2.5rem; }, h2 { font-size: 1.75rem; }, h3 { font-size: 1.25rem; }, body { font-size: 1rem; line-height: 1.7; }. NEVER set max-width on heading elements. Add: * { font-family: inherit; } and body { font-family: '${bodyFont}', sans-serif; } and h1,h2,h3,h4,h5,h6 { font-family: '${headingFont}', sans-serif; }.
-4. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
-5. FULLY FUNCTIONAL BUTTONS: Every single button MUST have a working click handler. Close/dismiss buttons must close their parent modal/popup. "Get Started"/"Learn More" buttons must scroll to or show the relevant section. Form submit buttons must validate and process. NEVER create a button without a functional onclick handler. Modal close buttons: use onclick to set the modal's display to 'none'. Toast dismiss buttons: remove the toast element. There must be ZERO dead/decorative buttons in the entire app.
-6. STATE: Use window.appState for all app data. Persist to localStorage on every change. Load from localStorage on startup. Render all UI dynamically from state — never hardcode content in HTML.
-7. INITIALIZATION: At the end of <script>: document.addEventListener('DOMContentLoaded', function() { init(); }); — init() must populate ALL visible content from state so the page is never blank on load. Use event delegation (document.addEventListener on a parent) for dynamically rendered elements.
-8. RESPONSIVE: CSS grid/flex, works on mobile. Navigation adapts (hamburger menu or collapsible sidebar on small screens).
-9. REALISTIC DATA: Seed with real names, dates, and numbers specific to this domain. No lorem ipsum, no "test" entries, no placeholder text.
-10. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions (with working dismiss). Active state on current nav item.
-11. DO NOT show any "Hello, world!" messages, demo popups, test notifications, or placeholder alerts on page load. The app must load cleanly into its main view without any introductory popups or modals.
+2. COLORS: You MUST use the CSS variables (var(--color-primary), var(--color-secondary), var(--color-accent), var(--color-bg), var(--color-surface)) for ALL colors. NEVER pick your own colors. NEVER use bright green (#00ff00), neon red, hot pink, or garish colors. The :root block with all --color-* variables is mandatory. Background: var(--color-bg). Cards/panels: var(--color-surface). Buttons: var(--color-primary). Accents: var(--color-accent). Text: var(--color-text) and var(--color-text-muted).
+3. CONTRAST: Dark backgrounds require light text (#f1f5f9). Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root. Explicitly set color on ALL text elements — never rely on browser defaults. Buttons use white text on colored backgrounds. Inputs have visible borders (rgba(255,255,255,0.1)).
+4. TYPOGRAPHY: Apply the Google Fonts import and use the heading/body fonts on ALL text elements. Set font-family on body, h1-h6, buttons, inputs, labels, nav links, cards — EVERY text element must inherit the chosen fonts, never fall back to browser defaults. Use font-size (NOT max-width) for headings: h1 { font-size: 2.5rem; }, h2 { font-size: 1.75rem; }, h3 { font-size: 1.25rem; }, body { font-size: 1rem; line-height: 1.7; }. NEVER set max-width on heading elements. Add: * { font-family: inherit; } and body { font-family: '${bodyFont}', sans-serif; } and h1,h2,h3,h4,h5,h6 { font-family: '${headingFont}', sans-serif; }.
+5. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
+6. FULLY FUNCTIONAL BUTTONS: Every single button MUST have a working click handler. Close/dismiss buttons must close their parent modal/popup. "Get Started"/"Learn More" buttons must scroll to or show the relevant section. Form submit buttons must validate and process. NEVER create a button without a functional onclick handler. Modal close buttons: use onclick to set the modal's display to 'none'. Toast dismiss buttons: remove the toast element. There must be ZERO dead/decorative buttons in the entire app.
+7. STATE: Use window.appState for all app data. Persist to localStorage on every change. Load from localStorage on startup. Render all UI dynamically from state — never hardcode content in HTML.
+8. INITIALIZATION: At the end of <script>: document.addEventListener('DOMContentLoaded', function() { init(); }); — init() must populate ALL visible content from state so the page is never blank on load. Use event delegation (document.addEventListener on a parent) for dynamically rendered elements.
+9. RESPONSIVE: CSS grid/flex, works on mobile. Navigation adapts (hamburger menu or collapsible sidebar on small screens).
+10. REALISTIC DATA: Seed with real names, dates, and numbers specific to this domain. No lorem ipsum, no "test" entries, no placeholder text. NEVER use generic labels like "Section 1", "Header 1", "Data 1", "Button 1", "Item 1", "Column 1", "Main Content", "Sample Text". Every label must be specific to the product domain.
+11. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions (with working dismiss). Active state on current nav item.
+12. DO NOT show any "Hello, world!" messages, demo popups, test notifications, or placeholder alerts on page load. The app must load cleanly into its main view without any introductory popups or modals.
 
 LAYOUT QUALITY (critical — the design must look professional):
 - Use CSS Grid or Flexbox for ALL layouts. Never use floats or absolute positioning for layout structure.
@@ -421,7 +475,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
 
     const maxTokens = 12000;
 
-    const maxAttempts = 2;
+    const maxAttempts = 3;
     let cumulativeTokens = 0;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const chatResult = await chat(system, user, maxTokens);
@@ -437,6 +491,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       const hasScript = html.includes("<script>") && html.includes("</script>");
       const hasInitOrRender = html.includes("DOMContentLoaded") || html.includes("init(") || html.includes("render");
       const hasBadPlaceholder = html.includes("via.placeholder.com") || html.includes("placehold.co") || html.includes("placeholder.com/");
+      const isGeneric = hasGenericPlaceholders(html);
 
       if (hasBadPlaceholder) {
         html = html.replace(/https?:\/\/(via\.placeholder\.com|placehold\.co|placeholder\.com)\/(\d+)(x(\d+))?/g,
@@ -444,17 +499,26 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       }
 
       html = sanitizeGeneratedCss(html);
+      html = enforceGenomeColors(html, genome);
 
-      const isValid = lineCount >= 200 && hasStyle && hasScript && hasInitOrRender;
+      const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
+
+      const isValid = lineCount >= 200 && hasStyle && hasScript && hasInitOrRender && !isGeneric;
 
       if (isValid || attempt === maxAttempts) {
         if (lineCount < 200) {
           console.warn(`[Groq] Generated HTML is only ${lineCount} lines (attempt ${attempt}/${maxAttempts}) — accepting anyway`);
         }
+        if (isGeneric) {
+          console.warn(`[Groq] Generated HTML has generic placeholder content (attempt ${attempt}/${maxAttempts}) — ${attempt < maxAttempts ? "retrying" : "accepting with enforcement"}`);
+        }
+        if (!usesGenomeColors) {
+          console.warn(`[Groq] Generated HTML does not use genome color variables — enforced via post-processing`);
+        }
         return { html: injectSafetyScript(html), tokensUsed: cumulativeTokens };
       }
 
-      console.warn(`[Groq] Generated HTML too short (${lineCount} lines) or missing critical sections — retrying (attempt ${attempt}/${maxAttempts})`);
+      console.warn(`[Groq] Generated HTML quality too low (lines=${lineCount}, style=${hasStyle}, script=${hasScript}, init=${hasInitOrRender}, generic=${isGeneric}) — retrying (attempt ${attempt}/${maxAttempts})`);
     }
 
     return null;
@@ -511,6 +575,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     }
 
     html = sanitizeGeneratedCss(html);
+    html = enforceGenomeColors(html, genome);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
