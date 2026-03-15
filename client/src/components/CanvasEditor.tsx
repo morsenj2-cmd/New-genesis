@@ -1651,15 +1651,7 @@ export function CanvasEditor({
             onStateChange={setElementState}
           />
         ) : (
-          <div
-            style={{
-              width: fullWidth,
-              height: previewHeight > 0 ? previewHeight / previewScale : '100%',
-              transform: `scale(${previewScale})`,
-              transformOrigin: 'top left',
-            }}
-            className="overflow-y-auto"
-          >
+          <div className="h-full overflow-y-auto">
             <GenomePreview
               genome={genome}
               layout={layout}
