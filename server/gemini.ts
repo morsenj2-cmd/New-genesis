@@ -131,7 +131,12 @@ function fixOverlappingLayout(html: string): string {
   .card, [class*="card"], .feature, [class*="feature"] { overflow: hidden; }
   * { box-sizing: border-box; }
   body { overflow-x: hidden; }
-  section, [class*="section"] { overflow: hidden; }
+  /* Seamless section flow — no gaps between sections */
+  section, [class*="section"] { margin: 0; }
+  body > section + section, main > section + section, #app > section + section, .app > section + section {
+    margin-top: 0;
+    border-top: none;
+  }
   `;
 
   html = html.replace(
@@ -175,7 +180,7 @@ function enforceVisualHierarchy(html: string): string {
   h2 { font-size: 1.85rem; font-weight: 700; line-height: 1.25; }
   h3 { font-size: 1.35rem; font-weight: 600; line-height: 1.35; }
   p, li, td, th { font-size: 1rem; line-height: 1.7; }
-  section, [class*="section"] { padding-top: 80px; padding-bottom: 80px; }
+  section, [class*="section"] { padding-top: 80px; padding-bottom: 80px; margin: 0; }
 
   /* Nav layout — structural only */
   nav, .navbar, .nav-bar, .navigation {
@@ -527,6 +532,30 @@ function extractHtml(text: string): string {
   }
   if (start !== -1) return text.slice(start).trim();
   return text.trim();
+}
+
+function ensureSeamlessSections(html: string, genome: DesignGenome): string {
+  const bgColor = genome.colors.background;
+  
+  html = html.replace(
+    /(<section\b[^>]*style="[^"]*?)margin(?:-top|-bottom)?\s*:\s*[^";]+/gi,
+    (match, prefix) => {
+      return match.replace(/margin(?:-top|-bottom)?\s*:\s*[^";]+/gi, 'margin: 0');
+    }
+  );
+
+  const seamlessCSS = `
+  /* Seamless section transitions — no dark gaps */
+  section { margin: 0 !important; }
+  section:first-of-type { margin-top: 0 !important; }
+  body { background-color: var(--color-bg, ${bgColor}); }
+  `;
+
+  if (html.includes("</style>")) {
+    html = html.replace("</style>", `${seamlessCSS}\n</style>`);
+  }
+
+  return html;
 }
 
 function fixBrokenSvgIcons(html: string, genome: DesignGenome): string {
@@ -1052,6 +1081,7 @@ OUTPUT REQUIREMENTS: Write 800+ lines minimum. The CSS alone should be 250+ line
       html = enforceStructuralGrids(html);
       html = enforceFontFamily(html, genome);
       html = fixBrokenSvgIcons(html, genome);
+      html = ensureSeamlessSections(html, genome);
       html = injectPremiumPolish(html, genome);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
@@ -1136,6 +1166,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = enforceStructuralGrids(html);
     html = enforceFontFamily(html, genome);
     html = fixBrokenSvgIcons(html, genome);
+    html = ensureSeamlessSections(html, genome);
     html = injectPremiumPolish(html, genome);
 
     const lineCount = html.split("\n").length;
