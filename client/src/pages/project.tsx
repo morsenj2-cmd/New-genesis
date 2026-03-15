@@ -1221,27 +1221,6 @@ export default function ProjectPage() {
   const [isRegeneratingLayout, setIsRegeneratingLayout] = useState(false);
   const [canvasMode, setCanvasMode] = useState(false);
   const [contentOverrides, setContentOverrides] = useState<ContentOverrides>({});
-
-  const previewContainerRef = useRef<HTMLDivElement>(null);
-  const [previewContainerWidth, setPreviewContainerWidth] = useState(0);
-  const [previewContainerHeight, setPreviewContainerHeight] = useState(0);
-
-  useEffect(() => {
-    const el = previewContainerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setPreviewContainerWidth(entry.contentRect.width);
-        setPreviewContainerHeight(entry.contentRect.height);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const CANVAS_SIDEBAR = 224;
-  const canvasEquivWidth = Math.max(previewContainerWidth - CANVAS_SIDEBAR, 300);
-  const previewScale = previewContainerWidth > 0 ? previewContainerWidth / canvasEquivWidth : 1;
   const [geminiStatus, setGeminiStatus] = useState<"none" | "pending" | "ready" | "failed">("none");
   const [geminiAppHtml, setGeminiAppHtml] = useState<string | null>(null);
   const [showCodeView, setShowCodeView] = useState(false);
@@ -1951,8 +1930,7 @@ export default function ProjectPage() {
                     </div>
                   ) : (
                     <div
-                      ref={previewContainerRef}
-                      className="flex-1 w-full relative overflow-hidden"
+                      className="flex-1 w-full relative"
                       onMouseMove={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -1961,22 +1939,13 @@ export default function ProjectPage() {
                       }}
                       data-testid="preview-wrapper"
                     >
-                      <div
-                        style={{
-                          width: canvasEquivWidth,
-                          height: previewContainerHeight > 0 ? previewContainerHeight / previewScale : '100%',
-                          transform: `scale(${previewScale})`,
-                          transformOrigin: 'top left',
-                        }}
-                      >
-                        <iframe
-                          srcDoc={safeGeminiHtml}
-                          sandbox="allow-scripts allow-forms allow-popups"
-                          className="w-full h-full border-0"
-                          title="AI Generated App"
-                          data-testid="ai-app-preview"
-                        />
-                      </div>
+                      <iframe
+                        srcDoc={safeGeminiHtml}
+                        sandbox="allow-scripts allow-forms allow-popups"
+                        className="w-full h-full border-0"
+                        title="AI Generated App"
+                        data-testid="ai-app-preview"
+                      />
                       {Array.from(collaboration.cursors.entries()).map(([uid, cursor]) => (
                         uid !== clerkUser?.id && (
                           <div

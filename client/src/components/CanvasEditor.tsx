@@ -713,6 +713,27 @@ export function CanvasEditor({
 
   const isElementsMode = mode === "elements";
 
+  const canvasPreviewRef = useRef<HTMLDivElement>(null);
+  const [canvasPreviewWidth, setCanvasPreviewWidth] = useState(0);
+  const [canvasPreviewHeight, setCanvasPreviewHeight] = useState(0);
+
+  useEffect(() => {
+    const el = canvasPreviewRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setCanvasPreviewWidth(entry.contentRect.width);
+        setCanvasPreviewHeight(entry.contentRect.height);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const CANVAS_SIDEBAR_W = 224;
+  const targetWidth = canvasPreviewWidth + CANVAS_SIDEBAR_W;
+  const canvasScale = canvasPreviewWidth > 0 && targetWidth > 0 ? canvasPreviewWidth / targetWidth : 1;
+
   const iframeEditorRef = useRef<HTMLIFrameElement>(null);
   const [iframeSelectedEl, setIframeSelectedEl] = useState<IframeSelectedElement | null>(null);
   const [iframeHasChanges, setIframeHasChanges] = useState(false);
@@ -1407,27 +1428,32 @@ export function CanvasEditor({
 
       {/* ── Preview area ─────────────────────────────────────── */}
       <div
+        ref={canvasPreviewRef}
         className="flex-1 overflow-hidden"
         data-testid="canvas-preview-area"
         onClick={() => { if (showAddMenu) setShowAddMenu(false); }}
       >
         {geminiAppHtml && isElementsMode && editableHtml ? (
-          <iframe
-            ref={iframeEditorRef}
-            srcDoc={editableHtml}
-            sandbox="allow-scripts allow-forms allow-popups"
-            className="h-full w-full border-0"
-            title="AI Generated App – Edit Mode"
-            data-testid="canvas-ai-editor"
-          />
+          <div style={{ width: targetWidth, height: canvasPreviewHeight > 0 ? canvasPreviewHeight / canvasScale : '100%', transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}>
+            <iframe
+              ref={iframeEditorRef}
+              srcDoc={editableHtml}
+              sandbox="allow-scripts allow-forms allow-popups"
+              className="h-full w-full border-0"
+              title="AI Generated App – Edit Mode"
+              data-testid="canvas-ai-editor"
+            />
+          </div>
         ) : geminiAppHtml ? (
-          <iframe
-            srcDoc={geminiAppHtml}
-            sandbox="allow-scripts allow-forms allow-popups"
-            className="h-full w-full border-0"
-            title="AI Generated App"
-            data-testid="canvas-ai-preview"
-          />
+          <div style={{ width: targetWidth, height: canvasPreviewHeight > 0 ? canvasPreviewHeight / canvasScale : '100%', transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}>
+            <iframe
+              srcDoc={geminiAppHtml}
+              sandbox="allow-scripts allow-forms allow-popups"
+              className="h-full w-full border-0"
+              title="AI Generated App"
+              data-testid="canvas-ai-preview"
+            />
+          </div>
         ) : isElementsMode ? (
           <ElementCanvas
             ref={elementCanvasRef}
