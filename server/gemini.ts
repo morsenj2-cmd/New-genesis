@@ -165,6 +165,81 @@ function fixOverlappingLayout(html: string): string {
   return html;
 }
 
+function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): string {
+  const bgColor = genome.colors.background;
+  const surfaceColor = genome.colors.surface;
+
+  const contrastCSS = `
+  /* Morse contrast & background consistency enforcement */
+  body, html {
+    color: #f1f5f9;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    color: #ffffff;
+  }
+  p, span, li, td, th, label, .text-muted, .subtitle, .description {
+    color: #cbd5e1;
+  }
+  a:not([class*="btn"]):not([class*="button"]) {
+    color: #e2e8f0;
+  }
+  nav, nav *, .navbar, .navbar * {
+    background-color: var(--color-bg, ${bgColor});
+  }
+  `;
+
+  const isDarkBg = isDarkColor(bgColor);
+
+  if (isDarkBg) {
+    if (html.includes("</style>")) {
+      html = html.replace("</style>", `${contrastCSS}\n</style>`);
+    }
+  }
+
+  html = html.replace(
+    /(<nav\b[^>]*style="[^"]*?)background(?:-color)?\s*:\s*([^";]+)/gi,
+    (match, prefix, color) => {
+      if (color.includes("var(--color-bg)") || color.includes("var(--color-surface)")) return match;
+      return `${prefix}background-color: var(--color-bg, ${bgColor})`;
+    }
+  );
+
+  return html;
+}
+
+function isDarkColor(color: string): boolean {
+  let r = 0, g = 0, b = 0;
+
+  if (color.startsWith("#")) {
+    const hex = color.replace("#", "");
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16);
+      g = parseInt(hex[1] + hex[1], 16);
+      b = parseInt(hex[2] + hex[2], 16);
+    } else if (hex.length === 6) {
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+    }
+  } else if (color.startsWith("hsl")) {
+    const match = color.match(/hsl\w?\(\s*([\d.]+)\s*,?\s*([\d.]+)%?\s*,?\s*([\d.]+)%?/);
+    if (match) {
+      const l = parseFloat(match[3]);
+      return l < 40;
+    }
+  } else if (color.startsWith("rgb")) {
+    const match = color.match(/rgb\w?\(\s*([\d.]+)\s*,?\s*([\d.]+)\s*,?\s*([\d.]+)/);
+    if (match) {
+      r = parseInt(match[1]);
+      g = parseInt(match[2]);
+      b = parseInt(match[3]);
+    }
+  }
+
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.4;
+}
+
 function ensureNavAtTop(html: string): string {
   const navMatch = html.match(/(<nav\b[^>]*>[\s\S]*?<\/nav>)/i);
   if (!navMatch) return html;
@@ -515,7 +590,15 @@ ${imageInstruction}
 HARD RULES (non-negotiable):
 1. SINGLE FILE: All HTML, CSS in <style>, JS in <script>. No external libraries or CDN imports.
 2. COLORS: You MUST use the CSS variables (var(--color-primary), var(--color-secondary), var(--color-accent), var(--color-bg), var(--color-surface)) for ALL colors. NEVER pick your own colors. NEVER use bright green (#00ff00), neon red, hot pink, or garish colors. The :root block with all --color-* variables is mandatory. Background: var(--color-bg). Cards/panels: var(--color-surface). Buttons: var(--color-primary). Accents: var(--color-accent). Text: var(--color-text) and var(--color-text-muted).
-3. CONTRAST: Dark backgrounds require light text (#f1f5f9). Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root. Explicitly set color on ALL text elements — never rely on browser defaults. Buttons use white text on colored backgrounds. Inputs have visible borders (rgba(255,255,255,0.1)).
+3. CONTRAST & READABILITY (critical — users must be able to read ALL text):
+   - Dark backgrounds REQUIRE bright white or near-white text. Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root.
+   - EVERY text element (h1, h2, h3, h4, h5, h6, p, span, a, li, td, th, label, button text) must have an explicitly set color — NEVER rely on browser defaults.
+   - Headings on dark backgrounds: color: #ffffff or color: var(--color-text). NEVER use dark gray text on dark backgrounds.
+   - Subtitle/description text: color: #cbd5e1 or var(--color-text-muted) — must be clearly readable, not faint.
+   - Buttons: white text (#ffffff) on colored backgrounds. NEVER dark text on dark buttons.
+   - Inputs: visible borders (rgba(255,255,255,0.15)) and light text color.
+   - MINIMUM contrast ratio: text must always be clearly visible against its background. If the background is dark, text must be light. If the background is light, text must be dark. No exceptions.
+   - CONSISTENT BACKGROUNDS: The nav bar and the hero section MUST use the SAME background color (var(--color-bg)). ALL full-width sections must use EITHER var(--color-bg) OR var(--color-surface) — never custom shades that create visible seams between adjacent sections. Adjacent sections should either share the same background or use a clear intentional contrast (e.g., alternating between --color-bg and --color-surface). NEVER use two slightly different shades of the same color next to each other — this creates ugly visible seams.
 4. TYPOGRAPHY: Apply the Google Fonts import and use the heading/body fonts on ALL text elements. Set font-family on body, h1-h6, buttons, inputs, labels, nav links, cards — EVERY text element must inherit the chosen fonts, never fall back to browser defaults. Use font-size (NOT max-width) for headings: h1 { font-size: 2.5rem; }, h2 { font-size: 1.75rem; }, h3 { font-size: 1.25rem; }, body { font-size: 1rem; line-height: 1.7; }. NEVER set max-width on heading elements. Add: * { font-family: inherit; } and body { font-family: '${bodyFont}', sans-serif; } and h1,h2,h3,h4,h5,h6 { font-family: '${headingFont}', sans-serif; }.
 5. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
 6. FULLY FUNCTIONAL BUTTONS: Every single button MUST have a working click handler. Close/dismiss buttons must close their parent modal/popup. "Get Started"/"Learn More" buttons must scroll to or show the relevant section. Form submit buttons must validate and process. NEVER create a button without a functional onclick handler. Modal close buttons: use onclick to set the modal's display to 'none'. Toast dismiss buttons: remove the toast element. There must be ZERO dead/decorative buttons in the entire app.
@@ -579,6 +662,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       html = enforceGenomeColors(html, genome);
       html = fixOverlappingLayout(html);
       html = ensureNavAtTop(html);
+      html = enforceContrastAndBackgrounds(html, genome);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
 
@@ -657,6 +741,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = enforceGenomeColors(html, genome);
     html = fixOverlappingLayout(html);
     html = ensureNavAtTop(html);
+    html = enforceContrastAndBackgrounds(html, genome);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");
