@@ -288,6 +288,22 @@ function injectSafetyScript(html: string): string {
   // --- Override window.open to block popup windows ---
   window.open = function() { return null; };
 
+  // --- Suppress auto-showing modals, toasts, and popups on page load ---
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+      var selectors = '.modal, .popup, .overlay, .dialog, .toast, .notification, [class*="modal"], [class*="popup"], [class*="overlay"], [class*="dialog"], [class*="toast"], [class*="notification"], [role="dialog"], [role="alertdialog"]';
+      document.querySelectorAll(selectors).forEach(function(el) {
+        var style = window.getComputedStyle(el);
+        if (style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0') {
+          var isFullOverlay = (style.position === 'fixed' || style.position === 'absolute') && (parseInt(style.zIndex) > 100 || el.className.toString().match(/modal|popup|overlay|dialog|toast|notification/i));
+          if (isFullOverlay) {
+            el.style.display = 'none';
+          }
+        }
+      });
+    }, 100);
+  });
+
   // --- Intercept clicks that would navigate externally (but NOT close/dismiss buttons) ---
   document.addEventListener('click', function(e) {
     var el = e.target;
@@ -607,7 +623,7 @@ HARD RULES (non-negotiable):
 9. RESPONSIVE: CSS grid/flex, works on mobile. Navigation adapts (hamburger menu or collapsible sidebar on small screens).
 10. REALISTIC DATA: Seed with real names, dates, and numbers specific to this domain. No lorem ipsum, no "test" entries, no placeholder text. NEVER use generic labels like "Section 1", "Header 1", "Data 1", "Button 1", "Item 1", "Column 1", "Main Content", "Sample Text". Every label must be specific to the product domain.
 11. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions (with working dismiss). Active state on current nav item.
-12. DO NOT show any "Hello, world!" messages, demo popups, test notifications, or placeholder alerts on page load. The app must load cleanly into its main view without any introductory popups or modals.
+12. NO POPUPS OR MODALS ON PAGE LOAD (CRITICAL): The page must load CLEAN with ZERO popups, modals, toasts, notifications, overlays, or dialogs visible. ALL modals must start with display:none or visibility:hidden. ALL toast/notification containers must start empty. The init() function must NOT trigger any showModal(), showToast(), showNotification(), or alert() calls. No element with class "modal", "toast", "notification", "overlay", "popup", or "dialog" should be visible on initial render. Modals and toasts should ONLY appear in response to user clicks — never automatically.
 
 LAYOUT QUALITY (critical — the design must look professional):
 - Use CSS Grid or Flexbox for ALL layouts. NEVER use position: absolute for layout structure, text placement, or section content. Only use position: absolute for overlays, modals, dropdowns, and tooltips.
