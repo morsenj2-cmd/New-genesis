@@ -320,6 +320,52 @@ const IFRAME_EDITOR_SCRIPT = `
       overlay.style.display = 'none';
       window.parent.postMessage({ type: 'morse-editor-html', html: html }, '*');
     }
+    if (e.data.cmd === 'bringForward' && selected) {
+      saveUndo();
+      var curZ = parseInt(selected.style.zIndex) || 0;
+      selected.style.zIndex = String(curZ + 1);
+      var fwdPos = window.getComputedStyle(selected).position;
+      if (!fwdPos || fwdPos === 'static') selected.style.position = 'relative';
+      sendState();
+    }
+    if (e.data.cmd === 'sendBackward' && selected) {
+      saveUndo();
+      var curZ2 = parseInt(selected.style.zIndex) || 0;
+      selected.style.zIndex = String(Math.max(0, curZ2 - 1));
+      var bwdPos = window.getComputedStyle(selected).position;
+      if (!bwdPos || bwdPos === 'static') selected.style.position = 'relative';
+      sendState();
+    }
+    if (e.data.cmd === 'bringToFront' && selected) {
+      saveUndo();
+      var maxZ = 0;
+      var allSiblings = selected.parentNode ? selected.parentNode.children : [];
+      for (var zi = 0; zi < allSiblings.length; zi++) {
+        var sib = allSiblings[zi];
+        if (sib.id === '__morse_overlay' || sib.classList.contains('__morse_handle')) continue;
+        var sibZ = parseInt(sib.style && sib.style.zIndex) || 0;
+        if (sibZ > maxZ) maxZ = sibZ;
+      }
+      selected.style.zIndex = String(maxZ + 1);
+      var pos = selected.style.position;
+      if (!pos || pos === 'static') selected.style.position = 'relative';
+      sendState();
+    }
+    if (e.data.cmd === 'sendToBack' && selected) {
+      saveUndo();
+      var minZ = 0;
+      var bkSiblings = selected.parentNode ? selected.parentNode.children : [];
+      for (var bi = 0; bi < bkSiblings.length; bi++) {
+        var bkSib = bkSiblings[bi];
+        if (bkSib === selected || bkSib.id === '__morse_overlay' || (bkSib.classList && bkSib.classList.contains('__morse_handle'))) continue;
+        var bz = parseInt(bkSib.style && bkSib.style.zIndex) || 0;
+        if (bz < minZ) minZ = bz;
+      }
+      selected.style.zIndex = String(minZ - 1);
+      var bkPos = window.getComputedStyle(selected).position;
+      if (!bkPos || bkPos === 'static') selected.style.position = 'relative';
+      sendState();
+    }
     if (e.data.cmd === 'updateText' && selected && e.data.text !== undefined) {
       saveUndo();
       selected.textContent = e.data.text;
@@ -1247,6 +1293,48 @@ export function CanvasEditor({
                   </div>
                 )}
 
+                <div>
+                  <span className="text-[10px] uppercase text-muted-foreground block mb-1.5">Layer Order</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("bringForward")}
+                      data-testid="button-iframe-bring-forward"
+                    >
+                      <ChevronUp className="h-3 w-3" /> Forward
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("sendBackward")}
+                      data-testid="button-iframe-send-backward"
+                    >
+                      <ChevronDown className="h-3 w-3" /> Backward
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("bringToFront")}
+                      data-testid="button-iframe-bring-front"
+                    >
+                      <Layers className="h-3 w-3" /> To Front
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => sendEditorCmd("sendToBack")}
+                      data-testid="button-iframe-send-back"
+                    >
+                      <Layers className="h-3 w-3" /> To Back
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="text-[10px] text-muted-foreground leading-relaxed">
                   <strong className="text-foreground">Tips:</strong> Drag to move. Double-click to edit text inline. Press Delete to remove.
                 </div>
@@ -1406,7 +1494,7 @@ export function CanvasEditor({
 
                   <div>
                     <span className="text-[10px] uppercase text-muted-foreground block mb-1.5">Layer Order</span>
-                    <div className="flex gap-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1423,7 +1511,25 @@ export function CanvasEditor({
                         onClick={() => elementCanvasRef.current?.nudgeZIndex(el.id, -1)}
                         data-testid="button-element-back"
                       >
-                        <ChevronDown className="h-3 w-3" /> Back
+                        <ChevronDown className="h-3 w-3" /> Backward
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7 text-xs gap-1"
+                        onClick={() => elementCanvasRef.current?.sendToFront(el.id)}
+                        data-testid="button-element-to-front"
+                      >
+                        <Layers className="h-3 w-3" /> To Front
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7 text-xs gap-1"
+                        onClick={() => elementCanvasRef.current?.sendToBack(el.id)}
+                        data-testid="button-element-to-back"
+                      >
+                        <Layers className="h-3 w-3" /> To Back
                       </Button>
                     </div>
                   </div>

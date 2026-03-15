@@ -417,28 +417,82 @@ function injectPremiumPolish(html: string, genome: DesignGenome): string {
   }
 
   /* Premium button effects */
-  button, [role="button"], .btn, [class*="btn"], .cta, [class*="cta"] {
+  button, [role="button"], .btn, .cta {
     cursor: pointer;
     position: relative;
   }
-  button:hover, [role="button"]:hover, .btn:hover, [class*="btn"]:hover {
+  button:hover, [role="button"]:hover, .btn:hover, .cta:hover {
     transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(${hexToRgbComponents(genome.colors.primary)}, 0.3);
   }
-  button:active, [role="button"]:active, .btn:active, [class*="btn"]:active {
+  button:active, [role="button"]:active, .btn:active, .cta:active {
     transform: translateY(0) scale(0.98);
   }
 
-  /* Premium card hover effects */
-  .card:hover, [class*="card"]:hover, .feature-card:hover, .feature-item:hover {
+  /* Gradient primary CTA buttons */
+  .btn-primary, .cta, .cta-btn, .cta-button, .hero button, .hero .btn, section:first-of-type button {
+    background-image: linear-gradient(135deg, var(--color-primary, ${genome.colors.primary}), var(--color-accent, ${genome.colors.accent}));
+    border: none;
+    color: #fff;
+  }
+
+  /* Premium card hover effects with gradient glow */
+  .card:hover, .feature-card:hover, .feature-item:hover {
     transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.05);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 0 30px rgba(${hexToRgbComponents(genome.colors.primary)}, 0.08);
+    border-color: rgba(${hexToRgbComponents(genome.colors.primary)}, 0.25);
+  }
+
+  /* Hero gradient overlay for smooth section transition */
+  .hero::after, section:first-of-type::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: linear-gradient(to top, var(--color-bg, ${genome.colors.background}), transparent);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .hero, section:first-of-type {
+    position: relative;
+  }
+
+  /* Gradient text accent for main heading */
+  h1 {
+    background: linear-gradient(135deg, var(--color-text, #f1f5f9) 60%, var(--color-primary, ${genome.colors.primary}));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: var(--color-text, #f1f5f9);
+  }
+
+  /* Gradient badge/pill styling */
+  .badge, .tag, .pill {
+    background: linear-gradient(135deg, rgba(${hexToRgbComponents(genome.colors.primary)}, 0.15), rgba(${hexToRgbComponents(genome.colors.accent)}, 0.15));
+    border: 1px solid rgba(${hexToRgbComponents(genome.colors.primary)}, 0.25);
+  }
+
+  /* Input focus glow */
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--color-primary, ${genome.colors.primary});
+    box-shadow: 0 0 0 3px rgba(${hexToRgbComponents(genome.colors.primary)}, 0.15);
+  }
+
+  /* Section divider gradient line */
+  hr, .divider {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--color-primary, ${genome.colors.primary}), transparent);
+    opacity: 0.3;
   }
 
   /* Glassmorphism nav enhancement */
   nav, .navbar, .nav-bar, .navigation {
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(${hexToRgbComponents(genome.colors.primary)}, 0.1);
   }
 
   /* Section fade-in animation base */

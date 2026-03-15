@@ -314,6 +314,8 @@ export interface ElementCanvasHandle {
   updateElement: (id: string, patch: Partial<ElementNode>) => void;
   deleteElement: (id: string) => void;
   nudgeZIndex: (id: string, dir: 1 | -1) => void;
+  sendToFront: (id: string) => void;
+  sendToBack: (id: string) => void;
   setScale: (s: number) => void;
   getChanges: () => { sectionCanvases: SectionCanvas[] };
   resetChanges: () => void;
@@ -555,10 +557,28 @@ const ElementCanvas = forwardRef<ElementCanvasHandle, ElementCanvasProps>(functi
     updateElement(id, { zIndex: Math.max(0, info.el.zIndex + dir) });
   }
 
+  function sendToFront(id: string) {
+    const info = findElement(id);
+    if (!info) return;
+    const sc = sectionCanvases[info.secIdx];
+    const maxZ = Math.max(...sc.elements.map(e => e.zIndex));
+    updateElement(id, { zIndex: maxZ + 1 });
+  }
+
+  function sendToBack(id: string) {
+    const info = findElement(id);
+    if (!info) return;
+    const sc = sectionCanvases[info.secIdx];
+    const minZ = Math.min(...sc.elements.map(e => e.zIndex));
+    updateElement(id, { zIndex: Math.min(0, minZ - 1) });
+  }
+
   useImperativeHandle(ref, () => ({
     updateElement: updateElementWithUndo,
     deleteElement,
     nudgeZIndex,
+    sendToFront,
+    sendToBack,
     setScale,
     getChanges: () => ({ sectionCanvases }),
     resetChanges: () => setHasChanges(false),

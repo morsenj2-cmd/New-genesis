@@ -63,7 +63,7 @@ Morse is a Full-Stack TypeScript Monorepo with a React frontend (`client/`), an 
   - **enforceVisualHierarchy:** Typography (h1 clamp 2.5-4rem, h2 1.85rem), nav flex layout (sticky, z-1000), hero min-height, container max-width. Minimal !important — only on nav list structure.
   - **enforceStructuralGrids:** Only targets explicit "-list" class patterns (feature-list, card-list, items-list) as fallback grid. No longer overrides AI custom layouts.
   - **enforceFontFamily:** Injects Google Fonts link + CSS font-family rules from genome typography, ensuring user-chosen fonts survive regeneration
-  - **injectPremiumPolish:** Smooth scrolling, custom scrollbar, selection styling, focus rings, card/button hover transitions, glassmorphism nav, section animations, responsive breakpoints (768px, 480px)
+  - **injectPremiumPolish:** Smooth scrolling, custom scrollbar, selection styling, focus rings, card/button hover transitions, glassmorphism nav, section animations, responsive breakpoints. **Gradient flare:** primary→accent gradient on CTA buttons, gradient glow on card hover, gradient h1 text, hero bottom gradient fade, gradient hr/divider, gradient badge styling, input focus glow — all derived from genome theme colors.
   - **enforceContrastAndBackgrounds:** Nav background uses semi-transparent rgba for glassmorphism compatibility
   - **Layout uniqueness:** System prompt explicitly BANS the standard "hero → 3 card grid → stats → testimonials → pricing → footer" template. Encourages bento grids, zigzag sections, split heroes, magazine layouts, overlapping cards, timelines, card carousels, etc.
   - **Icons:** Prompt requires domain-specific SVG icons (not generic shapes). No generic icon injector — AI must create contextual icons or none at all.
@@ -81,6 +81,7 @@ Morse is a Full-Stack TypeScript Monorepo with a React frontend (`client/`), an 
 - **Morse Black Subscription:** Integrates Razorpay for subscription management, enabling features like increased credits, project export, and real-time collaboration. Includes a global credit system.
 - **Real-time Collaboration:** Allows multiple users to work on a project with role-based access, real-time UI updates via WebSockets, collaborator cursors, and email invitations.
 - **Multi-page Navigation:** GenomePreview manages `activePage` state, supporting various page types (home, features, pricing, about, blog, contact).
+- **Canvas Layer Ordering:** Canva-style layer controls (Forward, Backward, To Front, To Back) in both iframe editor and ElementCanvas. Uses z-index manipulation with computed position checks to avoid clobbering existing positioning.
 - **Strict Image Policy:** Images only appear when explicitly requested in prompts.
 - **Regenerate Style = Full Regeneration:** Regenerating style now triggers a full regeneration of layout DNA, structure, and component architecture.
 - **Semantic Content Generation Pipeline:** Uses `shared/domainVocabulary.ts`, `shared/genericPhraseFilter.ts`, and `shared/relevanceScoring.ts` for context-aware content generation.
