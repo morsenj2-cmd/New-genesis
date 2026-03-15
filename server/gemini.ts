@@ -441,31 +441,24 @@ function injectPremiumPolish(html: string, genome: DesignGenome): string {
     transform: translateY(0) scale(0.98);
   }
 
-  /* Gradient primary CTA buttons — primary color dominant */
-  .btn-primary, .cta, .cta-btn, .cta-button, .hero button, .hero .btn, section:first-of-type button {
-    background-image: linear-gradient(135deg, var(--color-primary, ${genome.colors.primary}) 0%, var(--color-primary, ${genome.colors.primary}) 60%, var(--color-accent, ${genome.colors.accent}) 100%);
+  /* Gradient primary CTA buttons — only target actual CTA buttons */
+  .btn-primary, .cta, .cta-btn, .cta-button,
+  .hero button:not(.close):not(.dismiss):not([class*="nav"]):not([class*="menu"]):not([class*="hamburger"]),
+  .hero .btn:not(.close):not(.dismiss) {
+    background-image: linear-gradient(135deg, var(--color-primary, ${genome.colors.primary}) 0%, var(--color-primary, ${genome.colors.primary}) 65%, var(--color-accent, ${genome.colors.accent}) 100%);
     border: none;
     color: #fff;
   }
 
   /* Premium card hover effects with gradient glow */
-  .card:hover, .feature-card:hover, .feature-item:hover {
+  .card:hover, [class*="card"]:hover, .feature-card:hover, .feature-item:hover, [class*="feature"]:hover {
     transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 0 30px rgba(${hexToRgbComponents(genome.colors.primary)}, 0.08);
-    border-color: rgba(${hexToRgbComponents(genome.colors.primary)}, 0.25);
-  }
-
-  /* Gradient text accent for main heading — primary dominant */
-  h1 {
-    background: linear-gradient(135deg, var(--color-text, #f1f5f9) 0%, var(--color-text, #f1f5f9) 70%, var(--color-primary, ${genome.colors.primary}) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    color: var(--color-text, #f1f5f9);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18), 0 0 20px rgba(${hexToRgbComponents(genome.colors.primary)}, 0.1);
+    border-color: rgba(${hexToRgbComponents(genome.colors.primary)}, 0.2);
   }
 
   /* Gradient badge/pill styling — primary dominant */
-  .badge, .tag, .pill {
+  .badge, .tag, .pill, [class*="badge"], [class*="tag"], [class*="pill"] {
     background: linear-gradient(135deg, rgba(${hexToRgbComponents(genome.colors.primary)}, 0.2), rgba(${hexToRgbComponents(genome.colors.primary)}, 0.08));
     border: 1px solid rgba(${hexToRgbComponents(genome.colors.primary)}, 0.25);
   }
@@ -491,13 +484,19 @@ function injectPremiumPolish(html: string, genome: DesignGenome): string {
     border-bottom: 1px solid rgba(${hexToRgbComponents(genome.colors.primary)}, 0.1);
   }
 
-  /* Section fade-in animation base */
+  /* Scroll-triggered fade-in — hidden by default, revealed by IntersectionObserver */
   section, [class*="section"] {
-    animation: fadeInUp 0.6s ease-out both;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1), transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+  section.morse-visible, [class*="section"].morse-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  nav, .navbar, footer, [class*="footer"], [class*="nav"] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 
   /* Responsive breakpoints */
@@ -519,6 +518,36 @@ function injectPremiumPolish(html: string, genome: DesignGenome): string {
     html = html.replace("</style>", `${premiumCSS}\n</style>`);
   }
 
+  const observerScript = `
+<script>
+(function(){
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('morse-visible');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  function observeSections() {
+    document.querySelectorAll('section, [class*="section"]').forEach(function(s) {
+      if (!s.classList.contains('morse-visible')) io.observe(s);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', observeSections);
+  } else {
+    observeSections();
+  }
+})();
+</script>`;
+
+  if (html.includes("</body>")) {
+    html = html.replace("</body>", observerScript + "\n</body>");
+  } else {
+    html += observerScript;
+  }
+
   return html;
 }
 
@@ -532,6 +561,54 @@ function extractHtml(text: string): string {
   }
   if (start !== -1) return text.slice(start).trim();
   return text.trim();
+}
+
+function enforceQualityBaseline(html: string, genome: DesignGenome): string {
+  html = html.replace(
+    /<section\b[^>]*>\s*<\/section>/gi,
+    ''
+  );
+
+  html = html.replace(
+    /<div\b[^>]*class="[^"]*(?:section|container|wrapper)[^"]*"[^>]*>\s*<\/div>/gi,
+    ''
+  );
+
+  const sectionBgPattern = /<section\b([^>]*)>/gi;
+  let sectionIndex = 0;
+  html = html.replace(sectionBgPattern, (match, attrs) => {
+    sectionIndex++;
+    if (!match.includes('background') && !match.includes('style=')) {
+      const bg = sectionIndex % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)';
+      return match.replace('>', ` style="background-color: ${bg};">`);
+    }
+    return match;
+  });
+
+  const imgPattern = /src="https:\/\/picsum\.photos\/seed\/([^"\/]+)/g;
+  const seenSeeds = new Set<string>();
+  let seedCounter = 0;
+  html = html.replace(imgPattern, (match, seed) => {
+    if (seenSeeds.has(seed)) {
+      seedCounter++;
+      const newSeed = `${seed}-v${seedCounter}`;
+      return match.replace(seed, newSeed);
+    }
+    seenSeeds.add(seed);
+    return match;
+  });
+
+  html = html.replace(
+    /(<(?:img)\b[^>]*?)(?=\s*\/?>)/gi,
+    (match) => {
+      if (!match.includes('loading=')) {
+        return match + ' loading="lazy"';
+      }
+      return match;
+    }
+  );
+
+  return html;
 }
 
 function ensureSeamlessSections(html: string, genome: DesignGenome): string {
@@ -559,20 +636,30 @@ function ensureSeamlessSections(html: string, genome: DesignGenome): string {
 }
 
 function fixBrokenSvgIcons(html: string, genome: DesignGenome): string {
+  const replacementIcons = [
+    '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
+    '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    '<path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/><line x1="2" y1="20" x2="22" y2="20"/>',
+    '<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/><line x1="12" y1="12" x2="12" y2="16"/>',
+    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+    '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  ];
+  let iconIndex = 0;
+
   const svgPattern = /<svg[^>]*>([\s\S]*?)<\/svg>/gi;
   
   html = html.replace(svgPattern, (fullMatch, innerContent) => {
     const trimmed = innerContent.trim();
     const elementCount = (trimmed.match(/<(?:path|rect|line|polyline|polygon|ellipse|circle|text|use|g)\b/gi) || []).length;
     
-    if (elementCount <= 1 && trimmed.length < 150) {
-      const isJustCircle = /^\s*<circle[^>]*\/?>\s*$/i.test(trimmed);
-      const isJustEllipse = /^\s*<ellipse[^>]*\/?>\s*$/i.test(trimmed);
-      const isEmpty = trimmed.length === 0;
-      
-      if (isJustCircle || isJustEllipse || isEmpty) {
-        return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--color-primary, ${genome.colors.primary})" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`;
-      }
+    const isBroken = trimmed.length === 0 ||
+      (elementCount <= 1 && trimmed.length < 150 && /^\s*<(circle|ellipse)[^>]*\/?>\s*$/i.test(trimmed)) ||
+      (elementCount <= 1 && trimmed.length < 60);
+    
+    if (isBroken) {
+      const replacement = replacementIcons[iconIndex % replacementIcons.length];
+      iconIndex++;
+      return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--color-primary, ${genome.colors.primary})" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${replacement}</svg>`;
     }
     
     return fullMatch;
@@ -906,6 +993,18 @@ CRITICAL DESIGN RULES:
 - DEPTH & DIMENSION: Multi-layered box-shadows (e.g. 0 1px 2px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12), 0 16px 48px rgba(0,0,0,0.08)). Hover states lift elements with shadow bloom.
 - ICONOGRAPHY: Draw CUSTOM inline SVG icons that are SPECIFIC to the product domain — not generic shapes. Every icon must visually represent what it describes. Use varied stroke patterns, not just circles and lines.
 
+QUALITY NON-NEGOTIABLES (every single project must have ALL of these):
+1. POLISHED NAV: Sticky glassmorphism nav with logo left, links right, smooth backdrop-filter. Never a bare unstyled nav.
+2. HERO IMPACT: Full-viewport hero (min-height:80vh) with layered gradient background (radial + linear), large headline with tight letter-spacing, compelling subtitle, and a prominent CTA button with hover glow.
+3. CONTENT DEPTH: Every section has substantial text. Feature cards need 2-3 sentences MINIMUM. About section needs 3+ paragraphs. No one-liner sections.
+4. VISUAL RHYTHM: Alternate section backgrounds between var(--color-bg) and var(--color-surface). No two adjacent sections should have the same background.
+5. SMOOTH TRANSITIONS: Sections flow into each other. No hard color jumps. Margins between sections = 0. Use padding for spacing, never margin.
+6. CARD SOPHISTICATION: Cards have border, border-radius, padding:32px, subtle shadow, and hover lift effect. Never flat unstyled divs.
+7. FOOTER COMPLETENESS: Multi-column footer with brand description, feature links, contact info, social links, copyright bar.
+8. WORKING JAVASCRIPT: Every button has a handler. State management with localStorage. Search/filter if applicable. Toast notifications.
+9. RESPONSIVE: Works at 1200px, 768px, and 480px. Grid collapses. Font sizes scale. Nav goes hamburger on mobile.
+10. NO DEAD SPACE: Every pixel should serve a purpose. No empty sections, no huge unexplained gaps, no orphaned elements.
+
 You build production-quality, fully functional applications as single self-contained HTML files. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
     const user = `Build a complete, fully functional application as a single self-contained HTML file.
@@ -1081,6 +1180,7 @@ OUTPUT REQUIREMENTS: Write 800+ lines minimum. The CSS alone should be 250+ line
       html = enforceStructuralGrids(html);
       html = enforceFontFamily(html, genome);
       html = fixBrokenSvgIcons(html, genome);
+      html = enforceQualityBaseline(html, genome);
       html = ensureSeamlessSections(html, genome);
       html = injectPremiumPolish(html, genome);
 
@@ -1166,6 +1266,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = enforceStructuralGrids(html);
     html = enforceFontFamily(html, genome);
     html = fixBrokenSvgIcons(html, genome);
+    html = enforceQualityBaseline(html, genome);
     html = ensureSeamlessSections(html, genome);
     html = injectPremiumPolish(html, genome);
 
