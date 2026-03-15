@@ -168,12 +168,12 @@ function fixOverlappingLayout(html: string): string {
 function enforceVisualHierarchy(html: string): string {
   const hierarchyCSS = `
   /* Morse visual hierarchy enforcement */
-  h1 { font-size: 2.75rem !important; font-weight: 800 !important; line-height: 1.15 !important; letter-spacing: -0.02em !important; }
+  h1 { font-size: clamp(2.5rem, 5vw, 4rem) !important; font-weight: 800 !important; line-height: 1.1 !important; letter-spacing: -0.03em !important; }
   h2 { font-size: 1.85rem !important; font-weight: 700 !important; line-height: 1.25 !important; }
   h3 { font-size: 1.35rem !important; font-weight: 600 !important; line-height: 1.35 !important; }
   h4 { font-size: 1.1rem !important; font-weight: 600 !important; }
   p, li, td, th { font-size: 1rem; line-height: 1.7; }
-  section, [class*="section"] { padding-top: 80px !important; padding-bottom: 80px !important; }
+  section, [class*="section"] { padding-top: 100px !important; padding-bottom: 100px !important; }
 
   /* Nav layout enforcement — target only nav element and navbar class */
   nav, .navbar, .nav-bar, .navigation {
@@ -207,7 +207,7 @@ function enforceVisualHierarchy(html: string): string {
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    min-height: 60vh !important;
+    min-height: 80vh !important;
     padding: 80px 24px !important;
   }
   .hero h1, [class*="hero-section"] h1, #hero h1 {
@@ -277,8 +277,8 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
   a:not([class*="btn"]):not([class*="button"]) {
     color: #e2e8f0;
   }
-  nav, nav *, .navbar, .navbar * {
-    background-color: var(--color-bg, ${bgColor});
+  nav, .navbar {
+    background-color: rgba(${hexToRgbComponents(bgColor)}, 0.85);
   }
   `;
 
@@ -299,6 +299,17 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
   );
 
   return html;
+}
+
+function hexToRgbComponents(hex: string): string {
+  const c = hex.replace("#", "");
+  if (c.length === 3) {
+    return `${parseInt(c[0]+c[0],16)},${parseInt(c[1]+c[1],16)},${parseInt(c[2]+c[2],16)}`;
+  }
+  if (c.length === 6) {
+    return `${parseInt(c.slice(0,2),16)},${parseInt(c.slice(2,4),16)},${parseInt(c.slice(4,6),16)}`;
+  }
+  return "0,0,0";
 }
 
 function isDarkColor(color: string): boolean {
@@ -384,6 +395,86 @@ function enforceStructuralGrids(html: string): string {
       }
       return beforeClose + ' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;"' + close;
     });
+  }
+
+  return html;
+}
+
+function injectPremiumPolish(html: string, genome: DesignGenome): string {
+  const premiumCSS = `
+  /* Morse Premium Polish — world-class design system */
+  html { scroll-behavior: smooth; }
+  * { box-sizing: border-box; }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--color-bg, ${genome.colors.background}); }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+  /* Selection styling */
+  ::selection { background: var(--color-primary, ${genome.colors.primary}); color: white; }
+
+  /* Focus rings */
+  :focus-visible { outline: 2px solid var(--color-primary, ${genome.colors.primary}); outline-offset: 2px; }
+
+  /* Universal transitions on interactive elements */
+  a, button, input, textarea, select, [role="button"],
+  .card, [class*="card"], .feature, [class*="feature"] {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Premium button effects */
+  button, [role="button"], .btn, [class*="btn"], .cta, [class*="cta"] {
+    cursor: pointer;
+    position: relative;
+  }
+  button:hover, [role="button"]:hover, .btn:hover, [class*="btn"]:hover {
+    transform: translateY(-2px);
+  }
+  button:active, [role="button"]:active, .btn:active, [class*="btn"]:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Premium card hover effects */
+  .card:hover, [class*="card"]:hover, .feature-card:hover, .feature-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  /* Glassmorphism nav enhancement */
+  nav, .navbar, .nav-bar, .navigation {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Section fade-in animation base */
+  section, [class*="section"] {
+    animation: fadeInUp 0.6s ease-out both;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Responsive breakpoints */
+  @media (max-width: 768px) {
+    h1 { font-size: 2rem !important; }
+    h2 { font-size: 1.5rem !important; }
+    section, [class*="section"] { padding-top: 60px !important; padding-bottom: 60px !important; }
+    nav ul, .navbar ul { gap: 16px !important; }
+  }
+  @media (max-width: 480px) {
+    h1 { font-size: 1.75rem !important; }
+    h2 { font-size: 1.35rem !important; }
+    nav { padding: 12px 16px !important; }
+    section, [class*="section"] { padding-top: 40px !important; padding-bottom: 40px !important; }
+  }
+  `;
+
+  if (html.includes("</style>")) {
+    html = html.replace("</style>", `${premiumCSS}\n</style>`);
   }
 
   return html;
@@ -559,7 +650,7 @@ async function chat(
             { role: "user", content: userContent },
           ],
           max_tokens: maxTokens,
-          temperature: 0.6,
+          temperature: 0.7,
         });
         const tokensUsed = completion.usage?.total_tokens ?? 0;
         const content = completion.choices[0]?.message?.content ?? "";
@@ -699,7 +790,18 @@ IMAGE SEED SELECTION RULES (read carefully):
 - NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com
 ${hasImages ? "- This product is VISUAL — include prominent product/hero images throughout with large, high-quality image areas. Use at least 5 distinct contextual images." : ""}`;
 
-    const system = `You are an elite full-stack web developer. You build production-quality, fully functional applications as single self-contained HTML files. You analyze the user's product description and autonomously decide the best architecture, layout, navigation style, data model, and UI patterns. You never build generic templates — every app is unique to the user's domain. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
+    const system = `You are a world-class UI/UX designer AND senior frontend engineer — the kind of person who designs websites featured on Awwwards, Dribbble, and SiteInspire. You combine stunning visual design with flawless engineering. Your output rivals tools like V0.dev, Lovable, and Bolt.new in quality.
+
+Your design philosophy:
+- VISUAL SOPHISTICATION: Use gradient overlays, glassmorphism (backdrop-filter: blur), layered shadows, subtle grain textures, animated gradient borders, and refined micro-interactions
+- MODERN TYPOGRAPHY: Large hero text (clamp(2.5rem, 5vw, 4.5rem)), tight letter-spacing on headings (-0.03em), generous line-height on body text (1.75), font-weight contrast between headings (800) and body (400)
+- SPATIAL DESIGN: Generous whitespace is a FEATURE. Sections need 100-120px vertical padding. Cards need 32px padding. Everything breathes.
+- COLOR MASTERY: Use the provided color tokens with sophisticated gradients. Never flat single-color backgrounds on heroes — use radial gradients, mesh gradients, or gradient overlays. Accent colors for small highlights only.
+- DEPTH & DIMENSION: Cards float with multi-layered box-shadows. Hover states lift elements. Use subtle border effects (1px rgba borders that catch light).
+- ANIMATIONS: Smooth CSS transitions on everything interactive (0.3s cubic-bezier(0.4, 0, 0.2, 1)). Hover transforms (translateY(-4px)). Button press effects (scale(0.98)).
+- ICONOGRAPHY: Use inline SVG icons (simple, clean line icons) — never external icon libraries, never emoji, never image-based icons.
+
+You build production-quality, fully functional applications as single self-contained HTML files. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
     const user = `Build a complete, fully functional application as a single self-contained HTML file.
 
@@ -738,63 +840,100 @@ ${logoUrl
       ? `LOGO: Place this exact img tag in the navbar (left side): <img src="${logoUrl}" alt="${brandName}" style="height:36px;width:auto;object-fit:contain;display:block;">`
       : `LOGO: Show "${brandName}" as styled text in the navbar.`}
 
+ARCHITECTURE & ENGINEERING RULES:
+1. SINGLE FILE: All HTML, CSS in <style>, JS in <script>. No external libraries, CDN imports, or icon font links.
+2. COLORS: Use CSS variables exclusively (var(--color-primary), var(--color-secondary), var(--color-accent), var(--color-bg), var(--color-surface), var(--color-text), var(--color-text-muted)). The :root block is mandatory. NEVER hardcode colors or use garish neon values.
+3. TYPOGRAPHY: Import Google Fonts. Set * { font-family: inherit; }, body { font-family: '${bodyFont}', sans-serif; }, h1-h6 { font-family: '${headingFont}', sans-serif; }. Hero h1: font-size: clamp(2.5rem, 5vw, 4rem), font-weight: 800, letter-spacing: -0.03em. Body: font-size: 1rem, line-height: 1.75.
+4. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page. Forms use e.preventDefault().
+5. FUNCTIONAL BUTTONS: Every button MUST have a working click handler. ZERO dead/decorative buttons. Modal close buttons must close modals. CTA buttons must scroll or navigate.
+6. STATE: window.appState with localStorage persistence. Render UI from state. init() populates all content on DOMContentLoaded. Event delegation for dynamic elements.
+7. RESPONSIVE: CSS Grid/Flexbox only. Mobile hamburger menu via CSS checkbox hack (no JS library). Breakpoints at 768px and 480px.
+8. REALISTIC DATA: 15-25 seed records with real names, dates, numbers from this domain. No lorem ipsum, no generic labels.
+9. NO POPUPS ON LOAD: All modals/toasts start hidden (display:none). init() must NOT trigger any modal/toast/alert.
+
+PREMIUM DESIGN SYSTEM (this is what separates amateur from world-class):
+
+NAVIGATION (build this EXACT structure):
+- <nav> must be FIRST in <body>, ABOVE hero
+- display:flex, align-items:center, justify-content:space-between
+- padding: 16px 32px, position:sticky, top:0, z-index:1000
+- Background: add backdrop-filter:blur(20px) with semi-transparent bg (rgba version of --color-bg with 0.8 opacity)
+- Border-bottom: 1px solid rgba(255,255,255,0.06)
+- Brand/logo LEFT side, nav links RIGHT side in a <ul> with display:flex, gap:32px, list-style:none, margin:0, padding:0
+- Nav link hover: color transition to var(--color-primary)
+- Active nav link: color:var(--color-primary) with a subtle bottom indicator
+
+HERO SECTION (the first impression — must be BREATHTAKING):
+- min-height: 80vh, display:flex, flex-direction:column, align-items:center, justify-content:center, text-align:center
+- Background: NOT flat color. Use a radial gradient: radial-gradient(ellipse at 50% 0%, rgba(primary, 0.15) 0%, transparent 70%) layered on var(--color-bg)
+- Optional: add a subtle CSS dot pattern or grid pattern overlay for texture
+- Hero h1: clamp(2.5rem, 5vw, 4rem), font-weight:800, letter-spacing:-0.03em, max-width:800px, color: white
+- Subtitle: font-size:1.2rem, color:var(--color-text-muted), max-width:600px, margin-top:24px
+- CTA button: padding:16px 40px, font-size:1rem, font-weight:600, border-radius:var(--radius-lg), background:var(--color-primary), color:white, transition:all 0.3s, hover:translateY(-2px) + box-shadow
+- Add a subtle gradient glow behind the CTA button: box-shadow: 0 0 40px rgba(primary, 0.3)
+- Optional: small badge/pill above h1 with subtle border (e.g., "Introducing ${brandName}")
+
+FEATURE/CARD SECTIONS (use CSS GRID — NEVER a vertical list):
+- Section padding: 100px 24px
+- Section heading: center-aligned h2, with a small accent line or badge above it
+- Container: max-width:1200px, margin:0 auto
+- Card grid: display:grid, grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)), gap:24px
+- Each card: background:var(--color-surface), border:1px solid rgba(255,255,255,0.06), border-radius:var(--radius-lg), padding:32px
+- Card hover: transform:translateY(-4px), box-shadow:0 20px 40px rgba(0,0,0,0.15), border-color:rgba(primary, 0.3)
+- Card transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+- Card icon: Use a INLINE SVG icon (24x24, stroke-width:1.5, stroke:var(--color-primary), fill:none) at top of each card. Draw simple geometric line icons relevant to each feature. Place inside a 48x48 rounded div with background:rgba(primary, 0.1).
+- Card title: font-size:1.15rem, font-weight:700, color:var(--color-text), margin:16px 0 8px
+- Card description: font-size:0.95rem, color:var(--color-text-muted), line-height:1.7
+
+STATS/METRICS SECTION:
+- Use a row of 3-4 stat cards with large numbers (font-size:2.5rem, font-weight:800, color:var(--color-primary))
+- Label below in muted text
+- Subtle counter animation on scroll (IntersectionObserver + requestAnimationFrame)
+
+TESTIMONIALS (if appropriate):
+- Large quotation marks as decorative SVG
+- Italic quote text, author name with role, optional avatar circle
+
+PRICING (if appropriate):
+- 2-3 tier cards, highlight the recommended one with border:2px solid var(--color-primary) and a "Popular" badge
+- Use CSS grid, equal heights
+
+FOOTER:
+- Full-width, darker background (slightly darker than --color-bg)
+- Multi-column grid layout (brand, links, contact, social)
+- Bottom bar with copyright and subtle separator line
+- Links with hover underline transitions
+
+PREMIUM CSS TECHNIQUES (use these throughout):
+- Smooth scrolling: html { scroll-behavior: smooth; }
+- Custom scrollbar: ::-webkit-scrollbar (thin, themed)
+- Selection styling: ::selection { background: var(--color-primary); color: white; }
+- Focus-visible rings: :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+- Hover transitions on ALL interactive elements: transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+- Button hover: translateY(-2px) + shadow increase. Button active: scale(0.98)
+- Card hover: translateY(-4px) + shadow bloom
+- Link hover: color shift to primary
+- Subtle gradient text on key headings: background: linear-gradient(135deg, white, var(--color-primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent (use sparingly)
+- Alternating section backgrounds: alternate between var(--color-bg) and var(--color-surface)
+- Section transitions: use IntersectionObserver to add a .visible class with opacity:1 transform:translateY(0) (from opacity:0 translateY(20px))
+
+CONTRAST & READABILITY (non-negotiable):
+- Dark backgrounds require light text. --color-text: #f1f5f9. --color-text-muted: #94a3b8.
+- EVERY text element must have an explicitly set color. NEVER rely on browser defaults.
+- Buttons: white text on colored backgrounds. Inputs: visible borders and light text.
+- Adjacent sections: use ONLY --color-bg or --color-surface. Never two custom shades that create visible seams.
+
+SVG ICON RULES (instead of images for features/services):
+- Draw simple inline SVG icons: viewBox="0 0 24 24", stroke="currentColor", stroke-width="1.5", fill="none", stroke-linecap="round", stroke-linejoin="round"
+- Common icon shapes: circle + lines for analytics, shield for security, zap/lightning for speed, users for team, lock for privacy, globe for global, code brackets for dev, chart bars for data, etc.
+- Each icon must be UNIQUE and relevant to its feature
+- Place icons inside a styled container: width:48px, height:48px, border-radius:12px, background:rgba(primary, 0.1), display:flex, align-items:center, justify-content:center
+
 ${imageInstruction}
-
-HARD RULES (non-negotiable):
-1. SINGLE FILE: All HTML, CSS in <style>, JS in <script>. No external libraries or CDN imports.
-2. COLORS: You MUST use the CSS variables (var(--color-primary), var(--color-secondary), var(--color-accent), var(--color-bg), var(--color-surface)) for ALL colors. NEVER pick your own colors. NEVER use bright green (#00ff00), neon red, hot pink, or garish colors. The :root block with all --color-* variables is mandatory. Background: var(--color-bg). Cards/panels: var(--color-surface). Buttons: var(--color-primary). Accents: var(--color-accent). Text: var(--color-text) and var(--color-text-muted).
-3. CONTRAST & READABILITY (critical — users must be able to read ALL text):
-   - Dark backgrounds REQUIRE bright white or near-white text. Set --color-text: #f1f5f9 and --color-text-muted: #94a3b8 in :root.
-   - EVERY text element (h1, h2, h3, h4, h5, h6, p, span, a, li, td, th, label, button text) must have an explicitly set color — NEVER rely on browser defaults.
-   - Headings on dark backgrounds: color: #ffffff or color: var(--color-text). NEVER use dark gray text on dark backgrounds.
-   - Subtitle/description text: color: #cbd5e1 or var(--color-text-muted) — must be clearly readable, not faint.
-   - Buttons: white text (#ffffff) on colored backgrounds. NEVER dark text on dark buttons.
-   - Inputs: visible borders (rgba(255,255,255,0.15)) and light text color.
-   - MINIMUM contrast ratio: text must always be clearly visible against its background. If the background is dark, text must be light. If the background is light, text must be dark. No exceptions.
-   - CONSISTENT BACKGROUNDS: The nav bar and the hero section MUST use the SAME background color (var(--color-bg)). ALL full-width sections must use EITHER var(--color-bg) OR var(--color-surface) — never custom shades that create visible seams between adjacent sections. Adjacent sections should either share the same background or use a clear intentional contrast (e.g., alternating between --color-bg and --color-surface). NEVER use two slightly different shades of the same color next to each other — this creates ugly visible seams.
-4. TYPOGRAPHY: Apply the Google Fonts import and use the heading/body fonts on ALL text elements. Set font-family on body, h1-h6, buttons, inputs, labels, nav links, cards — EVERY text element must inherit the chosen fonts, never fall back to browser defaults. Use font-size (NOT max-width) for headings: h1 { font-size: 2.5rem; }, h2 { font-size: 1.75rem; }, h3 { font-size: 1.25rem; }, body { font-size: 1rem; line-height: 1.7; }. NEVER set max-width on heading elements. Add: * { font-family: inherit; } and body { font-family: '${bodyFont}', sans-serif; } and h1,h2,h3,h4,h5,h6 { font-family: '${headingFont}', sans-serif; }.
-5. NO EXTERNAL NAVIGATION: Never use window.location, location.assign(), window.open(), or external URLs. All navigation is in-page (switch views/sections). Forms use e.preventDefault() with in-page feedback.
-6. FULLY FUNCTIONAL BUTTONS: Every single button MUST have a working click handler. Close/dismiss buttons must close their parent modal/popup. "Get Started"/"Learn More" buttons must scroll to or show the relevant section. Form submit buttons must validate and process. NEVER create a button without a functional onclick handler. Modal close buttons: use onclick to set the modal's display to 'none'. Toast dismiss buttons: remove the toast element. There must be ZERO dead/decorative buttons in the entire app.
-7. STATE: Use window.appState for all app data. Persist to localStorage on every change. Load from localStorage on startup. Render all UI dynamically from state — never hardcode content in HTML.
-8. INITIALIZATION: At the end of <script>: document.addEventListener('DOMContentLoaded', function() { init(); }); — init() must populate ALL visible content from state so the page is never blank on load. Use event delegation (document.addEventListener on a parent) for dynamically rendered elements.
-9. RESPONSIVE: CSS grid/flex, works on mobile. Navigation adapts (hamburger menu or collapsible sidebar on small screens).
-10. REALISTIC DATA: Seed with real names, dates, and numbers specific to this domain. No lorem ipsum, no "test" entries, no placeholder text. NEVER use generic labels like "Section 1", "Header 1", "Data 1", "Button 1", "Item 1", "Column 1", "Main Content", "Sample Text". Every label must be specific to the product domain.
-11. VISUAL POLISH: Hover states on all clickable elements. Smooth CSS transitions on state changes. Toast notifications for user actions (with working dismiss). Active state on current nav item.
-12. NO POPUPS OR MODALS ON PAGE LOAD (CRITICAL): The page must load CLEAN with ZERO popups, modals, toasts, notifications, overlays, or dialogs visible. ALL modals must start with display:none or visibility:hidden. ALL toast/notification containers must start empty. The init() function must NOT trigger any showModal(), showToast(), showNotification(), or alert() calls. No element with class "modal", "toast", "notification", "overlay", "popup", or "dialog" should be visible on initial render. Modals and toasts should ONLY appear in response to user clicks — never automatically.
-
-VISUAL HIERARCHY (critical — the design must guide the user's eye):
-- SIZE HIERARCHY: h1 (2.5–3rem, font-weight: 800) > h2 (1.75–2rem, font-weight: 700) > h3 (1.25–1.5rem, font-weight: 600) > body (1rem, font-weight: 400). There must be a CLEAR size difference between each heading level — never make h1 and h2 look the same size.
-- HERO SECTION: The hero h1 must be the LARGEST text on the entire page (min 2.5rem, ideally 3–3.5rem). It must be the first thing the user's eye is drawn to. The subtitle below it should be noticeably smaller (1.1–1.25rem) and use a muted color. The CTA button should be large and prominent (padding: 14px 32px, font-size: 1.1rem).
-- SECTION HEADINGS: Each section's h2 must be clearly larger than the content below it. Add a subtle accent element (e.g., a small colored bar, underline, or badge above the heading) to separate sections visually.
-- SPACING RHYTHM: Use generous whitespace between sections (padding: 80px 0 minimum for major sections). Within sections, use consistent spacing (24px–32px between cards, 16px between text elements). NEVER crowd elements together — whitespace is a feature, not wasted space.
-- VISUAL WEIGHT: Primary CTA buttons should be bold and filled (background: var(--color-primary), large padding). Secondary actions should be outlined or ghost buttons. Links should be subtle. This creates a clear action hierarchy.
-- CARD DESIGN: Cards should have subtle elevation (box-shadow or border), consistent padding (24px), and clear internal hierarchy (image > title > description > action). Card titles should be bold (font-weight: 600) and card descriptions should be muted.
-- COLOR EMPHASIS: Use var(--color-primary) sparingly for emphasis — only on CTAs, active nav items, and key metrics. Use var(--color-accent) for highlights and badges. Overusing the primary color kills hierarchy.
-- CONTENT WIDTH: Hero text should be contained (max-width: 700px for text area) so lines don't stretch too wide. Body content areas should use max-width: 1200px. Narrow content is easier to read.
-
-LAYOUT QUALITY (critical — the design must look professional):
-- Use CSS Grid or Flexbox for ALL layouts. NEVER use position: absolute for layout structure, text placement, or section content. Only use position: absolute for overlays, modals, dropdowns, and tooltips.
-- ZERO OVERLAPPING: No text, heading, button, or content element may visually overlap another. Every element must occupy its own space in the document flow. Hero sections must use flexbox column layout (display: flex; flex-direction: column; align-items: center; justify-content: center;) — NEVER stack elements with position: absolute inside heroes.
-- Consistent spacing: use a spacing scale (8px, 16px, 24px, 32px, 48px, 64px, 80px). Sections should have padding: 80px 0 or more.
-- FEATURE/CARD SECTIONS MUST USE CSS GRID: When displaying multiple items (features, services, products, team members, testimonials), ALWAYS use CSS Grid with display:grid, grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)), gap:24px. NEVER stack cards in a single vertical column — this looks amateur. Minimum 2 columns on desktop, 3 columns preferred for 3+ items. Cards must have equal heights (use grid auto-rows or flex stretch).
-- Hero section: full-width, min-height: 60vh, display: flex, flex-direction: column, align-items: center, justify-content: center. Place heading, subtitle, and CTA in normal flow — never use absolute positioning for hero text.
-- Container max-width: 1200px centered with margin: 0 auto and padding: 0 24px for content areas.
-- Section headings: center-aligned with margin-bottom: 48px before content grids.
-- NAVIGATION STRUCTURE (mandatory): The nav element must use display:flex, align-items:center, justify-content:space-between, padding:12px 24px, position:sticky, top:0, z-index:1000, background:var(--color-bg). Brand/logo goes on the LEFT side. Navigation links go on the RIGHT side in a flex row using a ul with display:flex, gap:24px, list-style:none, margin:0, padding:0. The nav MUST be the FIRST element in the body, ABOVE the hero. NEVER use bullet points — always set list-style:none on nav ul and li. NEVER use ol for nav links.
-- No content should ever overflow its container or overlap other elements. If you need a background image on a section, use background-image CSS property on the section itself — do NOT create an absolute-positioned img behind the content.
-- Modals must have proper overlay (fixed, inset 0, semi-transparent background), centered content, and a visible close button.
-
-CONTENT REQUIREMENTS (the app must have ALL of these):
-- HERO/HEADER SECTION: A visually striking top section with the product name, tagline, and primary call-to-action. Full-width background with overlay text.
-- MAIN CONTENT AREA: The core functional area (product grid, data table, dashboard panels, feature showcase, etc.) — must be rendered visibly from state data on load, NOT hidden or empty.
-- MULTIPLE VIEWS/SECTIONS: At least 3 distinct content areas navigable via the nav bar. Each view must have real, substantial content.
-- FOOTER: With copyright, brand name, and relevant links. Full-width dark background.
-- CSS must be comprehensive: style EVERY element, including scrollbar styling (webkit), selection styling, focus states on inputs, hover transitions on cards/buttons, gradient accents.
-- JavaScript must include: event delegation for dynamic elements, search/filter functionality, modal dialogs for detail views (with working close buttons), toast notification system (with working dismiss), data rendering functions that rebuild UI from state.
 
 ${integrations && integrations.length > 0 ? `INTEGRATIONS:\n${integrations.map(ig => `- ${ig.name}: Key = "${ig.value}" — include initialization in <head>.`).join("\n")}` : ""}
 
-CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/minimal output is unacceptable. The app must be DENSE with content, features, and polish — it must feel like real production software, not a prototype. Include extensive CSS (200+ lines), rich HTML structure, and comprehensive JavaScript (300+ lines). Start with <!DOCTYPE html> immediately.`;
+OUTPUT REQUIREMENTS: Write 800+ lines minimum. The CSS alone should be 250+ lines with comprehensive styling (scrollbar, selection, focus, hover, transitions, gradients, responsive breakpoints). HTML must be rich and semantic. JavaScript must be 300+ lines with full state management, rendering, event handling, search/filter, and toast system. Start with <!DOCTYPE html> immediately.`;
 
     const maxTokens = 12000;
 
@@ -828,6 +967,7 @@ CRITICAL: You must write at MINIMUM 800 lines of actual functional code. Short/m
       html = enforceContrastAndBackgrounds(html, genome);
       html = enforceVisualHierarchy(html);
       html = enforceStructuralGrids(html);
+      html = injectPremiumPolish(html, genome);
 
       const usesGenomeColors = html.includes("var(--color-primary)") || html.includes("var(--color-bg)") || html.includes(genome.colors.primary);
 
@@ -909,6 +1049,7 @@ Return the full modified HTML starting with <!DOCTYPE html>.`;
     html = enforceContrastAndBackgrounds(html, genome);
     html = enforceVisualHierarchy(html);
     html = enforceStructuralGrids(html);
+    html = injectPremiumPolish(html, genome);
 
     const lineCount = html.split("\n").length;
     const hasBasicStructure = html.includes("<style") && html.includes("<script") && html.includes("<!DOCTYPE html>");

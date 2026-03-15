@@ -57,12 +57,14 @@ Morse is a Full-Stack TypeScript Monorepo with a React frontend (`client/`), an 
 - **Layout Generation:** `shared/layoutEngine.ts` generates context-driven layouts using `SITE_TYPE_POOLS` and applies constraints for page types (e.g., `landing_page` sections).
 - **Generation Refactor (v2):** Enforces strict page types, constraints on sections/columns, and utilizes a 6-dimension genome signature for style regeneration uniqueness (`isGenomeTooSimilar`, `hasSufficientMutation`).
 - **Universal Context Engine:** `shared/universalContext.ts` performs NLP-lite industry detection, noun/verb/adjective extraction, and dynamic domain vocabulary building.
-- **AI HTML Generation:** Uses an LLM (Groq) to generate full HTML applications from prompts. It's fully dynamic, determining layout, navigation, data models, and interactive components.
-  - **Hard Rules:** Single self-contained HTML, dark theme contrast, no external navigation, working interactive elements, state persistence via `window.appState`, event delegation, realistic seed data.
-  - **Post-Generation Validation:** Truncation repair, placeholder replacement, quality checks, and retries.
-  - **NL Edit (Targeted):** `geminiEditApp()` sends existing HTML + edit instruction to AI for minimal, targeted changes.
-  - **Safety:** `injectSafetyScript()` blocks external navigation in generated HTML.
-  - **Post-processors:** A series of functions (`sanitizeGeneratedCss`, `enforceGenomeColors`, `enforceVisualHierarchy`, `enforceStructuralGrids`, etc.) are applied to refine and enforce design rules on generated HTML.
+- **AI HTML Generation:** Uses Groq LLM (llama-3.3-70b-versatile, temp 0.7, 12k max tokens) to generate premium-quality full HTML applications. System prompt emphasizes world-class UI/UX design rivaling V0.dev, Lovable, and Bolt.new with glassmorphism, gradient overlays, micro-interactions, inline SVG icons, and modern CSS techniques.
+  - **Premium Design System:** Glassmorphism nav (backdrop-filter:blur), radial gradient hero backgrounds, card hover lift effects (translateY(-4px)), button press animations (scale(0.98)), section fade-in animations, custom scrollbar, selection styling, focus-visible rings.
+  - **Post-processors (in order):** sanitizeGeneratedCss → enforceGenomeColors → fixOverlappingLayout → ensureNavAtTop → enforceContrastAndBackgrounds → enforceVisualHierarchy → enforceStructuralGrids → injectPremiumPolish → injectSafetyScript
+  - **enforceVisualHierarchy:** Typography (h1 clamp 2.5-4rem, h2 1.85rem), nav flex layout, hero centering (80vh), card grid enforcement, container width
+  - **enforceStructuralGrids:** Scans HTML for 20+ container class patterns and injects inline CSS grid
+  - **injectPremiumPolish:** Smooth scrolling, custom scrollbar, selection styling, focus rings, card/button hover transitions, glassmorphism nav, section animations, responsive breakpoints (768px, 480px)
+  - **Safety:** injectSafetyScript blocks external navigation, window.open, auto-showing modals
+  - **NL Edit:** geminiEditApp sends existing HTML + edit instruction for targeted changes, falls back to full regeneration
 - **Local AI System:** A locally-run AI model handles prompt interpretation using a prototype network, embedding layers, and cosine similarity. It includes dynamic context reasoning, domain translation, context graph building, structured context extraction, validation, and continuous learning systems (logging, dataset expansion, retraining).
 
 ### Features and Design Patterns
