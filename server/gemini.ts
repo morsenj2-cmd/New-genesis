@@ -116,11 +116,43 @@ function sanitizeGeneratedCss(html: string): string {
 
 function fixOverlappingLayout(html: string): string {
   const overlapFixCSS = `
-  /* Morse layout safety — prevent float-based layouts only */
+  /* Morse layout safety — prevent overlapping content */
+  section, header, main, footer, .hero, [class*="hero"], [class*="section"] {
+    position: relative;
+    clear: both;
+  }
   body > *, main > *, .app > *, #app > * {
+    position: relative;
     float: none;
   }
   `;
+
+  html = html.replace(
+    /position\s*:\s*absolute\s*;([^}]*?)(top\s*:\s*\d+[^;]*;[^}]*?left\s*:\s*\d+[^;]*;)/g,
+    (match, mid, _rest) => {
+      if (/modal|overlay|popup|dropdown|menu|tooltip|toast|notification|backdrop|dialog/i.test(match)) {
+        return match;
+      }
+      if (/nav|sidebar|fixed/i.test(match)) {
+        return match;
+      }
+      return match.replace("position: absolute", "position: relative");
+    }
+  );
+
+  const heroPattern = /(<(?:section|div|header)[^>]*(?:class|id)\s*=\s*"[^"]*hero[^"]*"[^>]*>)([\s\S]*?)(<\/(?:section|div|header)>)/gi;
+  html = html.replace(heroPattern, (match, openTag, content, closeTag) => {
+    const fixedContent = content.replace(
+      /position\s*:\s*absolute/g,
+      (absMatch: string) => {
+        if (/overlay|backdrop|bg/i.test(content.slice(Math.max(0, content.indexOf(absMatch) - 100), content.indexOf(absMatch)))) {
+          return absMatch;
+        }
+        return "position: relative";
+      }
+    );
+    return openTag + fixedContent + closeTag;
+  });
 
   if (html.includes("</style>")) {
     html = html.replace("</style>", `${overlapFixCSS}\n</style>`);
@@ -131,20 +163,50 @@ function fixOverlappingLayout(html: string): string {
 
 function enforceVisualHierarchy(html: string): string {
   const hierarchyCSS = `
-  /* Morse structural safety — nav must be accessible, everything else is AI-decided */
+  /* Morse visual hierarchy — minimal overrides, let AI designs breathe */
+  h1 { font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
+  h2 { font-size: 1.85rem; font-weight: 700; line-height: 1.25; }
+  h3 { font-size: 1.35rem; font-weight: 600; line-height: 1.35; }
+  p, li, td, th { font-size: 1rem; line-height: 1.7; }
+  section, [class*="section"] { padding-top: 80px; padding-bottom: 80px; }
+
+  /* Nav layout — structural only */
   nav, .navbar, .nav-bar, .navigation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    width: 100%;
+    box-sizing: border-box;
     position: sticky;
     top: 0;
     z-index: 1000;
-    box-sizing: border-box;
   }
   nav > ul, .navbar > ul, nav > ol, .navbar > ol {
+    display: flex !important;
+    gap: 28px !important;
     list-style: none !important;
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
   }
   nav li, .navbar li { list-style: none !important; }
   nav li::marker, .navbar li::marker { content: "" !important; display: none !important; }
+
+  /* Hero section — generous vertical space */
+  .hero, [class*="hero-section"], [class*="hero-banner"], #hero {
+    min-height: 80vh;
+    padding: 80px 24px;
+  }
+
+  /* Content container max-width */
+  .container, .wrapper, .content-wrapper, main > section > .inner {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
   `;
 
   if (html.includes("</style>")) {
@@ -156,29 +218,43 @@ function enforceVisualHierarchy(html: string): string {
 
 function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): string {
   const bgColor = genome.colors.background;
+  const surfaceColor = genome.colors.surface;
+
+  const contrastCSS = `
+  /* Morse contrast & background consistency enforcement */
+  body, html {
+    color: #f1f5f9;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    color: #ffffff;
+  }
+  p, span, li, td, th, label, .text-muted, .subtitle, .description {
+    color: #cbd5e1;
+  }
+  a:not([class*="btn"]):not([class*="button"]) {
+    color: #e2e8f0;
+  }
+  nav, .navbar {
+    background-color: rgba(${hexToRgbComponents(bgColor)}, 0.85);
+  }
+  `;
+
   const isDarkBg = isDarkColor(bgColor);
 
   if (isDarkBg) {
-    const rgbComponents = hexToRgbComponents(bgColor);
-    const contrastCSS = `
-    /* Morse contrast safety — ensure readability on dark backgrounds */
-    nav, .navbar {
-      background-color: rgba(${rgbComponents}, 0.85);
-    }
-    `;
-
     if (html.includes("</style>")) {
       html = html.replace("</style>", `${contrastCSS}\n</style>`);
     }
-
-    html = html.replace(
-      /(<nav\b[^>]*style="[^"]*?)background(?:-color)?\s*:\s*([^";]+)/gi,
-      (match, prefix, color) => {
-        if (color.includes("rgba") || color.includes("backdrop-filter") || color.includes("blur")) return match;
-        return `${prefix}background-color: rgba(${rgbComponents}, 0.85)`;
-      }
-    );
   }
+
+  const rgbComponents = hexToRgbComponents(bgColor);
+  html = html.replace(
+    /(<nav\b[^>]*style="[^"]*?)background(?:-color)?\s*:\s*([^";]+)/gi,
+    (match, prefix, color) => {
+      if (color.includes("rgba") || color.includes("backdrop-filter") || color.includes("blur")) return match;
+      return `${prefix}background-color: rgba(${rgbComponents}, 0.85)`;
+    }
+  );
 
   return html;
 }
@@ -253,6 +329,28 @@ function ensureNavAtTop(html: string): string {
 }
 
 function enforceStructuralGrids(html: string): string {
+  const verticalStackPatterns = [
+    "feature-list", "card-list", "items-list"
+  ];
+
+  for (const className of verticalStackPatterns) {
+    const escapedClass = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(
+      `(<(?:section|div)[^>]*class\\s*=\\s*"[^"]*\\b${escapedClass}\\b[^"]*"[^>]*)(>)`,
+      'gi'
+    );
+    html = html.replace(pattern, (match, beforeClose, close) => {
+      if (/display\s*:\s*(grid|flex)/i.test(match)) return match;
+      if (/style\s*=\s*"/i.test(beforeClose)) {
+        return beforeClose.replace(
+          /style\s*=\s*"/i,
+          'style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;'
+        ) + close;
+      }
+      return beforeClose + ' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;"' + close;
+    });
+  }
+
   return html;
 }
 
@@ -296,22 +394,74 @@ function enforceFontFamily(html: string, genome: DesignGenome): string {
 
 function injectPremiumPolish(html: string, genome: DesignGenome): string {
   const premiumCSS = `
-  /* Morse essential polish — only what the AI might miss */
+  /* Morse Premium Polish — world-class design system */
   html { scroll-behavior: smooth; }
   * { box-sizing: border-box; }
 
-  /* Custom scrollbar — unobtrusive */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--color-bg, ${genome.colors.background}); }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
 
-  /* Selection & focus — accessibility */
+  /* Selection styling */
   ::selection { background: var(--color-primary, ${genome.colors.primary}); color: white; }
+
+  /* Focus rings */
   :focus-visible { outline: 2px solid var(--color-primary, ${genome.colors.primary}); outline-offset: 2px; }
 
-  /* Buttons must look clickable */
+  /* Universal transitions on interactive elements */
+  a, button, input, textarea, select, [role="button"],
+  .card, [class*="card"], .feature, [class*="feature"] {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Premium button effects */
   button, [role="button"], .btn, [class*="btn"], .cta, [class*="cta"] {
     cursor: pointer;
+    position: relative;
+  }
+  button:hover, [role="button"]:hover, .btn:hover, [class*="btn"]:hover {
+    transform: translateY(-2px);
+  }
+  button:active, [role="button"]:active, .btn:active, [class*="btn"]:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Premium card hover effects */
+  .card:hover, [class*="card"]:hover, .feature-card:hover, .feature-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  /* Glassmorphism nav enhancement */
+  nav, .navbar, .nav-bar, .navigation {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Section fade-in animation base */
+  section, [class*="section"] {
+    animation: fadeInUp 0.6s ease-out both;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Responsive breakpoints */
+  @media (max-width: 768px) {
+    h1 { font-size: 2rem !important; }
+    h2 { font-size: 1.5rem !important; }
+    section, [class*="section"] { padding-top: 60px !important; padding-bottom: 60px !important; }
+    nav ul, .navbar ul { gap: 16px !important; }
+  }
+  @media (max-width: 480px) {
+    h1 { font-size: 1.75rem !important; }
+    h2 { font-size: 1.35rem !important; }
+    nav { padding: 12px 16px !important; }
+    section, [class*="section"] { padding-top: 40px !important; padding-bottom: 40px !important; }
   }
   `;
 
@@ -543,7 +693,7 @@ Return JSON with exactly these fields:
   "productType": "saas | ecommerce | dashboard | social | productivity | fintech | healthcare | education | cultural | museum | other",
   "industry": "technology | finance | health | education | retail | media | cultural | museum | art | hospitality | other",
   "pageType": "landing_page | web_app | dashboard",
-  "style": "one adjective that captures the inferred visual tone — any word that fits, not limited to a preset list",
+  "style": "one adjective: modern | minimal | bold | elegant | playful | luxurious | scholarly",
   "personality": "one sentence describing the brand voice",
   "primaryColor": "#hexcode that suits the product",
   "isDarkMode": true,
@@ -632,49 +782,18 @@ IMAGE SEED SELECTION RULES (read carefully):
 - NEVER use source.unsplash.com, via.placeholder.com, placehold.co, or placeholder.com
 ${hasImages ? "- This product is VISUAL — include prominent product/hero images throughout with large, high-quality image areas. Use at least 5 distinct contextual images." : ""}`;
 
-    const system = `You are a generative design intelligence — not a template assembler. You design from deep understanding of each product's domain, audience, and emotional tone. Your work rivals V0.dev, Lovable, and Bolt.new in quality but surpasses them in uniqueness — no two of your designs share the same layout DNA.
+    const system = `You are an elite UI/UX designer AND senior frontend engineer whose portfolio is featured on Awwwards, Dribbble, and SiteInspire. Your designs rival V0.dev, Lovable, and Bolt.new. Each project you create is COMPLETELY UNIQUE — you never reuse the same layout pattern twice.
 
-YOUR PROCESS (follow this for EVERY request):
+CRITICAL DESIGN RULES:
+- EVERY PROJECT MUST HAVE A UNIQUE LAYOUT. Do NOT default to the standard "hero → 3 card grid → stats → testimonials → pricing → footer" template. Analyze what THIS specific product needs and design a layout that serves IT.
+- LAYOUT VARIETY — pick from approaches like: split-screen hero, asymmetric grids, bento box layouts, magazine-style layouts, overlapping sections, full-width feature showcases, sidebar + content, tabbed interfaces, timeline layouts, masonry grids, zigzag alternating sections (image left/text right, then swap), floating cards with offset positioning, diagonal section dividers, or dashboard-style panel layouts.
+- VISUAL SOPHISTICATION: Gradient overlays, glassmorphism (backdrop-filter: blur(20px)), layered multi-stop shadows, animated gradient borders, micro-interactions. Never flat or plain.
+- MODERN TYPOGRAPHY: Hero text clamp(2.5rem, 5vw, 4.5rem), tight letter-spacing (-0.03em), line-height 1.75, weight contrast (headings 800, body 400).
+- COLOR MASTERY: Use provided color tokens with gradients. Hero backgrounds use radial/linear gradients, NOT flat colors. Sections alternate between --color-bg and --color-surface.
+- DEPTH & DIMENSION: Multi-layered box-shadows (e.g. 0 1px 2px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12), 0 16px 48px rgba(0,0,0,0.08)). Hover states lift elements with shadow bloom.
+- ICONOGRAPHY: Draw CUSTOM inline SVG icons that are SPECIFIC to the product domain — not generic shapes. Every icon must visually represent what it describes. Use varied stroke patterns, not just circles and lines.
 
-PHASE 1 — SEMANTIC VIBE INFERENCE:
-Before writing any code, deeply interpret the prompt and infer:
-- Domain nature and business model
-- Target audience psychology and expectations
-- Brand personality (playful vs corporate vs luxurious vs technical)
-- Emotional atmosphere the site should evoke
-- Geographic or cultural signals in the description
-- Functional priorities (content-first vs interaction-first vs showcase)
-This reasoning must be contextual and generative — never rule-based. Never map industry → preset theme.
-
-PHASE 2 — DYNAMIC VISUAL LANGUAGE:
-From your vibe inference, construct a unique visual system:
-- Spacing rhythm that matches the brand personality (tight + dense for data tools, airy + generous for luxury)
-- Shape language derived from emotional tone (sharp angles for fintech, organic curves for wellness, geometric for tech)
-- Shadow philosophy (subtle single-layer for minimalist, multi-layered for depth-rich, none for flat editorial)
-- Motion personality (quick + snappy for tools, smooth + elegant for luxury, playful for consumer)
-- Section divider style (diagonal clip-path, curved, straight, overlapping, none — choose what fits)
-These must be computed fresh for every request. No stored presets.
-
-PHASE 3 — LAYOUT INTELLIGENCE:
-The layout must be structurally original every time. Dynamically decide:
-- Section sequencing and narrative flow (what story does this site tell?)
-- Hero architecture (split, centered, full-bleed, asymmetric, minimal, immersive — what fits THIS product?)
-- Grid system (bento, zigzag, masonry, editorial columns, dashboard panels, timeline — what serves the content?)
-- Content grouping strategy (cards vs inline sections vs tabbed vs scrollable)
-- Visual balance and whitespace behavior
-NEVER output layouts that feel like a reusable SaaS template. NEVER produce the pattern: hero → 3 identical cards → stats row → testimonials → pricing → footer. That layout is BANNED.
-
-PHASE 4 — PROCEDURAL VARIATION:
-Even for similar prompts, you must generate different layout compositions, spatial logic, storytelling structure, and visual rhythm. Design uniqueness must be emergent from understanding, not random decoration.
-
-ENGINEERING STANDARDS:
-- Production-quality single self-contained HTML file
-- Glassmorphism, gradient overlays, multi-layered shadows, CSS animations where appropriate
-- Typography: clamp() for responsive sizing, tight letter-spacing on headings, generous line-height
-- Custom inline SVG icons that represent each specific feature — never generic shapes
-- Full JavaScript interactivity with state management
-
-Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
+You build production-quality, fully functional applications as single self-contained HTML files. Output ONLY a complete HTML document starting with <!DOCTYPE html> — no explanation, no markdown fences, no commentary.`;
 
     const user = `Build a complete, fully functional application as a single self-contained HTML file.
 
@@ -689,24 +808,17 @@ PRODUCT BRIEF:
 - Style: ${interpret.style} — ${interpret.personality}
 ${nlSection}
 
-YOUR TASK — GENERATIVE DESIGN REASONING (not template assembly):
-
-You are STRICTLY FORBIDDEN from:
-- Hardcoding design themes or using keyword → theme mappings
-- Using fixed layout templates or reusing deterministic section structures
-- Injecting preset decorative elements based on static rules
-- Building conditionals like: if industry = X → use layout Y
-ALL visual and structural decisions must emerge from your semantic understanding of THIS specific product.
-
-STEP 1 — UNDERSTAND: What EXACTLY is "${interpret.productName}"? Who uses it? What emotion should it evoke? What's the brand personality?
-STEP 2 — ARCHITECT: Based on your understanding (not a template), decide:
-   - What architecture serves THIS product best? (sidebar+panels? scrolling narrative? tabbed SPA? dashboard grid? something unique?)
-   - What spatial rhythm fits the brand? (dense? airy? asymmetric? tight?)
-   - What section sequencing tells the right story for this product?
-STEP 3 — DATA: Design the data model (window.appState) with domain-specific fields, realistic seed data (15-25 records with REAL names from this domain), and localStorage persistence.
-STEP 4 — LABELS: Navigation labels, section names, stat labels, column headers — ALL must use terminology specific to this domain. NEVER generic labels like "Dashboard", "Data Table", "Total Count".
-STEP 5 — INTERACTIONS: What interactive components does THIS product need? Tables, charts, forms, modals, timers, calculators, toggles? Build ONLY what makes sense.
-STEP 6 — BUILD: Complete working JavaScript. Every feature fully functional. Every button with a handler. Zero dead UI.
+YOUR TASK — THINK THROUGH THESE STEPS BEFORE WRITING CODE:
+1. READ the description above. What EXACTLY is this product? What domain is it in?
+2. DECIDE the best architecture for this specific product:
+   - Does it need a sidebar + panels layout? (dashboards, admin panels, data-heavy tools)
+   - Does it need a top nav + multi-view SPA? (apps, tools, interactive products)
+   - Does it need a scrolling multi-section site? (showcases, portfolios, informational sites)
+   - Or something else entirely? YOU decide what fits best.
+3. DECIDE what data this product manages. Design the data model (window.appState) with domain-specific fields, realistic seed data (15-25 records with REAL names/terms from this domain), and localStorage persistence.
+4. DECIDE the navigation labels, section names, stat card labels, table columns — ALL must use terminology specific to this product's domain. NEVER use generic labels like "Dashboard", "Data Table", "Total Count", "Active Count". Every label should make sense ONLY for this specific product.
+5. DECIDE which interactive components this product needs: tables, charts, forms, modals, timers, calculators, sliders, toggles, drag-and-drop, etc. Build ONLY what makes sense for this product.
+6. BUILD the complete product with full working JavaScript. Every feature described above must be fully functional.
 
 DESIGN TOKENS (use these exact values):
 Primary: ${genome.colors.primary} | Secondary: ${genome.colors.secondary} | Accent: ${genome.colors.accent}
@@ -731,57 +843,76 @@ ARCHITECTURE & ENGINEERING RULES:
 8. REALISTIC DATA: 15-25 seed records with real names, dates, numbers from this domain. No lorem ipsum, no generic labels.
 9. NO POPUPS ON LOAD: All modals/toasts start hidden (display:none). init() must NOT trigger any modal/toast/alert.
 
-GENERATIVE DESIGN PROCESS (follow these phases in order):
+DESIGN SYSTEM — READ CAREFULLY:
 
-PHASE A — VIBE ANALYSIS (do this mentally before writing code):
-Think about "${interpret.productName}" in the ${interpret.industry} space. Ask yourself:
-- What emotional tone should this site convey? (authoritative? playful? luxurious? technical? warm?)
-- What does the target audience (${interpret.targetAudience}) expect visually?
-- What spatial rhythm fits? (dense data-rich panels? airy editorial whitespace? tight tool-like UI?)
-- What shape language matches? (sharp geometric for fintech? organic curves for health? mixed for creative?)
-Your answers to these questions should drive EVERY visual decision below.
+UNIQUENESS IS MANDATORY:
+- Do NOT use the standard "hero → 3 card grid → stats → testimonials → pricing → footer" template. That pattern is BANNED.
+- Each product type needs a DIFFERENT layout. Consider:
+  * BENTO GRID: Mixed-size cards in a 12-column CSS grid (some span 4 cols, some span 8, some span 6). Great for showcasing features with visual variety.
+  * ZIGZAG SECTIONS: Alternating left-right content blocks (image/visual on one side, text on the other, then swap). Feels editorial and premium.
+  * SPLIT HERO: Full-width hero divided into 2 columns (content left, visual/illustration right) instead of centered text.
+  * MAGAZINE LAYOUT: Large featured item + smaller items grid. Used by news, portfolios, product showcases.
+  * OVERLAPPING CARDS: Cards that slightly overlap each other or overlap section boundaries for depth.
+  * TABBED/FILTERED CONTENT: Interactive tabs or filter buttons that show/hide different content categories.
+  * TIMELINE/PROCESS FLOW: Vertical or horizontal timeline with connected nodes. Great for processes, roadmaps, how-it-works.
+  * SIDEBAR NAVIGATION: For tool-like products — fixed sidebar with icon nav, main content area with panels.
+  * FULL-BLEED SECTIONS: Some sections go edge-to-edge with no container constraints. Alternated with contained sections.
+  * CARD CAROUSEL: Horizontally scrollable cards with CSS scroll-snap. Modern and interactive.
+- Pick 2-3 different layout patterns and combine them. NEVER use the same pattern for adjacent sections.
 
-PHASE B — LAYOUT ARCHITECTURE (structurally unique every time):
-Design a layout that feels intentionally crafted for THIS specific product. Rules:
-- The layout of "hero → 3 identical cards → stats → testimonials → pricing → footer" is BANNED. Never produce this.
-- <nav> must be FIRST element in <body>. position:sticky, top:0, z-index:1000. Glassmorphism: backdrop-filter:blur(20px), semi-transparent bg, subtle border-bottom.
-- Hero section: min-height:80vh. Choose architecture based on vibe — NOT always centered text. Options: split 2-column, asymmetric with offset content, full-bleed immersive, minimal with large typography, etc.
-- Content sections: NEVER use the same grid structure for adjacent sections. Mix approaches:
-  * Bento grid (mixed card sizes spanning different columns)
-  * Zigzag alternating (content left/visual right, then swap)
-  * Editorial 2-column (large content area + sidebar info)
-  * Full-width showcase (single item spanning full width)
-  * Tabbed/filtered interactive content
-  * Horizontal scroll with CSS scroll-snap
-  * Timeline or process flow
-  * Overlapping/stacked cards with offset positioning
-- Each section should use a DIFFERENT layout strategy. This is what makes the design feel custom.
+NAVIGATION:
+- <nav> must be FIRST in <body>. position:sticky, top:0, z-index:1000
+- backdrop-filter:blur(20px), semi-transparent background, border-bottom: 1px solid rgba(255,255,255,0.06)
+- Brand/logo LEFT, nav links RIGHT in <ul> with display:flex, gap:32px, list-style:none
+
+HERO SECTION:
+- min-height: 80vh. Background: radial/linear gradient overlay, NOT flat color.
+- Choose a hero layout that fits THIS product: centered text, split (text+visual), or full-bleed with overlay.
+- CTA button: padding:16px 40px, font-weight:600, hover:translateY(-2px) + box-shadow glow
+
+CONTENT SECTIONS:
+- VARY the grid layout per section. Do NOT use the same 3-column grid everywhere.
+  * Use 2-column for some sections, 3 for others, bento-style mixed sizes, or zigzag rows.
+  * Consider: grid-template-columns: 2fr 1fr, or 1fr 1fr 1fr, or 8fr 4fr, etc.
+  * For card groups of 4+, use auto-fit with varying minmax sizes.
+- Each card: background:var(--color-surface), border:1px solid rgba(255,255,255,0.06), border-radius:var(--radius-lg), padding:32px
+- Card hover: translateY(-4px), shadow bloom, border-color change
 - Section padding: 80-120px vertical. Alternate backgrounds between var(--color-bg) and var(--color-surface).
-- Use CSS clip-path or SVG curves for section dividers if it fits the vibe.
 
-PHASE C — VISUAL CRAFTSMANSHIP:
-- Shadows: Use multi-layered shadows that create real depth. Not just one box-shadow — layer 2-3 shadows with different spreads.
-- Typography: Hero h1 uses clamp(2.5rem, 5vw, 4rem), weight 800, letter-spacing -0.03em. Body: 1rem, line-height 1.75.
-- Hover states: Every interactive element needs a distinct hover effect — not just color change. Use transforms, shadow blooms, border color shifts.
-- Animations: IntersectionObserver for scroll-triggered reveals. CSS transitions (0.3s cubic-bezier(0.4, 0, 0.2, 1)) on all interactives.
-- Scrollbar: Custom ::-webkit-scrollbar themed to the primary color.
-- Selection: ::selection { background: var(--color-primary); color: white; }
-- Gradient accents: Use linear-gradient or radial-gradient subtly on backgrounds, borders, or text highlights. Never flat colors everywhere.
-- Contrast: Dark bg = light text (#f1f5f9 / #94a3b8). EVERY text element gets explicit color. White text on colored buttons.
+FOOTER:
+- Full-width, darker background. Multi-column grid (brand, links, contact).
+- Bottom bar with copyright and separator line.
 
-PHASE D — ICONOGRAPHY (domain-specific, hand-crafted):
-- Every feature/card MUST have an inline SVG icon that SPECIFICALLY represents that feature's function.
-- FORBIDDEN: Generic shapes like shields, hearts, stars, lightning bolts, or simple circles used for everything. These look cheap.
-- REQUIRED: Icons that a human designer would draw for THIS specific feature. Think about what visual metaphor represents each feature:
-  * If the feature is about "scheduling" → draw a calendar grid with highlighted date
-  * If about "messaging" → draw a speech bubble with text lines
-  * If about "analytics" → draw a chart with trend line and data points
-  * If about "security" → draw a lock mechanism with keyhole detail
-  * If about "payments" → draw a credit card with chip and magnetic strip
-  * If about "collaboration" → draw connected nodes or overlapping circles
-- SVG spec: viewBox="0 0 24 24", width="24", height="24", stroke="var(--color-primary)", stroke-width="1.5", fill="none"
-- Use 3-6 SVG elements per icon for detail. Simple 1-element icons look AI-generated.
-- Place inside a gradient container: width:52px, height:52px, border-radius:14px, background:linear-gradient(135deg, rgba(primary,0.12), rgba(primary,0.04))
+PREMIUM CSS (use throughout):
+- html { scroll-behavior: smooth; }
+- Custom scrollbar: ::-webkit-scrollbar (thin, themed to primary color)
+- ::selection { background: var(--color-primary); color: white; }
+- Hover transitions: transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+- Multi-layered shadows: 0 1px 2px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12)
+- IntersectionObserver fade-in animations on sections (opacity 0→1, translateY 20px→0)
+- Diagonal or curved section dividers using CSS clip-path for visual breaks between sections
+
+CONTRAST (non-negotiable):
+- Dark bg = light text. --color-text: #f1f5f9. --color-text-muted: #94a3b8.
+- EVERY text element gets explicitly set color.
+- Buttons: white text on colored backgrounds.
+
+SVG ICONS — DOMAIN-SPECIFIC, NOT GENERIC:
+- EVERY card/feature MUST have a custom inline SVG icon that is SPECIFIC to what that feature does.
+- DO NOT use generic shapes (shield, heart, star, lightning bolt) for everything. These look cheap and AI-generated.
+- Instead, draw icons that VISUALLY REPRESENT the actual feature. Examples:
+  * "Student Portfolio" → draw an open book or canvas/easel shape
+  * "Course Catalog" → draw a grid of squares with one enlarged
+  * "Payment Processing" → draw a credit card with chip detail
+  * "Message System" → draw a speech bubble with lines inside
+  * "Calendar/Scheduling" → draw a calendar with date squares
+  * "Analytics Dashboard" → draw a line chart with trend line and dots
+  * "File Management" → draw a folder with document corner
+  * "User Profile" → draw a person silhouette with badge
+- SVG format: viewBox="0 0 24 24", width="24", height="24", stroke="var(--color-primary)", stroke-width="1.5", fill="none"
+- Make icons DETAILED — use 3-5 SVG elements per icon minimum. Add small details that make them feel hand-crafted.
+- Each icon inside a container: width:52px, height:52px, border-radius:14px, background: linear-gradient(135deg, rgba(primary,0.15), rgba(primary,0.05)), display:flex, align-items:center, justify-content:center
+- NEVER reuse the same icon. Each MUST be unique to its feature.
 
 ${imageInstruction}
 
