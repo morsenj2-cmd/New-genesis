@@ -168,9 +168,10 @@ function fixOverlappingLayout(html: string): string {
 function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): string {
   const bgColor = genome.colors.background;
   const surfaceColor = genome.colors.surface;
+  const primaryColor = genome.colors.primary;
 
-  const contrastCSS = `
-  /* Morse contrast & background consistency enforcement */
+  const darkThemeCSS = `
+  /* Morse contrast, hierarchy & background consistency enforcement */
   body, html {
     color: #f1f5f9;
   }
@@ -183,17 +184,36 @@ function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): stri
   a:not([class*="btn"]):not([class*="button"]) {
     color: #e2e8f0;
   }
-  nav, nav *, .navbar, .navbar * {
-    background-color: var(--color-bg, ${bgColor});
+  nav, .navbar {
+    background-color: var(--color-bg, ${bgColor}) !important;
   }
   `;
 
-  const isDarkBg = isDarkColor(bgColor);
+  const hierarchyCSS = `
+  /* Morse typographic hierarchy & emphasis control */
+  nav, nav a, nav span, .navbar, .navbar a {
+    font-size: 0.875rem;
+  }
+  h1 { font-size: clamp(2rem, 5vw, 3rem); }
+  h2 { font-size: clamp(1.5rem, 3vw, 1.75rem); }
+  h3 { font-size: clamp(1.1rem, 2vw, 1.25rem); }
 
-  if (isDarkBg) {
-    if (html.includes("</style>")) {
-      html = html.replace("</style>", `${contrastCSS}\n</style>`);
-    }
+  /* Hero CTA — proportional sizing, not oversized */
+  .hero button, .hero a[class*="btn"], .hero a[class*="button"],
+  [class*="hero"] button, [class*="hero"] a[class*="btn"],
+  #hero button, #hero a[class*="btn"],
+  section:first-of-type button, header + section button {
+    padding: 12px 28px !important;
+    font-size: 1rem !important;
+    max-width: 220px;
+  }
+  `;
+
+  const dark = isDarkColor(bgColor);
+
+  if (html.includes("</style>")) {
+    const inject = (dark ? darkThemeCSS : "") + hierarchyCSS;
+    html = html.replace("</style>", `${inject}\n</style>`);
   }
 
   html = html.replace(
@@ -611,23 +631,53 @@ HARD RULES (non-negotiable):
 
 LAYOUT QUALITY (critical — the design must look professional):
 - Use CSS Grid or Flexbox for ALL layouts. NEVER use position: absolute for layout structure, text placement, or section content. Only use position: absolute for overlays, modals, dropdowns, and tooltips.
-- ZERO OVERLAPPING: No text, heading, button, or content element may visually overlap another. Every element must occupy its own space in the document flow. Hero sections must use flexbox column layout (display: flex; flex-direction: column; align-items: center; justify-content: center;) — NEVER stack elements with position: absolute inside heroes.
+- ZERO OVERLAPPING: No text, heading, button, or content element may visually overlap another. Every element must occupy its own space in the document flow.
 - Consistent spacing: use a spacing scale (8px, 16px, 24px, 32px, 48px, 64px). Sections should have padding: 64px 0 or more.
 - Cards must have equal heights in a row (use grid with auto-rows or flex with stretch). Card grids: use gap: 24px minimum.
-- Hero section: full-width, min-height: 60vh, display: flex, flex-direction: column, align-items: center, justify-content: center. Place heading, subtitle, and CTA in normal flow — never use absolute positioning for hero text.
 - Container max-width: 1200px centered with margin: 0 auto and padding: 0 24px for content areas.
 - Section headings: center-aligned with margin-bottom: 48px before content grids.
-- Navigation: MUST be the FIRST visible element on the page, ABOVE the hero section. Use position: sticky; top: 0; z-index: 1000; full-width, with proper padding and clear active state. Brand on left, links on right. The nav bar must NEVER appear below the hero or any other content section.
 - No content should ever overflow its container or overlap other elements. If you need a background image on a section, use background-image CSS property on the section itself — do NOT create an absolute-positioned img behind the content.
 - Modals must have proper overlay (fixed, inset 0, semi-transparent background), centered content, and a visible close button.
 
+HERO SECTION DESIGN (the most important part of the page):
+- The hero establishes ONE clear focal path: headline → visual/subtext → CTA. Nothing else.
+- Use flexbox column layout (display: flex; flex-direction: column; align-items: center; justify-content: center;). NEVER use absolute positioning for hero text.
+- Full-width, min-height: 60vh.
+- Hero headline: the LARGEST text on the page. Use a clear typographic scale — headline (2.5-3rem) → subheadline (1.1-1.3rem) → CTA button text (1rem). The headline must NOT overpower a central visual asset if one exists.
+- Hero subtext MUST maintain sufficient contrast against the background at ALL viewport sizes. No text should be clipped, overlapped, or fade into gradients/images. If using background images or overlays, ensure overlay opacity keeps text fully legible.
+- Only ONE dominant CTA button in the hero. No competing actions, no secondary buttons, no multiple links. The CTA is the single clear action.
+- CTA button: must NOT be overly saturated or visually dominant relative to the rest of the palette. Use the primary color but at appropriate weight — if the design is minimal/calm, use muted tones, reduced opacity, or a subtle variant. Button size must be proportional to surrounding typography (padding: 12px 28px, font-size: 1rem — NOT oversized).
+- Brand name in the hero must use correct capitalization. Present but low-intensity — not competing with the headline for attention.
+- Remove or defer ALL non-essential UI elements above the fold. The hero presents one clear message and one action, nothing more.
+
+NAVIGATION CONSTRAINTS:
+- Navigation MUST be the FIRST element in the HTML body, ABOVE the hero section.
+- Use position: sticky; top: 0; z-index: 1000. Full-width, with padding and clear active state.
+- Navigation must be VISUALLY SUBTLE — it should not distract from the hero. Use a clean, minimal style: small font size (0.875rem), muted text colors, no heavy borders or backgrounds that compete with the hero. The nav is functional, not decorative.
+- Brand/logo on left, nav links on right. Keep nav links minimal (4-5 max).
+- On mobile: hamburger menu or collapsible. Nav must NOT create stacking conflicts with hero content.
+
+VISUAL HIERARCHY & EMPHASIS CONTROL:
+- Enforce a single focal path on every section. Avoid fragmented hierarchy caused by multiple high-contrast elements competing for attention.
+- Palette limits: use ONLY the provided CSS variables. No extra colors. Primary color for CTA only — do NOT splash primary color across backgrounds, borders, or decorative elements.
+- Typographic scale must follow a strict ratio: page h1 (2.5rem) > section h2 (1.75rem) > card h3 (1.25rem) > body (1rem) > small/muted (0.875rem). Never break this hierarchy.
+- Spacing grid: 8px base unit. All margins, paddings, and gaps must be multiples of 8 (8, 16, 24, 32, 48, 64, 80, 96px). No arbitrary spacing values.
+- Component emphasis: only ONE high-emphasis element per viewport section (the CTA or the key heading). Everything else is medium or low emphasis.
+- Competing UI signals (bright colors, multiple links, oversized text blocks) must be constrained. If multiple elements demand attention, reduce all but the primary one.
+
+RESPONSIVE BEHAVIOR:
+- ALL hierarchy decisions must persist across breakpoints. The hero's focal path (headline → subtext → CTA) must remain clear on mobile.
+- Hero composition must remain balanced on smaller screens without stacking conflicts.
+- Card grids: 3-col on desktop, 2-col on tablet, 1-col on mobile. Use CSS Grid with auto-fit/minmax.
+
 CONTENT REQUIREMENTS (the app must have ALL of these):
-- HERO/HEADER SECTION: A visually striking top section with the product name, tagline, and primary call-to-action. Full-width background with overlay text.
+- HERO/HEADER SECTION: As described above — single message, single CTA, clear hierarchy.
 - MAIN CONTENT AREA: The core functional area (product grid, data table, dashboard panels, feature showcase, etc.) — must be rendered visibly from state data on load, NOT hidden or empty.
 - MULTIPLE VIEWS/SECTIONS: At least 3 distinct content areas navigable via the nav bar. Each view must have real, substantial content.
 - FOOTER: With copyright, brand name, and relevant links. Full-width dark background.
-- CSS must be comprehensive: style EVERY element, including scrollbar styling (webkit), selection styling, focus states on inputs, hover transitions on cards/buttons, gradient accents.
+- CSS must be comprehensive: style EVERY element, including scrollbar styling (webkit), selection styling, focus states on inputs, hover transitions on cards/buttons.
 - JavaScript must include: event delegation for dynamic elements, search/filter functionality, modal dialogs for detail views (with working close buttons), toast notification system (with working dismiss), data rendering functions that rebuild UI from state.
+- Above-the-fold area must communicate the value proposition INSTANTLY. A user should understand what this product does within 2 seconds of seeing the page.
 
 ${integrations && integrations.length > 0 ? `INTEGRATIONS:\n${integrations.map(ig => `- ${ig.name}: Key = "${ig.value}" — include initialization in <head>.`).join("\n")}` : ""}
 
