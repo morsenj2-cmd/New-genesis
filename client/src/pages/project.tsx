@@ -1139,6 +1139,8 @@ export default function ProjectPage() {
 
   const handleRemoteHtmlUpdate = useCallback((html: string, _fromUserId: string) => {
     setGeminiAppHtml(html);
+    setLocalHtml(html);
+    setGeminiStatus("ready");
   }, []);
 
   const handleRemoteSettingsUpdate = useCallback((settingsJson: string, _fromUserId: string) => {

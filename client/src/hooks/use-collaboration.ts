@@ -40,85 +40,102 @@ export function useCollaboration({
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const pingTimerRef = useRef<ReturnType<typeof setInterval>>();
 
-  const connect = useCallback(() => {
-    if (!enabled || !userId || !projectId) return;
+  const onHtmlUpdateRef = useRef(onHtmlUpdate);
+  const onSettingsUpdateRef = useRef(onSettingsUpdate);
+  const onGenomeUpdateRef = useRef(onGenomeUpdate);
+  onHtmlUpdateRef.current = onHtmlUpdate;
+  onSettingsUpdateRef.current = onSettingsUpdate;
+  onGenomeUpdateRef.current = onGenomeUpdate;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/collab?projectId=${encodeURIComponent(projectId)}&userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}&displayName=${encodeURIComponent(displayName)}`;
-
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setConnected(true);
-      if (pingTimerRef.current) clearInterval(pingTimerRef.current);
-      pingTimerRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "ping" }));
-        }
-      }, 30000);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        switch (msg.type) {
-          case "connected":
-            setMyColor(msg.color);
-            setMyRole(msg.role);
-            setPresence(msg.presence || []);
-            break;
-          case "user-joined":
-            setPresence(msg.presence || []);
-            break;
-          case "user-left":
-            setPresence(msg.presence || []);
-            if (msg.userId) {
-              setCursors((prev) => {
-                const next = new Map(prev);
-                next.delete(msg.userId);
-                return next;
-              });
-            }
-            break;
-          case "cursor-update":
-            setCursors((prev) => {
-              const next = new Map(prev);
-              next.set(msg.userId, { x: msg.x, y: msg.y, displayName: msg.displayName, color: msg.color });
-              return next;
-            });
-            break;
-          case "html-update":
-            onHtmlUpdate?.(msg.html, msg.userId);
-            break;
-          case "settings-update":
-            onSettingsUpdate?.(msg.settingsJson, msg.userId);
-            break;
-          case "genome-update":
-            onGenomeUpdate?.(msg.genomeJson, msg.layoutJson, msg.userId);
-            break;
-          case "pong":
-            break;
-        }
-      } catch {}
-    };
-
-    ws.onclose = (event) => {
-      setConnected(false);
-      if (pingTimerRef.current) clearInterval(pingTimerRef.current);
-      if (event.code !== 4010 && enabled) {
-        reconnectTimerRef.current = setTimeout(connect, 3000);
-      }
-    };
-
-    ws.onerror = () => {
-      ws.close();
-    };
-  }, [enabled, userId, projectId, email, displayName, onHtmlUpdate, onSettingsUpdate, onGenomeUpdate]);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   useEffect(() => {
+    if (!enabled || !userId || !projectId) return;
+
+    let disposed = false;
+
+    function connect() {
+      if (disposed) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws/collab?projectId=${encodeURIComponent(projectId)}&userId=${encodeURIComponent(userId!)}&email=${encodeURIComponent(email)}&displayName=${encodeURIComponent(displayName)}`;
+
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (disposed) { ws.close(); return; }
+        setConnected(true);
+        if (pingTimerRef.current) clearInterval(pingTimerRef.current);
+        pingTimerRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          switch (msg.type) {
+            case "connected":
+              setMyColor(msg.color);
+              setMyRole(msg.role);
+              setPresence(msg.presence || []);
+              break;
+            case "user-joined":
+              setPresence(msg.presence || []);
+              break;
+            case "user-left":
+              setPresence(msg.presence || []);
+              if (msg.userId) {
+                setCursors((prev) => {
+                  const next = new Map(prev);
+                  next.delete(msg.userId);
+                  return next;
+                });
+              }
+              break;
+            case "cursor-update":
+              setCursors((prev) => {
+                const next = new Map(prev);
+                next.set(msg.userId, { x: msg.x, y: msg.y, displayName: msg.displayName, color: msg.color });
+                return next;
+              });
+              break;
+            case "html-update":
+              onHtmlUpdateRef.current?.(msg.html, msg.userId);
+              break;
+            case "settings-update":
+              onSettingsUpdateRef.current?.(msg.settingsJson, msg.userId);
+              break;
+            case "genome-update":
+              onGenomeUpdateRef.current?.(msg.genomeJson, msg.layoutJson, msg.userId);
+              break;
+            case "pong":
+              break;
+          }
+        } catch {}
+      };
+
+      ws.onclose = (event) => {
+        setConnected(false);
+        if (pingTimerRef.current) clearInterval(pingTimerRef.current);
+        if (!disposed && event.code !== 4010 && enabledRef.current) {
+          reconnectTimerRef.current = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
     connect();
+
     return () => {
+      disposed = true;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (pingTimerRef.current) clearInterval(pingTimerRef.current);
       if (wsRef.current) {
@@ -126,7 +143,7 @@ export function useCollaboration({
         wsRef.current = null;
       }
     };
-  }, [connect]);
+  }, [enabled, userId, projectId, email, displayName]);
 
   const lastCursorSendRef = useRef<number>(0);
   const sendCursorMove = useCallback((x: number, y: number) => {
