@@ -56,7 +56,6 @@ import {
   X as XIcon,
   KeyRound,
   Crown,
-  Save,
 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -1226,10 +1225,6 @@ export default function ProjectPage() {
   const [geminiAppHtml, setGeminiAppHtml] = useState<string | null>(null);
   const [showCodeView, setShowCodeView] = useState(false);
   const [localHtml, setLocalHtml] = useState<string>("");
-  const [previewHasChanges, setPreviewHasChanges] = useState(false);
-  const [previewSaveMsg, setPreviewSaveMsg] = useState<string | null>(null);
-  const previewIframeRef = useRef<HTMLIFrameElement>(null);
-  const previewSaveResolve = useRef<((html: string) => void) | null>(null);
 
   // Inject navigation interceptor so anchor links scroll within the iframe
   // instead of navigating the parent Morse page
@@ -1312,69 +1307,6 @@ export default function ProjectPage() {
 </script>`;
     if (html.includes("</body>")) return html.replace("</body>", safetyScript + "\n</body>");
     return html + safetyScript;
-  }, [geminiAppHtml]);
-
-  const editablePreviewHtml = useMemo(() => {
-    if (!safeGeminiHtml) return null;
-    const editorScript = `<script data-morse-preview-editor>
-(function(){
-  var hasChanges = false;
-  document.addEventListener('dblclick', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var el = e.target;
-    if (!el || el === document.body || el === document.documentElement) return;
-    if (el.children.length === 0 || (el.children.length <= 2 && el.textContent.length < 500)) {
-      el.contentEditable = 'true';
-      el.focus();
-      el.style.outline = '2px solid #3b82f6';
-      el.style.minHeight = '1em';
-      var done = function() {
-        el.contentEditable = 'false';
-        el.style.outline = '';
-        hasChanges = true;
-        window.parent.postMessage({ type: 'morse-preview-changed', hasChanges: true }, '*');
-      };
-      el.addEventListener('blur', done, { once: true });
-      el.addEventListener('keydown', function(ke) {
-        if (ke.key === 'Escape' || (ke.key === 'Enter' && !ke.shiftKey)) { ke.preventDefault(); el.blur(); }
-      });
-    }
-  }, true);
-  window.addEventListener('message', function(e) {
-    if (!e.data || e.data.source !== 'morse-preview-cmd') return;
-    if (e.data.cmd === 'getHtml') {
-      var scripts = document.querySelectorAll('script[data-morse-preview-editor]');
-      scripts.forEach(function(s) { s.remove(); });
-      var html = '<!DOCTYPE html>' + document.documentElement.outerHTML;
-      window.parent.postMessage({ type: 'morse-preview-html', html: html }, '*');
-    }
-  });
-})();
-</script>`;
-    let html = safeGeminiHtml;
-    if (html.includes("</body>")) {
-      return html.replace("</body>", editorScript + "\n</body>");
-    }
-    return html + editorScript;
-  }, [safeGeminiHtml]);
-
-  useEffect(() => {
-    function handlePreviewMsg(e: MessageEvent) {
-      if (e.data?.type === "morse-preview-changed") {
-        setPreviewHasChanges(true);
-      }
-      if (e.data?.type === "morse-preview-html" && previewSaveResolve.current) {
-        previewSaveResolve.current(e.data.html);
-        previewSaveResolve.current = null;
-      }
-    }
-    window.addEventListener("message", handlePreviewMsg);
-    return () => window.removeEventListener("message", handlePreviewMsg);
-  }, []);
-
-  useEffect(() => {
-    setPreviewHasChanges(false);
   }, [geminiAppHtml]);
 
   useEffect(() => {
@@ -2008,48 +1940,12 @@ export default function ProjectPage() {
                       data-testid="preview-wrapper"
                     >
                       <iframe
-                        ref={previewIframeRef}
-                        srcDoc={editablePreviewHtml || safeGeminiHtml}
+                        srcDoc={safeGeminiHtml}
                         sandbox="allow-scripts allow-forms allow-popups"
                         className="w-full h-full border-0"
                         title="AI Generated App"
                         data-testid="ai-app-preview"
                       />
-                      {previewHasChanges && (
-                        <div className="absolute bottom-4 right-4 z-50" data-testid="preview-save-container">
-                          <Button
-                            size="sm"
-                            className="gap-1.5 text-xs shadow-lg"
-                            onClick={() => {
-                              previewIframeRef.current?.contentWindow?.postMessage(
-                                { source: "morse-preview-cmd", cmd: "getHtml" }, "*"
-                              );
-                              previewSaveResolve.current = (html: string) => {
-                                updateHtmlMutation.mutate(html);
-                                setPreviewHasChanges(false);
-                                setPreviewSaveMsg("Saved!");
-                                setTimeout(() => setPreviewSaveMsg(null), 2000);
-                              };
-                            }}
-                            disabled={updateHtmlMutation.isPending}
-                            data-testid="button-save-preview-changes"
-                          >
-                            {updateHtmlMutation.isPending ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Save className="h-3.5 w-3.5" />
-                            )}
-                            {previewSaveMsg || "Save Changes"}
-                          </Button>
-                        </div>
-                      )}
-                      {!previewHasChanges && geminiStatus === "ready" && (
-                        <div className="absolute bottom-4 right-4 z-50 pointer-events-none" data-testid="preview-edit-hint">
-                          <span className="text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded border border-border">
-                            Double-click any text to edit
-                          </span>
-                        </div>
-                      )}
                       {Array.from(collaboration.cursors.entries()).map(([uid, cursor]) => (
                         uid !== clerkUser?.id && (
                           <div
