@@ -1141,12 +1141,40 @@ function genPackageJsonWithBackend(project: Project): string {
   }, null, 2);
 }
 
+function cleanHtmlForExport(html: string): string {
+  let cleaned = html;
+
+  cleaned = cleaned.replace(/<script>\s*\/\/\s*Morse safety layer[\s\S]*?<\/script>/g, "");
+  cleaned = cleaned.replace(/<script[^>]*>\s*\(function\(\)\s*\{\s*try\s*\{\s*Object\.defineProperty\(window,\s*['"]__safeNav['"][\s\S]*?<\/script>/g, "");
+
+  cleaned = cleaned.replace(
+    /h([1-6])\s*\{[^}]*?max-width\s*:\s*[\d.]+rem[^}]*?\}/g,
+    (match: string, level: string) => {
+      const sizes: Record<string, string> = { "1": "2.5rem", "2": "1.75rem", "3": "1.25rem", "4": "1.1rem", "5": "1rem", "6": "0.875rem" };
+      return match.replace(/max-width\s*:\s*[\d.]+rem/, `font-size: ${sizes[level] || "1rem"}`);
+    }
+  );
+
+  cleaned = cleaned.replace(
+    /<meta[^>]*http-equiv\s*=\s*["']Content-Security-Policy["'][^>]*>/gi,
+    ""
+  );
+
+  if (!/meta[^>]*name\s*=\s*["']viewport["']/i.test(cleaned)) {
+    cleaned = cleaned.replace(
+      /<head[^>]*>/i,
+      (m) => m + '\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">'
+    );
+  }
+
+  return cleaned;
+}
+
 export function generateExportFiles(
   project: Project,
   genome: DesignGenome,
   layout: LayoutGraph
 ): Array<{ path: string; content: string }> {
-  // Check for AI-generated content in settingsJson
   let geminiAppHtml: string | null = null;
   let geminiServerJs: string | null = null;
   try {
@@ -1161,10 +1189,10 @@ export function generateExportFiles(
     }
   } catch {}
 
-  // If AI generated a complete HTML app, export it as a simple HTML project
   if (geminiAppHtml) {
+    const exportHtml = cleanHtmlForExport(geminiAppHtml);
     const files: Array<{ path: string; content: string }> = [
-      { path: "index.html", content: geminiAppHtml },
+      { path: "index.html", content: exportHtml },
       { path: "README.md", content: genReadme(project) },
     ];
     if (geminiServerJs) {
