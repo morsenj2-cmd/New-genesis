@@ -723,7 +723,7 @@ export function CanvasEditor({
   onContentChange,
   onLayoutChange,
   creditsRemaining = 0,
-  totalCredits = 350,
+  totalCredits = 150,
   userPlan = "free",
   geminiAppHtml,
   onSaveHtml,
