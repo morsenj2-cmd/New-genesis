@@ -713,6 +713,27 @@ export function CanvasEditor({
 
   const isElementsMode = mode === "elements";
 
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [previewWidth, setPreviewWidth] = useState(0);
+  const [previewHeight, setPreviewHeight] = useState(0);
+
+  useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setPreviewWidth(entry.contentRect.width);
+        setPreviewHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const SIDEBAR_WIDTH = 224;
+  const fullWidth = previewWidth + SIDEBAR_WIDTH;
+  const previewScale = previewWidth > 0 ? previewWidth / fullWidth : 1;
+
   const iframeEditorRef = useRef<HTMLIFrameElement>(null);
   const [iframeSelectedEl, setIframeSelectedEl] = useState<IframeSelectedElement | null>(null);
   const [iframeHasChanges, setIframeHasChanges] = useState(false);
@@ -1407,27 +1428,46 @@ export function CanvasEditor({
 
       {/* ── Preview area ─────────────────────────────────────── */}
       <div
-        className="flex-1 overflow-hidden"
+        ref={previewContainerRef}
+        className="flex-1 overflow-hidden relative"
         data-testid="canvas-preview-area"
         onClick={() => { if (showAddMenu) setShowAddMenu(false); }}
       >
         {geminiAppHtml && isElementsMode && editableHtml ? (
-          <iframe
-            ref={iframeEditorRef}
-            srcDoc={editableHtml}
-            sandbox="allow-scripts allow-forms allow-popups"
-            className="h-full w-full border-0"
-            title="AI Generated App – Edit Mode"
-            data-testid="canvas-ai-editor"
-          />
+          <div
+            style={{
+              width: fullWidth,
+              height: previewHeight > 0 ? previewHeight / previewScale : '100%',
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+          >
+            <iframe
+              ref={iframeEditorRef}
+              srcDoc={editableHtml}
+              sandbox="allow-scripts allow-forms allow-popups"
+              className="h-full w-full border-0"
+              title="AI Generated App – Edit Mode"
+              data-testid="canvas-ai-editor"
+            />
+          </div>
         ) : geminiAppHtml ? (
-          <iframe
-            srcDoc={geminiAppHtml}
-            sandbox="allow-scripts allow-forms allow-popups"
-            className="h-full w-full border-0"
-            title="AI Generated App"
-            data-testid="canvas-ai-preview"
-          />
+          <div
+            style={{
+              width: fullWidth,
+              height: previewHeight > 0 ? previewHeight / previewScale : '100%',
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+          >
+            <iframe
+              srcDoc={geminiAppHtml}
+              sandbox="allow-scripts allow-forms allow-popups"
+              className="h-full w-full border-0"
+              title="AI Generated App"
+              data-testid="canvas-ai-preview"
+            />
+          </div>
         ) : isElementsMode ? (
           <ElementCanvas
             ref={elementCanvasRef}
@@ -1437,7 +1477,15 @@ export function CanvasEditor({
             onStateChange={setElementState}
           />
         ) : (
-          <div className="h-full overflow-y-auto">
+          <div
+            style={{
+              width: fullWidth,
+              height: previewHeight > 0 ? previewHeight / previewScale : '100%',
+              transform: `scale(${previewScale})`,
+              transformOrigin: 'top left',
+            }}
+            className="overflow-y-auto"
+          >
             <GenomePreview
               genome={genome}
               layout={layout}
