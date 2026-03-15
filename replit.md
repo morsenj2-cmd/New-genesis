@@ -59,14 +59,16 @@ Morse is a Full-Stack TypeScript Monorepo with a React frontend (`client/`), an 
 - **Universal Context Engine:** `shared/universalContext.ts` performs NLP-lite industry detection, noun/verb/adjective extraction, and dynamic domain vocabulary building.
 - **AI HTML Generation:** Uses Groq LLM (llama-3.3-70b-versatile, temp 0.7, 12k max tokens) to generate premium-quality full HTML applications. System prompt emphasizes world-class UI/UX design rivaling V0.dev, Lovable, and Bolt.new with glassmorphism, gradient overlays, micro-interactions, inline SVG icons, and modern CSS techniques.
   - **Premium Design System:** Glassmorphism nav (backdrop-filter:blur), radial gradient hero backgrounds, card hover lift effects (translateY(-4px)), button press animations (scale(0.98)), section fade-in animations, custom scrollbar, selection styling, focus-visible rings.
-  - **Post-processors (in order):** sanitizeGeneratedCss → enforceGenomeColors → fixOverlappingLayout → ensureNavAtTop → enforceContrastAndBackgrounds → enforceVisualHierarchy → enforceStructuralGrids → enforceFontFamily → injectPremiumPolish → injectSafetyScript
-  - **enforceVisualHierarchy:** Typography (h1 clamp 2.5-4rem, h2 1.85rem), nav flex layout (sticky, z-1000), hero min-height, container max-width. Minimal !important — only on nav list structure.
-  - **enforceStructuralGrids:** Only targets explicit "-list" class patterns (feature-list, card-list, items-list) as fallback grid. No longer overrides AI custom layouts.
-  - **enforceFontFamily:** Injects Google Fonts link + CSS font-family rules from genome typography, ensuring user-chosen fonts survive regeneration
-  - **injectPremiumPolish:** Smooth scrolling, custom scrollbar, selection styling, focus rings, card/button hover transitions, glassmorphism nav, section animations, responsive breakpoints (768px, 480px)
-  - **enforceContrastAndBackgrounds:** Nav background uses semi-transparent rgba for glassmorphism compatibility
-  - **Layout uniqueness:** System prompt explicitly BANS the standard "hero → 3 card grid → stats → testimonials → pricing → footer" template. Encourages bento grids, zigzag sections, split heroes, magazine layouts, overlapping cards, timelines, card carousels, etc.
-  - **Icons:** Prompt requires domain-specific SVG icons (not generic shapes). No generic icon injector — AI must create contextual icons or none at all.
+  - **Post-processors (in order):** sanitizeGeneratedCss → enforceGenomeColors → fixOverlappingLayout → ensureNavAtTop → enforceContrastAndBackgrounds → enforceVisualHierarchy → enforceStructuralGrids (no-op) → enforceFontFamily → injectPremiumPolish → injectSafetyScript
+  - **Design philosophy: Fully generative.** All visual/structural decisions emerge from AI's semantic understanding of the prompt. No hardcoded themes, keyword→theme mappings, fixed templates, or deterministic section structures. Post-processors are now minimal safety nets only.
+  - **enforceVisualHierarchy:** Nav structural safety only (sticky, z-index:1000, list-style removal). No forced typography, spacing, hero height, or container width — all AI-decided.
+  - **enforceStructuralGrids:** No-op (disabled). AI decides all grid layouts.
+  - **enforceFontFamily:** Injects Google Fonts link + CSS font-family rules from genome typography, ensuring user-chosen fonts survive regeneration.
+  - **injectPremiumPolish:** Minimal: smooth scroll, box-sizing, scrollbar, selection, focus rings, cursor:pointer on buttons. No forced hover effects, animations, or responsive overrides.
+  - **enforceContrastAndBackgrounds:** Dark-mode only: semi-transparent nav rgba background. No hardcoded text colors.
+  - **fixOverlappingLayout:** Float removal only. Does NOT convert position:absolute→relative (preserves overlapping/asymmetric layouts).
+  - **System prompt:** 4-phase generative design: Semantic Vibe Inference → Dynamic Visual Language → Layout Intelligence → Procedural Variation. Banned template: "hero → 3 cards → stats → footer".
+  - **Icons:** Prompt requires domain-specific SVG icons (not generic shapes). No generic icon injector.
   - **Safety:** injectSafetyScript blocks external navigation, window.open, auto-showing modals
   - **NL Edit:** geminiEditApp sends existing HTML + edit instruction for targeted changes, falls back to full regeneration
 - **Local AI System:** A locally-run AI model handles prompt interpretation using a prototype network, embedding layers, and cosine similarity. It includes dynamic context reasoning, domain translation, context graph building, structured context extraction, validation, and continuous learning systems (logging, dataset expansion, retraining).

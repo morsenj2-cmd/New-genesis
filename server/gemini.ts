@@ -116,43 +116,11 @@ function sanitizeGeneratedCss(html: string): string {
 
 function fixOverlappingLayout(html: string): string {
   const overlapFixCSS = `
-  /* Morse layout safety — prevent overlapping content */
-  section, header, main, footer, .hero, [class*="hero"], [class*="section"] {
-    position: relative;
-    clear: both;
-  }
+  /* Morse layout safety — prevent float-based layouts only */
   body > *, main > *, .app > *, #app > * {
-    position: relative;
     float: none;
   }
   `;
-
-  html = html.replace(
-    /position\s*:\s*absolute\s*;([^}]*?)(top\s*:\s*\d+[^;]*;[^}]*?left\s*:\s*\d+[^;]*;)/g,
-    (match, mid, _rest) => {
-      if (/modal|overlay|popup|dropdown|menu|tooltip|toast|notification|backdrop|dialog/i.test(match)) {
-        return match;
-      }
-      if (/nav|sidebar|fixed/i.test(match)) {
-        return match;
-      }
-      return match.replace("position: absolute", "position: relative");
-    }
-  );
-
-  const heroPattern = /(<(?:section|div|header)[^>]*(?:class|id)\s*=\s*"[^"]*hero[^"]*"[^>]*>)([\s\S]*?)(<\/(?:section|div|header)>)/gi;
-  html = html.replace(heroPattern, (match, openTag, content, closeTag) => {
-    const fixedContent = content.replace(
-      /position\s*:\s*absolute/g,
-      (absMatch: string) => {
-        if (/overlay|backdrop|bg/i.test(content.slice(Math.max(0, content.indexOf(absMatch) - 100), content.indexOf(absMatch)))) {
-          return absMatch;
-        }
-        return "position: relative";
-      }
-    );
-    return openTag + fixedContent + closeTag;
-  });
 
   if (html.includes("</style>")) {
     html = html.replace("</style>", `${overlapFixCSS}\n</style>`);
@@ -163,50 +131,20 @@ function fixOverlappingLayout(html: string): string {
 
 function enforceVisualHierarchy(html: string): string {
   const hierarchyCSS = `
-  /* Morse visual hierarchy — minimal overrides, let AI designs breathe */
-  h1 { font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
-  h2 { font-size: 1.85rem; font-weight: 700; line-height: 1.25; }
-  h3 { font-size: 1.35rem; font-weight: 600; line-height: 1.35; }
-  p, li, td, th { font-size: 1rem; line-height: 1.7; }
-  section, [class*="section"] { padding-top: 80px; padding-bottom: 80px; }
-
-  /* Nav layout — structural only */
+  /* Morse structural safety — nav must be accessible, everything else is AI-decided */
   nav, .navbar, .nav-bar, .navigation {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 32px;
-    width: 100%;
-    box-sizing: border-box;
     position: sticky;
     top: 0;
     z-index: 1000;
+    box-sizing: border-box;
   }
   nav > ul, .navbar > ul, nav > ol, .navbar > ol {
-    display: flex !important;
-    gap: 28px !important;
     list-style: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    align-items: center !important;
+    margin: 0;
+    padding: 0;
   }
   nav li, .navbar li { list-style: none !important; }
   nav li::marker, .navbar li::marker { content: "" !important; display: none !important; }
-
-  /* Hero section — generous vertical space */
-  .hero, [class*="hero-section"], [class*="hero-banner"], #hero {
-    min-height: 80vh;
-    padding: 80px 24px;
-  }
-
-  /* Content container max-width */
-  .container, .wrapper, .content-wrapper, main > section > .inner {
-    max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 24px;
-    padding-right: 24px;
-  }
   `;
 
   if (html.includes("</style>")) {
@@ -218,43 +156,29 @@ function enforceVisualHierarchy(html: string): string {
 
 function enforceContrastAndBackgrounds(html: string, genome: DesignGenome): string {
   const bgColor = genome.colors.background;
-  const surfaceColor = genome.colors.surface;
-
-  const contrastCSS = `
-  /* Morse contrast & background consistency enforcement */
-  body, html {
-    color: #f1f5f9;
-  }
-  h1, h2, h3, h4, h5, h6 {
-    color: #ffffff;
-  }
-  p, span, li, td, th, label, .text-muted, .subtitle, .description {
-    color: #cbd5e1;
-  }
-  a:not([class*="btn"]):not([class*="button"]) {
-    color: #e2e8f0;
-  }
-  nav, .navbar {
-    background-color: rgba(${hexToRgbComponents(bgColor)}, 0.85);
-  }
-  `;
-
   const isDarkBg = isDarkColor(bgColor);
 
   if (isDarkBg) {
+    const rgbComponents = hexToRgbComponents(bgColor);
+    const contrastCSS = `
+    /* Morse contrast safety — ensure readability on dark backgrounds */
+    nav, .navbar {
+      background-color: rgba(${rgbComponents}, 0.85);
+    }
+    `;
+
     if (html.includes("</style>")) {
       html = html.replace("</style>", `${contrastCSS}\n</style>`);
     }
-  }
 
-  const rgbComponents = hexToRgbComponents(bgColor);
-  html = html.replace(
-    /(<nav\b[^>]*style="[^"]*?)background(?:-color)?\s*:\s*([^";]+)/gi,
-    (match, prefix, color) => {
-      if (color.includes("rgba") || color.includes("backdrop-filter") || color.includes("blur")) return match;
-      return `${prefix}background-color: rgba(${rgbComponents}, 0.85)`;
-    }
-  );
+    html = html.replace(
+      /(<nav\b[^>]*style="[^"]*?)background(?:-color)?\s*:\s*([^";]+)/gi,
+      (match, prefix, color) => {
+        if (color.includes("rgba") || color.includes("backdrop-filter") || color.includes("blur")) return match;
+        return `${prefix}background-color: rgba(${rgbComponents}, 0.85)`;
+      }
+    );
+  }
 
   return html;
 }
@@ -329,28 +253,6 @@ function ensureNavAtTop(html: string): string {
 }
 
 function enforceStructuralGrids(html: string): string {
-  const verticalStackPatterns = [
-    "feature-list", "card-list", "items-list"
-  ];
-
-  for (const className of verticalStackPatterns) {
-    const escapedClass = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp(
-      `(<(?:section|div)[^>]*class\\s*=\\s*"[^"]*\\b${escapedClass}\\b[^"]*"[^>]*)(>)`,
-      'gi'
-    );
-    html = html.replace(pattern, (match, beforeClose, close) => {
-      if (/display\s*:\s*(grid|flex)/i.test(match)) return match;
-      if (/style\s*=\s*"/i.test(beforeClose)) {
-        return beforeClose.replace(
-          /style\s*=\s*"/i,
-          'style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;'
-        ) + close;
-      }
-      return beforeClose + ' style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;"' + close;
-    });
-  }
-
   return html;
 }
 
@@ -394,74 +296,22 @@ function enforceFontFamily(html: string, genome: DesignGenome): string {
 
 function injectPremiumPolish(html: string, genome: DesignGenome): string {
   const premiumCSS = `
-  /* Morse Premium Polish — world-class design system */
+  /* Morse essential polish — only what the AI might miss */
   html { scroll-behavior: smooth; }
   * { box-sizing: border-box; }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar { width: 8px; }
-  ::-webkit-scrollbar-track { background: var(--color-bg, ${genome.colors.background}); }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+  /* Custom scrollbar — unobtrusive */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
 
-  /* Selection styling */
+  /* Selection & focus — accessibility */
   ::selection { background: var(--color-primary, ${genome.colors.primary}); color: white; }
-
-  /* Focus rings */
   :focus-visible { outline: 2px solid var(--color-primary, ${genome.colors.primary}); outline-offset: 2px; }
 
-  /* Universal transitions on interactive elements */
-  a, button, input, textarea, select, [role="button"],
-  .card, [class*="card"], .feature, [class*="feature"] {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  /* Premium button effects */
+  /* Buttons must look clickable */
   button, [role="button"], .btn, [class*="btn"], .cta, [class*="cta"] {
     cursor: pointer;
-    position: relative;
-  }
-  button:hover, [role="button"]:hover, .btn:hover, [class*="btn"]:hover {
-    transform: translateY(-2px);
-  }
-  button:active, [role="button"]:active, .btn:active, [class*="btn"]:active {
-    transform: translateY(0) scale(0.98);
-  }
-
-  /* Premium card hover effects */
-  .card:hover, [class*="card"]:hover, .feature-card:hover, .feature-item:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.05);
-  }
-
-  /* Glassmorphism nav enhancement */
-  nav, .navbar, .nav-bar, .navigation {
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-  }
-
-  /* Section fade-in animation base */
-  section, [class*="section"] {
-    animation: fadeInUp 0.6s ease-out both;
-  }
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* Responsive breakpoints */
-  @media (max-width: 768px) {
-    h1 { font-size: 2rem !important; }
-    h2 { font-size: 1.5rem !important; }
-    section, [class*="section"] { padding-top: 60px !important; padding-bottom: 60px !important; }
-    nav ul, .navbar ul { gap: 16px !important; }
-  }
-  @media (max-width: 480px) {
-    h1 { font-size: 1.75rem !important; }
-    h2 { font-size: 1.35rem !important; }
-    nav { padding: 12px 16px !important; }
-    section, [class*="section"] { padding-top: 40px !important; padding-bottom: 40px !important; }
   }
   `;
 
@@ -693,7 +543,7 @@ Return JSON with exactly these fields:
   "productType": "saas | ecommerce | dashboard | social | productivity | fintech | healthcare | education | cultural | museum | other",
   "industry": "technology | finance | health | education | retail | media | cultural | museum | art | hospitality | other",
   "pageType": "landing_page | web_app | dashboard",
-  "style": "one adjective: modern | minimal | bold | elegant | playful | luxurious | scholarly",
+  "style": "one adjective that captures the inferred visual tone — any word that fits, not limited to a preset list",
   "personality": "one sentence describing the brand voice",
   "primaryColor": "#hexcode that suits the product",
   "isDarkMode": true,
@@ -839,17 +689,24 @@ PRODUCT BRIEF:
 - Style: ${interpret.style} — ${interpret.personality}
 ${nlSection}
 
-YOUR TASK — THINK THROUGH THESE STEPS BEFORE WRITING CODE:
-1. READ the description above. What EXACTLY is this product? What domain is it in?
-2. DECIDE the best architecture for this specific product:
-   - Does it need a sidebar + panels layout? (dashboards, admin panels, data-heavy tools)
-   - Does it need a top nav + multi-view SPA? (apps, tools, interactive products)
-   - Does it need a scrolling multi-section site? (showcases, portfolios, informational sites)
-   - Or something else entirely? YOU decide what fits best.
-3. DECIDE what data this product manages. Design the data model (window.appState) with domain-specific fields, realistic seed data (15-25 records with REAL names/terms from this domain), and localStorage persistence.
-4. DECIDE the navigation labels, section names, stat card labels, table columns — ALL must use terminology specific to this product's domain. NEVER use generic labels like "Dashboard", "Data Table", "Total Count", "Active Count". Every label should make sense ONLY for this specific product.
-5. DECIDE which interactive components this product needs: tables, charts, forms, modals, timers, calculators, sliders, toggles, drag-and-drop, etc. Build ONLY what makes sense for this product.
-6. BUILD the complete product with full working JavaScript. Every feature described above must be fully functional.
+YOUR TASK — GENERATIVE DESIGN REASONING (not template assembly):
+
+You are STRICTLY FORBIDDEN from:
+- Hardcoding design themes or using keyword → theme mappings
+- Using fixed layout templates or reusing deterministic section structures
+- Injecting preset decorative elements based on static rules
+- Building conditionals like: if industry = X → use layout Y
+ALL visual and structural decisions must emerge from your semantic understanding of THIS specific product.
+
+STEP 1 — UNDERSTAND: What EXACTLY is "${interpret.productName}"? Who uses it? What emotion should it evoke? What's the brand personality?
+STEP 2 — ARCHITECT: Based on your understanding (not a template), decide:
+   - What architecture serves THIS product best? (sidebar+panels? scrolling narrative? tabbed SPA? dashboard grid? something unique?)
+   - What spatial rhythm fits the brand? (dense? airy? asymmetric? tight?)
+   - What section sequencing tells the right story for this product?
+STEP 3 — DATA: Design the data model (window.appState) with domain-specific fields, realistic seed data (15-25 records with REAL names from this domain), and localStorage persistence.
+STEP 4 — LABELS: Navigation labels, section names, stat labels, column headers — ALL must use terminology specific to this domain. NEVER generic labels like "Dashboard", "Data Table", "Total Count".
+STEP 5 — INTERACTIONS: What interactive components does THIS product need? Tables, charts, forms, modals, timers, calculators, toggles? Build ONLY what makes sense.
+STEP 6 — BUILD: Complete working JavaScript. Every feature fully functional. Every button with a handler. Zero dead UI.
 
 DESIGN TOKENS (use these exact values):
 Primary: ${genome.colors.primary} | Secondary: ${genome.colors.secondary} | Accent: ${genome.colors.accent}
