@@ -42,7 +42,7 @@ function hashCode(s: string): number {
   return h;
 }
 
-function broadcastToRoom(projectId: string, message: any, excludeUserId?: string) {
+export function broadcastToRoom(projectId: string, message: any, excludeUserId?: string) {
   const room = rooms.get(projectId);
   if (!room) return;
   const data = JSON.stringify(message);
@@ -177,6 +177,16 @@ export function setupWebSocket(httpServer: Server) {
               displayName,
               genomeJson: msg.genomeJson,
               layoutJson: msg.layoutJson,
+              timestamp: Date.now(),
+            }, userId);
+            break;
+          }
+          case "project-updated": {
+            if (role === "viewer") return;
+            broadcastToRoom(projectId, {
+              type: "project-updated",
+              userId,
+              displayName,
               timestamp: Date.now(),
             }, userId);
             break;

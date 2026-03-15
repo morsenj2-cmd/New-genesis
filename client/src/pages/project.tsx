@@ -1165,6 +1165,10 @@ export default function ProjectPage() {
     } catch {}
   }, [params.id]);
 
+  const handleProjectUpdated = useCallback((_fromUserId: string, _source: string) => {
+    queryClient.invalidateQueries({ queryKey: ["/api/project", params.id] });
+  }, [params.id]);
+
   const collaboration = useCollaboration({
     projectId: params.id || "",
     userId: clerkUser?.id,
@@ -1174,6 +1178,7 @@ export default function ProjectPage() {
     onHtmlUpdate: handleRemoteHtmlUpdate,
     onSettingsUpdate: handleRemoteSettingsUpdate,
     onGenomeUpdate: handleRemoteGenomeUpdate,
+    onProjectUpdated: handleProjectUpdated,
   });
 
   useEffect(() => {

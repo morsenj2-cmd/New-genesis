@@ -19,6 +19,7 @@ interface UseCollaborationOptions {
   onHtmlUpdate?: (html: string, fromUserId: string) => void;
   onSettingsUpdate?: (settingsJson: string, fromUserId: string) => void;
   onGenomeUpdate?: (genomeJson: string, layoutJson: string, fromUserId: string) => void;
+  onProjectUpdated?: (fromUserId: string, source: string) => void;
 }
 
 export function useCollaboration({
@@ -30,6 +31,7 @@ export function useCollaboration({
   onHtmlUpdate,
   onSettingsUpdate,
   onGenomeUpdate,
+  onProjectUpdated,
 }: UseCollaborationOptions) {
   const [connected, setConnected] = useState(false);
   const [presence, setPresence] = useState<CollaboratorPresence[]>([]);
@@ -43,9 +45,11 @@ export function useCollaboration({
   const onHtmlUpdateRef = useRef(onHtmlUpdate);
   const onSettingsUpdateRef = useRef(onSettingsUpdate);
   const onGenomeUpdateRef = useRef(onGenomeUpdate);
+  const onProjectUpdatedRef = useRef(onProjectUpdated);
   onHtmlUpdateRef.current = onHtmlUpdate;
   onSettingsUpdateRef.current = onSettingsUpdate;
   onGenomeUpdateRef.current = onGenomeUpdate;
+  onProjectUpdatedRef.current = onProjectUpdated;
 
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
@@ -113,6 +117,9 @@ export function useCollaboration({
             case "genome-update":
               onGenomeUpdateRef.current?.(msg.genomeJson, msg.layoutJson, msg.userId);
               break;
+            case "project-updated":
+              onProjectUpdatedRef.current?.(msg.userId, msg.source || "unknown");
+              break;
             case "pong":
               break;
           }
@@ -173,6 +180,12 @@ export function useCollaboration({
     }
   }, []);
 
+  const sendProjectUpdated = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "project-updated" }));
+    }
+  }, []);
+
   return {
     connected,
     presence,
@@ -183,5 +196,6 @@ export function useCollaboration({
     sendHtmlUpdate,
     sendSettingsUpdate,
     sendGenomeUpdate,
+    sendProjectUpdated,
   };
 }

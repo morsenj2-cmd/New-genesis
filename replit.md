@@ -107,7 +107,11 @@ Key features:
   - **Email notifications**: Resend integration sends invite emails with project link (requires `RESEND_API_KEY` env var, sends from `noreply@morse.co.in`)
   - **Email-based access fallback**: `checkProjectAccess` tries userId match first, then email-based lookup (auto-fixes stale userId records)
   - **Pending invite linking**: Non-existing users can be invited via email (`pending_{email}` userId placeholder); when user signs up, `/api/user/sync` calls `linkPendingCollaborators()` to convert pending records to real userId
-  - **Full real-time sync**: All edit paths broadcast changes — NL design edits, style regeneration, layout regeneration, manual HTML code edits; collaborators receive genome/layout/HTML updates via WebSocket
+  - **Full real-time sync**: Dual-layer broadcasting ensures collaborators see changes both before and after saving:
+    - **Client-side (before save)**: Genome/layout/HTML changes broadcast immediately via WebSocket `sendGenomeUpdate`/`sendHtmlUpdate` so collaborators see live preview changes instantly
+    - **Server-side (after save)**: Every route that modifies project data (`apply-nl`, `regenerate-style`, `regenerate-layout`, `generate-app`, `update-html`, `correct-context`, `integrations`, `layout-lock`) calls `broadcastToRoom()` with a `project-updated` message after DB save — collaborators auto-refetch via query invalidation
+    - **Async AI results**: When Groq AI generation completes (or fails), server broadcasts `project-updated` so collaborators see the new HTML without polling delay
+    - **Callback refs**: Collaboration hook stores callbacks in refs (`onHtmlUpdateRef`, `onGenomeUpdateRef`, `onProjectUpdatedRef`) so WebSocket never reconnects due to callback reference changes
   - **Collaborator cursors**: Mouse position tracked on preview area (iframe + GenomePreview); cursor overlay renders colored SVG pointer + name label for each remote collaborator; 50ms throttle on cursor sends; cursors auto-removed on user disconnect
   - **Inline upgrade in ShareDialog**: Non-premium users see Razorpay payment option directly in the share popup — "View Morse Black" expands to show features + pay button
   - **Subscription lifecycle**: Hourly server-side check handles 30-day billing cycle:

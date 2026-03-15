@@ -55,6 +55,7 @@ import {
   isGeminiAvailable,
   type Integration,
 } from "./gemini";
+import { broadcastToRoom } from "./websocket";
 
 function requireAuth(req: any, res: any, next: any) {
   const { userId } = getAuth(req);
@@ -691,6 +692,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
                 await storage.updateProject(project.id, project.userId, {
                   settingsJson: JSON.stringify(settings),
                 });
+                broadcastToRoom(project.id, {
+                  type: "project-updated",
+                  userId: project.userId,
+                  source: "create-ai-failed",
+                  timestamp: Date.now(),
+                });
               }
             } catch {}
           }
@@ -724,10 +731,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         try { return (parseSettings(project.settingsJson) as any).brandName ?? project.name; } catch { return project.name; }
       })();
 
-      // Mark as pending immediately
       const settings = parseSettings(project.settingsJson);
       (settings as any).geminiStatus = "pending";
       await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(settings) });
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "generate-app-pending",
+        timestamp: Date.now(),
+      }, userId!);
 
       res.json({ status: "pending", message: "AI generation started" });
 
@@ -766,6 +778,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           await storage.updateProject(project.id, project.userId, {
             settingsJson: JSON.stringify(latestSettings),
           });
+          broadcastToRoom(project.id, {
+            type: "project-updated",
+            userId: project.userId,
+            source: "generate-app",
+            timestamp: Date.now(),
+          });
           console.log(`[Groq] Regeneration complete for project ${project.id}`);
         } catch (err) {
           console.error(`[Groq] Regeneration failed for project ${project.id}:`, err);
@@ -775,6 +793,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               const latestSettings = parseSettings(latestProject.settingsJson);
               (latestSettings as any).geminiStatus = "failed";
               await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
+              broadcastToRoom(project.id, {
+                type: "project-updated",
+                userId: project.userId,
+                source: "generate-app-failed",
+                timestamp: Date.now(),
+              });
             }
           } catch {}
         }
@@ -991,6 +1015,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: newProductType,
       });
 
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "apply-nl",
+        timestamp: Date.now(),
+      }, userId!);
+
       const totalPatchCount = patchSet.genomePatch.length +
         Object.keys(patchSet.settingsPatch).length +
         Object.keys(patchSet.contentPatch).length;
@@ -1071,6 +1102,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(latestSettings),
             });
+            broadcastToRoom(project.id, {
+              type: "project-updated",
+              userId: project.userId,
+              source: "apply-nl-ai",
+              timestamp: Date.now(),
+            });
             console.log(`[Groq] NL edit complete for project ${project.id}`);
           } catch (err) {
             console.error(`[Groq] NL edit failed for project ${project.id}:`, err);
@@ -1080,6 +1117,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
                 const latestSettings = parseSettings(latestProject.settingsJson);
                 (latestSettings as any).geminiStatus = "failed";
                 await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
+                broadcastToRoom(project.id, {
+                  type: "project-updated",
+                  userId: project.userId,
+                  source: "apply-nl-ai-failed",
+                  timestamp: Date.now(),
+                });
               }
             } catch {}
           }
@@ -1269,6 +1312,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         settingsJson: JSON.stringify(currentSettings),
       });
 
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "regenerate-style",
+        timestamp: Date.now(),
+      }, userId!);
+
       res.json({ project: updated, styleSeed: newStyleSeed, genome: newGenome });
 
       // Fire AI app regeneration async with new genome
@@ -1314,6 +1364,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(latestSettings),
             });
+            broadcastToRoom(project.id, {
+              type: "project-updated",
+              userId: project.userId,
+              source: "regenerate-style-ai",
+              timestamp: Date.now(),
+            });
             console.log(`[Groq] Style re-generation complete for project ${project.id} (${tokenCredits + 1} credits used)`);
           } catch (err) {
             console.error(`[Groq] Style re-generation failed for project ${project.id}:`, err);
@@ -1323,6 +1379,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
                 const latestSettings = parseSettings(latestProject.settingsJson);
                 (latestSettings as any).geminiStatus = "failed";
                 await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
+                broadcastToRoom(project.id, {
+                  type: "project-updated",
+                  userId: project.userId,
+                  source: "regenerate-style-ai-failed",
+                  timestamp: Date.now(),
+                });
               }
             } catch {}
           }
@@ -1431,6 +1493,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         settingsJson: JSON.stringify(currentSettings),
       });
 
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "regenerate-layout",
+        timestamp: Date.now(),
+      }, userId!);
+
       res.json({
         project: updated,
         layout,
@@ -1481,6 +1550,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             await storage.updateProject(project.id, project.userId, {
               settingsJson: JSON.stringify(latestSettings),
             });
+            broadcastToRoom(project.id, {
+              type: "project-updated",
+              userId: project.userId,
+              source: "regenerate-layout-ai",
+              timestamp: Date.now(),
+            });
             console.log(`[Groq] Layout re-generation complete for project ${project.id} (${tokenCredits + 1} credits used)`);
           } catch (err) {
             console.error(`[Groq] Layout re-generation failed for project ${project.id}:`, err);
@@ -1490,6 +1565,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
                 const latestSettings = parseSettings(latestProject.settingsJson);
                 (latestSettings as any).geminiStatus = "failed";
                 await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(latestSettings) });
+                broadcastToRoom(project.id, {
+                  type: "project-updated",
+                  userId: project.userId,
+                  source: "regenerate-layout-ai-failed",
+                  timestamp: Date.now(),
+                });
               }
             } catch {}
           }
@@ -1511,6 +1592,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { locked } = req.body;
       if (typeof locked !== "boolean") return res.status(400).json({ message: "locked boolean required" });
       const updated = await storage.updateProject(project.id, project.userId, { layoutLocked: locked });
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "layout-lock",
+        timestamp: Date.now(),
+      }, userId!);
       res.json(updated);
     } catch (err) {
       console.error("Error toggling layout lock:", err);
@@ -1566,6 +1653,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         productType: updatedCtx.productType ?? project.productType ?? undefined,
       });
 
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "correct-context",
+        timestamp: Date.now(),
+      }, userId!);
+
       res.json({
         corrected: true,
         project: updated,
@@ -1590,6 +1684,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const settings = parseSettings(project.settingsJson);
       (settings as any).integrations = integrations;
       await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(settings) });
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "integrations",
+        timestamp: Date.now(),
+      }, userId!);
       res.json({ ok: true });
     } catch (err) {
       console.error("Error saving integrations:", err);
@@ -1610,6 +1710,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       (settings as any).geminiAppHtml = html;
       (settings as any).geminiStatus = "ready";
       await storage.updateProject(project.id, project.userId, { settingsJson: JSON.stringify(settings) });
+      broadcastToRoom(req.params.id, {
+        type: "project-updated",
+        userId,
+        source: "update-html",
+        timestamp: Date.now(),
+      }, userId!);
       res.json({ ok: true });
     } catch (err) {
       console.error("Error updating HTML:", err);
