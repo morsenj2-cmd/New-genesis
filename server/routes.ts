@@ -183,9 +183,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const user = await storage.upsertUser({ id: userId!, email: syncEmail });
 
-      storage.linkPendingCollaborators(userId!, syncEmail).catch((err) => {
+      try {
+        await storage.linkPendingCollaborators(userId!, syncEmail);
+      } catch (err) {
         console.error("[Collab] Failed to link pending collaborators:", err);
-      });
+      }
 
       res.json(user);
     } catch (err) {
